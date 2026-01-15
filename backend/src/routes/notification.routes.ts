@@ -96,7 +96,7 @@ export class NotificationService {
         receiverId: data.receiverId,
         senderId: data.senderId,
         deliveryId: data.deliveryId,
-        priority: data.priority || 'NORMAL',
+        criticality: data.priority || 'NORMAL',
         actionUrl: data.actionUrl,
         actionRequired: true
       }

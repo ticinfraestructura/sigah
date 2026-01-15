@@ -190,8 +190,8 @@ router.post('/send', authenticate, hasPermission('users', 'view'), async (req: A
     });
 
     // Resultados de envío
-    let whatsappResult = { success: false, messageId: undefined as string | undefined, error: undefined as string | undefined };
-    let telegramResult = { success: false, messageId: undefined as number | undefined, error: undefined as string | undefined };
+    let whatsappResult: { success: boolean; messageId?: string; error?: string } = { success: false };
+    let telegramResult: { success: boolean; messageId?: number; error?: string } = { success: false };
     
     const senderName = `${req.user!.firstName} ${req.user!.lastName}`;
     const receiverName = `${receiver.firstName} ${receiver.lastName}`;
