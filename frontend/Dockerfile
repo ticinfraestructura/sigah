@@ -15,7 +15,7 @@ ARG VITE_BASE_PATH=/
 COPY package*.json ./
 
 # Instalar dependencias
-RUN npm ci
+RUN npm install --legacy-peer-deps
 
 # Copiar código fuente
 COPY . .
