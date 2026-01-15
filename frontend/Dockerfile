@@ -9,6 +9,7 @@ WORKDIR /app
 
 # Argumentos de build para variables de entorno
 ARG VITE_API_URL=/api
+ARG VITE_BASE_PATH=/
 
 # Copiar archivos de dependencias
 COPY package*.json ./
@@ -19,7 +20,8 @@ RUN npm ci
 # Copiar código fuente
 COPY . .
 
-# Build de producción
+# Build de producción con base path
+ENV VITE_BASE_PATH=$VITE_BASE_PATH
 RUN npm run build
 
 # ============================================
