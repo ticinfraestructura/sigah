@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-// Obtener base path de las variables de entorno (para despliegue en subruta)
-const BASE_PATH = (import.meta as any).env?.VITE_BASE_PATH || '';
-const API_URL = `${BASE_PATH}/api`.replace('//', '/');
+// Obtener base path de Vite (import.meta.env.BASE_URL se define automáticamente)
+const BASE_URL = import.meta.env.BASE_URL || '/';
+const API_URL = `${BASE_URL}api`.replace(/\/+/g, '/').replace(/\/$/, '') + '/';
 
 const api = axios.create({
   baseURL: API_URL,
