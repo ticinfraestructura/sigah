@@ -190,7 +190,7 @@ export async function saveDashboardWidget(widget: DashboardWidget) {
 
 export async function getDashboardWidgets(userId: string): Promise<DashboardWidget[]> {
   const db = await getDB();
-  return db.getAllFromIndex('dashboardWidgets', 'by-user', userId);
+  return db.getAllFromIndex('dashboardWidgets', 'by-user', userId) as Promise<DashboardWidget[]>;
 }
 
 export async function deleteDashboardWidget(id: string) {
@@ -203,7 +203,7 @@ export async function getDefaultDashboardWidgets(userId: string): Promise<Dashbo
     {
       id: `${userId}_stats`,
       userId,
-      type: 'stats',
+      type: 'stats' as const,
       position: { x: 0, y: 0 },
       size: { w: 4, h: 1 },
       config: {},
@@ -212,7 +212,7 @@ export async function getDefaultDashboardWidgets(userId: string): Promise<Dashbo
     {
       id: `${userId}_chart`,
       userId,
-      type: 'chart',
+      type: 'chart' as const,
       position: { x: 0, y: 1 },
       size: { w: 2, h: 2 },
       config: { chartType: 'line' },
@@ -221,7 +221,7 @@ export async function getDefaultDashboardWidgets(userId: string): Promise<Dashbo
     {
       id: `${userId}_alerts`,
       userId,
-      type: 'alerts',
+      type: 'alerts' as const,
       position: { x: 2, y: 1 },
       size: { w: 2, h: 1 },
       config: {},
@@ -230,7 +230,7 @@ export async function getDefaultDashboardWidgets(userId: string): Promise<Dashbo
     {
       id: `${userId}_activity`,
       userId,
-      type: 'activity',
+      type: 'activity' as const,
       position: { x: 2, y: 2 },
       size: { w: 2, h: 1 },
       config: { limit: 5 },
@@ -239,7 +239,7 @@ export async function getDefaultDashboardWidgets(userId: string): Promise<Dashbo
     {
       id: `${userId}_quickactions`,
       userId,
-      type: 'quick-actions',
+      type: 'quick-actions' as const,
       position: { x: 0, y: 3 },
       size: { w: 4, h: 1 },
       config: {},

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Truck, Clock } from 'lucide-react';
 import { requestApi } from '../services/api';
 import { Request } from '../types';
@@ -15,7 +15,6 @@ const statusColors: Record<string, string> = {
 
 export default function RequestDetail() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const [request, setRequest] = useState<Request | null>(null);
   const [loading, setLoading] = useState(true);
 

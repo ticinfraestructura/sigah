@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { Truck } from 'lucide-react';
 import { deliveryApi } from '../services/api';
 import { Delivery } from '../types';
 
@@ -40,7 +39,7 @@ export default function Deliveries() {
               {deliveries.map((d) => (
                 <tr key={d.id}>
                   <td className="font-mono text-sm">{d.request?.code}</td>
-                  <td>{new Date(d.deliveryDate).toLocaleDateString()}</td>
+                  <td>{d.deliveryDate ? new Date(d.deliveryDate).toLocaleDateString() : '-'}</td>
                   <td>
                     <p className="font-medium">{d.request?.beneficiary?.firstName} {d.request?.beneficiary?.lastName}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">Recibido: {d.receivedBy || '-'}</p>

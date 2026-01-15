@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '../../test/test-utils';
 import ThemeToggle from '../ThemeToggle';
 
@@ -21,7 +21,6 @@ describe('ThemeToggle', () => {
     render(<ThemeToggle />);
     
     const button = screen.getByRole('button');
-    const initialLabel = button.getAttribute('aria-label');
     
     fireEvent.click(button);
     

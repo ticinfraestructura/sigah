@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, Download, Calendar } from 'lucide-react';
+import { FileText, Download } from 'lucide-react';
 import { reportApi } from '../services/api';
 
 export default function Reports() {

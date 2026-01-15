@@ -41,7 +41,7 @@ export function initSentry() {
       ],
       
       // Before send hook for additional filtering
-      beforeSend(event, hint) {
+      beforeSend(event, _hint) {
         // Filter out events from browser extensions
         if (event.exception?.values?.[0]?.stacktrace?.frames) {
           const frames = event.exception.values[0].stacktrace.frames;

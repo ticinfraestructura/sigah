@@ -73,15 +73,6 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const addWidget = (type: DashboardWidget['type']) => {
     if (!user?.id) return;
 
-    const titles: Record<DashboardWidget['type'], string> = {
-      stats: 'Estadísticas',
-      chart: 'Gráfico',
-      table: 'Tabla',
-      alerts: 'Alertas',
-      activity: 'Actividad Reciente',
-      'quick-actions': 'Acciones Rápidas',
-    };
-
     const newWidget: DashboardWidget = {
       id: `${user.id}_${type}_${Date.now()}`,
       userId: user.id,
