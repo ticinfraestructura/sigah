@@ -1,0 +1,112 @@
+# ============================================
+# SIGAH - Docker Compose
+# Sistema de Gestión de Ayudas Humanitarias
+# ============================================
+
+version: '3.8'
+
+services:
+  # ============================================
+  # Base de Datos PostgreSQL
+  # ============================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: sigah-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-sigah}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      POSTGRES_DB: ${DB_NAME:-sigah}
+      TZ: America/Bogota
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - sigah-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-sigah} -d ${DB_NAME:-sigah}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ============================================
+  # Redis (Cache y Sesiones)
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: sigah-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - sigah-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # Backend API (Node.js + Express + Prisma)
+  # ============================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sigah-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://${DB_USER:-sigah}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-sigah}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost,http://localhost:80}
+      TZ: America/Bogota
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - sigah-network
+    # Para debug, puedes exponer el puerto directamente:
+    # ports:
+    #   - "3001:3001"
+
+  # ============================================
+  # Frontend (React + Nginx)
+  # ============================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api
+    container_name: sigah-frontend
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-80}:80"
+    depends_on:
+      - backend
+    networks:
+      - sigah-network
+
+# ============================================
+# Volúmenes persistentes
+# ============================================
+volumes:
+  postgres_data:
+    name: sigah-postgres-data
+  redis_data:
+    name: sigah-redis-data
+
+# ============================================
+# Red interna
+# ============================================
+networks:
+  sigah-network:
+    name: sigah-network
+    driver: bridge

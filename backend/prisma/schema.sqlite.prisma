@@ -1,0 +1,348 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============ USERS & AUTH ============
+// Role values: ADMIN, WAREHOUSE, VIEWER
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  role      String   @default("WAREHOUSE")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  stockMovements    StockMovement[]
+  deliveries        Delivery[]
+  returns           Return[]
+  requestsCreated   Request[]         @relation("RequestCreatedBy")
+  requestHistories  RequestHistory[]
+  auditLogs         AuditLog[]
+
+  @@map("users")
+}
+
+// ============ PRODUCTS & INVENTORY ============
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  products    Product[]
+
+  @@map("categories")
+}
+
+// Unit values: UNIT, KG, LB, LITER, ML, PACK, BOX
+
+model Product {
+  id           String   @id @default(uuid())
+  code         String   @unique
+  name         String
+  description  String?
+  categoryId   String
+  unit         String   @default("UNIT")
+  isPerishable Boolean  @default(false)
+  minStock     Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  category         Category          @relation(fields: [categoryId], references: [id])
+  lots             ProductLot[]
+  stockMovements   StockMovement[]
+  kitProducts      KitProduct[]
+  requestProducts  RequestProduct[]
+  deliveryDetails  DeliveryDetail[]
+  returnDetails    ReturnDetail[]
+
+  @@map("products")
+}
+
+model ProductLot {
+  id          String    @id @default(uuid())
+  productId   String
+  lotNumber   String
+  quantity    Int       @default(0)
+  expiryDate  DateTime?
+  entryDate   DateTime  @default(now())
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  product          Product          @relation(fields: [productId], references: [id])
+  stockMovements   StockMovement[]
+  deliveryDetails  DeliveryDetail[]
+  returnDetails    ReturnDetail[]
+
+  @@unique([productId, lotNumber])
+  @@map("product_lots")
+}
+
+// ============ STOCK MOVEMENTS ============
+// MovementType values: ENTRY, EXIT, ADJUSTMENT, RETURN
+
+model StockMovement {
+  id          String   @id @default(uuid())
+  productId   String
+  lotId       String?
+  type        String
+  quantity    Int
+  reason      String?
+  reference   String?
+  userId      String
+  createdAt   DateTime @default(now())
+
+  // Relations
+  product     Product      @relation(fields: [productId], references: [id])
+  lot         ProductLot?  @relation(fields: [lotId], references: [id])
+  user        User         @relation(fields: [userId], references: [id])
+
+  @@map("stock_movements")
+}
+
+// ============ KITS ============
+
+model Kit {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  kitProducts     KitProduct[]
+  requestKits     RequestKit[]
+  deliveryDetails DeliveryDetail[]
+
+  @@map("kits")
+}
+
+model KitProduct {
+  id        String @id @default(uuid())
+  kitId     String
+  productId String
+  quantity  Int
+
+  // Relations
+  kit       Kit     @relation(fields: [kitId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@unique([kitId, productId])
+  @@map("kit_products")
+}
+
+// ============ BENEFICIARIES ============
+// DocumentType values: CC, TI, CE, PASSPORT, OTHER
+// PopulationType values: DISPLACED, REFUGEE, VULNERABLE, ELDERLY, DISABLED, INDIGENOUS, AFRO, OTHER
+
+model Beneficiary {
+  id             String   @id @default(uuid())
+  documentType   String
+  documentNumber String
+  firstName      String
+  lastName       String
+  phone          String?
+  email          String?
+  address        String?
+  city           String?
+  populationType String?
+  familySize     Int      @default(1)
+  notes          String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  requests       Request[]
+
+  @@unique([documentType, documentNumber])
+  @@map("beneficiaries")
+}
+
+// ============ REQUESTS ============
+// RequestStatus values: REGISTERED, IN_REVIEW, APPROVED, REJECTED, DELIVERED, PARTIALLY_DELIVERED, CANCELLED
+
+model Request {
+  id            String   @id @default(uuid())
+  code          String   @unique
+  beneficiaryId String
+  requestDate   DateTime @default(now())
+  status        String   @default("REGISTERED")
+  priority      Int      @default(0)
+  notes         String?
+  createdById   String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  beneficiary      Beneficiary       @relation(fields: [beneficiaryId], references: [id])
+  createdBy        User              @relation("RequestCreatedBy", fields: [createdById], references: [id])
+  requestProducts  RequestProduct[]
+  requestKits      RequestKit[]
+  deliveries       Delivery[]
+  histories        RequestHistory[]
+
+  @@map("requests")
+}
+
+model RequestProduct {
+  id               String  @id @default(uuid())
+  requestId        String
+  productId        String
+  quantityRequested Int
+  quantityDelivered Int    @default(0)
+
+  // Relations
+  request   Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@unique([requestId, productId])
+  @@map("request_products")
+}
+
+model RequestKit {
+  id               String @id @default(uuid())
+  requestId        String
+  kitId            String
+  quantityRequested Int
+  quantityDelivered Int   @default(0)
+
+  // Relations
+  request   Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  kit       Kit     @relation(fields: [kitId], references: [id])
+
+  @@unique([requestId, kitId])
+  @@map("request_kits")
+}
+
+model RequestHistory {
+  id         String   @id @default(uuid())
+  requestId  String
+  fromStatus String?
+  toStatus   String
+  notes      String?
+  userId     String
+  createdAt  DateTime @default(now())
+
+  // Relations
+  request    Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  user       User    @relation(fields: [userId], references: [id])
+
+  @@map("request_histories")
+}
+
+// ============ DELIVERIES ============
+
+model Delivery {
+  id           String   @id @default(uuid())
+  requestId    String
+  deliveryDate DateTime @default(now())
+  deliveredById String
+  receivedBy   String?
+  notes        String?
+  isPartial    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  request         Request          @relation(fields: [requestId], references: [id])
+  deliveredBy     User             @relation(fields: [deliveredById], references: [id])
+  deliveryDetails DeliveryDetail[]
+  returns         Return[]
+
+  @@map("deliveries")
+}
+
+model DeliveryDetail {
+  id         String  @id @default(uuid())
+  deliveryId String
+  productId  String?
+  kitId      String?
+  lotId      String?
+  quantity   Int
+
+  // Relations
+  delivery   Delivery    @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  product    Product?    @relation(fields: [productId], references: [id])
+  kit        Kit?        @relation(fields: [kitId], references: [id])
+  lot        ProductLot? @relation(fields: [lotId], references: [id])
+
+  @@map("delivery_details")
+}
+
+// ============ RETURNS ============
+// ReturnReason values: DAMAGED, WRONG_DELIVERY, NOT_CLAIMED, EXPIRED, DUPLICATE, OTHER
+// ProductCondition values: GOOD, DAMAGED, EXPIRED, PARTIAL
+
+model Return {
+  id           String   @id @default(uuid())
+  deliveryId   String
+  returnDate   DateTime @default(now())
+  reason       String
+  processedById String
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  delivery      Delivery       @relation(fields: [deliveryId], references: [id])
+  processedBy   User           @relation(fields: [processedById], references: [id])
+  returnDetails ReturnDetail[]
+
+  @@map("returns")
+}
+
+model ReturnDetail {
+  id        String  @id @default(uuid())
+  returnId  String
+  productId String
+  lotId     String?
+  quantity  Int
+  condition String
+
+  // Relations
+  return    Return      @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  product   Product     @relation(fields: [productId], references: [id])
+  lot       ProductLot? @relation(fields: [lotId], references: [id])
+
+  @@map("return_details")
+}
+
+// ============ AUDIT ============
+// AuditAction values: CREATE, UPDATE, DELETE
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  entity    String
+  entityId  String
+  action    String
+  oldValues String?
+  newValues String?
+  userId    String
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
