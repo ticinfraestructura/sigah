@@ -159,7 +159,7 @@ model ProductLot {
   deliveryDetails  DeliveryDetail[]
   returnDetails    ReturnDetail[]
 
-  @@unique([productId, lotNumber])
+  @@unique([productId, lotNumber], name: "productId_lotNumber")
   @@map("product_lots")
 }
 

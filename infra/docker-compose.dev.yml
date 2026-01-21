@@ -1,0 +1,97 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-example}
+      POSTGRES_DB: ${POSTGRES_DB:-appdb}
+    ports:
+      - "${PG_HOST_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-appdb} -h 127.0.0.1 -p 5432"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s  
+
+  mongo:
+    image: mongo:7
+    ports:
+      - "${MONGO_HOST_PORT:-27017}:27017"
+    volumes:
+      - mongodb:/data/db
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  backend:
+    image: node:20-slim
+    working_dir: /workspace/backend
+    env_file:
+      - ../backend/.env
+    environment:
+      # Dentro de Docker NO es localhost; usa nombres de servicio
+      DATABASE_URL: "postgres://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-example}@postgres:5432/${POSTGRES_DB:-appdb}"
+      MONGO_URL: "mongodb://mongo:27017/app"
+      PORT: "${API_PORT:-3000}"
+      # Si el watch falla en algunos entornos, habilita polling:
+      # CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "${API_HOST_PORT:-3000}:${API_PORT:-3000}"
+    volumes:
+      - ../backend:/workspace/backend
+      - backend_node_modules:/workspace/backend/node_modules
+      - pnpm_store:/pnpm-store
+    depends_on:
+      - postgres
+      - mongo
+    command: >
+      sh -lc "
+      apt-get update -y &&
+      apt-get install -y openssl ca-certificates postgresql-client &&      corepack enable &&
+      corepack prepare pnpm@9.15.4 --activate &&
+      pnpm config set store-dir /pnpm-store &&
+      until pg_isready -h postgres -p 5432 -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-appdb}; do
+         echo ' Esperando a Postgres ...';
+         sleep 2;
+      done &&
+      pnpm install &&
+      pnpm prisma generate &&
+      pnpm dev
+      "
+
+  frontend:
+    image: node:20-slim
+    working_dir: /workspace/frontend
+    environment:
+      # Ajusta si tu frontend usa otra variable
+      VITE_API_URL: "http://localhost:${API_HOST_PORT:-3000}"
+      # CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "${FE_HOST_PORT:-5173}:5173"
+    volumes:
+      - ../frontend:/workspace/frontend
+      - frontend_node_modules:/workspace/frontend/node_modules
+      - pnpm_store:/pnpm-store
+    depends_on:
+      - backend
+    command: >
+      sh -lc "
+      corepack enable &&
+      corepack prepare pnpm@9.15.4 --activate &&
+      pnpm config set store-dir /pnpm-store &&
+      pnpm install &&
+      pnpm dev -- --host 0.0.0.0 --port 5173
+      "
+
+volumes:
+  pgdata:
+  mongodb:
+  backend_node_modules:
+  frontend_node_modules:
+  pnpm_store:
