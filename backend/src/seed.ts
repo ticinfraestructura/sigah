@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { randomUUID } from "crypto";
 
 const prisma = new PrismaClient();
 
@@ -521,15 +522,12 @@ async function main() {
     await prisma.productLot.create({
       data: {
         productId: product.id,
-        lotNumber: `LOT-${product.code}-001`,
+        lotNumber: `LOT-${randomUUID().slice(0, 8)}`,
         quantity: baseQuantity,
-        expiryDate: product.isPerishable 
-          ? new Date(Date.now() + Math.random() * 365 * 24 * 60 * 60 * 1000)
-          : null
-      }
+        isActive: true,
+      },
     });
-
-    // Add second lot for some products
+// Add second lot for some products
     if (product.isPerishable) {
       await prisma.productLot.create({
         data: {
