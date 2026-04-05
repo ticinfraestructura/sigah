@@ -302,21 +302,22 @@ function ProductModal({ product, categories, onClose, onSave }: ProductModalProp
   };
 
   // Estilos explícitos para inputs y selects
-  const inputStyle = "w-full px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500";
-  const selectStyle = "w-full px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 cursor-pointer";
-  const labelStyle = "block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2";
+  const inputStyle = "w-full px-3 py-2.5 text-sm border-2 border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500";
+  const selectStyle = "w-full px-3 py-2.5 text-sm border-2 border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 cursor-pointer";
+  const labelStyle = "block text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1";
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg border border-gray-200 dark:border-gray-700">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-t-xl">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[95svh] sm:max-h-[90vh] border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col">
+        <div className="p-4 sm:p-5 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-t-xl">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
             {isEditing ? 'Editar Producto' : 'Nuevo Producto'}
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Complete los datos del producto</p>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          <div className="grid grid-cols-2 gap-4">
+        <div className="overflow-y-auto flex-1">
+          <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={labelStyle}>Código *</label>
               <input 
@@ -364,7 +365,7 @@ function ProductModal({ product, categories, onClose, onSave }: ProductModalProp
               placeholder="Descripción opcional..."
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={labelStyle}>Unidad de Medida</label>
               <select 
@@ -388,7 +389,7 @@ function ProductModal({ product, categories, onClose, onSave }: ProductModalProp
               />
             </div>
           </div>
-          <div className="flex items-center gap-6 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+          <div className="flex flex-wrap items-center gap-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
             <label className="flex items-center gap-3 cursor-pointer">
               <input 
                 type="checkbox" 
@@ -413,12 +414,12 @@ function ProductModal({ product, categories, onClose, onSave }: ProductModalProp
 
           {/* Stock Inicial - Solo al crear nuevo producto */}
           {!isEditing && (
-            <div className="p-4 bg-green-50 dark:bg-green-900/20 border-2 border-green-200 dark:border-green-800 rounded-lg">
+            <div className="p-3 bg-green-50 dark:bg-green-900/20 border-2 border-green-200 dark:border-green-800 rounded-lg">
               <h4 className="text-sm font-bold text-green-800 dark:text-green-300 mb-3 flex items-center gap-2">
                 <Package className="w-4 h-4" />
                 Stock Inicial (Opcional)
               </h4>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-green-700 dark:text-green-400 mb-1">Cantidad *</label>
                   <input 
@@ -458,7 +459,7 @@ function ProductModal({ product, categories, onClose, onSave }: ProductModalProp
             </div>
           )}
           
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="sticky bottom-0 bg-white dark:bg-gray-800 flex justify-end gap-3 pt-3 pb-1 border-t border-gray-200 dark:border-gray-700">
             <button 
               type="button" 
               onClick={onClose} 
@@ -475,7 +476,8 @@ function ProductModal({ product, categories, onClose, onSave }: ProductModalProp
               {saving ? 'Guardando...' : (isEditing ? 'Actualizar' : 'Crear Producto')}
             </button>
           </div>
-        </form>
+          </form>
+        </div>
       </div>
     </div>
   );
