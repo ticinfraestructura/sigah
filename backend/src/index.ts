@@ -147,7 +147,9 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // 8. CSRF Protection (solo en producción)
-if (process.env.NODE_ENV === 'production') {
+const enableCsrf = process.env.ENABLE_CSRF === 'true';
+
+if (process.env.NODE_ENV === 'production' && enableCsrf) {
   const csrfProtection = csrf({ 
     cookie: {
       httpOnly: true,
