@@ -6,6 +6,7 @@
 
 import { Router, Response, NextFunction } from 'express';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth.middleware';
+import { backupZodSchemas, validateZodRequest } from '../middleware/validation.middleware';
 import { 
   createBackup, 
   restoreBackup, 
@@ -73,7 +74,7 @@ router.post('/', authenticate, authorize('system', 'manage'), async (req: AuthRe
  *     security:
  *       - bearerAuth: []
  */
-router.post('/:name/restore', authenticate, authorize('system', 'manage'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/:name/restore', authenticate, authorize('system', 'manage'), validateZodRequest({ params: backupZodSchemas.nameParam }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { name } = req.params;
     await restoreBackup(name);
@@ -96,7 +97,7 @@ router.post('/:name/restore', authenticate, authorize('system', 'manage'), async
  *     security:
  *       - bearerAuth: []
  */
-router.delete('/:name', authenticate, authorize('system', 'manage'), async (req: AuthRequest, res: Response) => {
+router.delete('/:name', authenticate, authorize('system', 'manage'), validateZodRequest({ params: backupZodSchemas.nameParam }), async (req: AuthRequest, res: Response) => {
   const { name } = req.params;
   const deleted = deleteBackup(name);
   

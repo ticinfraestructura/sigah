@@ -3,9 +3,10 @@ import {
   Truck, Clock, CheckCircle, Package, UserCheck, XCircle,
   ChevronRight, Filter, Eye, User, Search, X, Inbox
 } from 'lucide-react';
-import { deliveryApi } from '../services/api';
+import { deliveryApi, beneficiaryApi } from '../services/api';
 import { Delivery, DeliveryStatus } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../components/ui/Toast';
 
 // Nuevo flujo con segregación de funciones
 const STATUS_CONFIG: Record<DeliveryStatus, { label: string; color: string; icon: any; step: number }> = {
@@ -20,6 +21,7 @@ const STATUS_CONFIG: Record<DeliveryStatus, { label: string; color: string; icon
 
 export default function DeliveriesManagement() {
   const { user } = useAuth();
+  const toast = useToast();
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null);
@@ -107,7 +109,7 @@ export default function DeliveriesManagement() {
         setSelectedDelivery(response.data.data);
       }
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error al procesar la acción');
+      toast.error(error.response?.data?.error || 'Error al procesar la acción');
     } finally {
       setActionLoading(false);
     }
@@ -115,7 +117,7 @@ export default function DeliveriesManagement() {
 
   const handleConfirmDelivery = async () => {
     if (!selectedDelivery || !confirmData.receivedBy || !confirmData.receiverDocument) {
-      alert('Complete los datos del receptor');
+      toast.warning('Complete los datos del receptor');
       return;
     }
     try {
@@ -128,7 +130,7 @@ export default function DeliveriesManagement() {
       const response = await deliveryApi.getById(selectedDelivery.id);
       setSelectedDelivery(response.data.data);
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error al confirmar entrega');
+      toast.error(error.response?.data?.error || 'Error al confirmar entrega');
     } finally {
       setActionLoading(false);
     }
@@ -136,7 +138,7 @@ export default function DeliveriesManagement() {
 
   const handleCancel = async () => {
     if (!selectedDelivery || !cancelReason) {
-      alert('Ingrese el motivo de cancelación');
+      toast.warning('Ingrese el motivo de cancelación');
       return;
     }
     try {
@@ -149,7 +151,7 @@ export default function DeliveriesManagement() {
       const response = await deliveryApi.getById(selectedDelivery.id);
       setSelectedDelivery(response.data.data);
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error al cancelar');
+      toast.error(error.response?.data?.error || 'Error al cancelar');
     } finally {
       setActionLoading(false);
     }
@@ -190,8 +192,8 @@ export default function DeliveriesManagement() {
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Gestión de Entregas</h1>
-          <p className="text-gray-500">Flujo integral de autorización y entrega</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Gestión de Entregas</h1>
+          <p className="text-gray-500 dark:text-gray-400">Flujo integral de autorización y entrega</p>
         </div>
       </div>
 
@@ -685,13 +687,8 @@ function ConfirmDeliveryModal({
     
     setSearching(true);
     try {
-      const response = await fetch(`/api/beneficiaries?search=${encodeURIComponent(query)}&limit=10`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      const data = await response.json();
-      setSearchResults(data.data || []);
+      const response = await beneficiaryApi.getAll({ search: query, limit: 10 });
+      setSearchResults(response.data.data || []);
     } catch (error) {
       console.error('Error buscando beneficiarios:', error);
     } finally {

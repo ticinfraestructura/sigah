@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate } from '../middleware/auth.middleware';
 import { InventoryService } from '../services/inventory.service';
+import { dashboardZodSchemas, validateZodRequest } from '../middleware/validation.middleware';
 
 const router = Router();
 
@@ -141,10 +142,10 @@ router.get('/summary', authenticate, async (req: Request, res: Response, next: N
 });
 
 // Get chart data
-router.get('/charts', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/charts', authenticate, validateZodRequest({ query: dashboardZodSchemas.chartsQuery }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
-    const months = parseInt(req.query.months as string) || 6;
+    const { months = 6 } = req.query as { months?: number };
 
     // Get movements by month
     const movementsByMonth = [];
@@ -248,10 +249,10 @@ router.get('/charts', authenticate, async (req: Request, res: Response, next: Ne
 });
 
 // Get recent activity
-router.get('/activity', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/activity', authenticate, validateZodRequest({ query: dashboardZodSchemas.activityQuery }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
-    const limit = parseInt(req.query.limit as string) || 10;
+    const { limit = 10 } = req.query as { limit?: number };
 
     const [recentRequests, recentDeliveries, recentMovements] = await Promise.all([
       prisma.request.findMany({

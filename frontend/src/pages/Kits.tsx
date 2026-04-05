@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Boxes, Plus, Edit2, Trash2, Eye } from 'lucide-react';
 import { kitApi, productApi } from '../services/api';
 import { Kit, Product } from '../types';
+import { useToast } from '../components/ui/Toast';
 
 export default function Kits() {
   const [kits, setKits] = useState<Kit[]>([]);
@@ -10,14 +11,16 @@ export default function Kits() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedKit, setSelectedKit] = useState<Kit | null>(null);
+  const toast = useToast();
 
   const handleDelete = async (kit: Kit) => {
     if (!confirm(`¿Desactivar el kit "${kit.name}"? Podrá reactivarlo después.`)) return;
     try {
       await kitApi.delete(kit.id);
+      toast.success('Kit desactivado');
       fetchData();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error al desactivar');
+      toast.error(error.response?.data?.error || 'Error al desactivar');
     }
   };
 
@@ -142,6 +145,7 @@ export default function Kits() {
 }
 
 function KitModal({ kit, products, onClose, onSave }: { kit: Kit | null; products: Product[]; onClose: () => void; onSave: () => void }) {
+  const toast = useToast();
   const isEditing = !!kit;
   const [form, setForm] = useState({
     code: kit?.code || '',
@@ -155,11 +159,11 @@ function KitModal({ kit, products, onClose, onSave }: { kit: Kit | null; product
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (form.products.length === 0) {
-      alert('Debe agregar al menos un producto al kit');
+      toast.warning('Debe agregar al menos un producto al kit');
       return;
     }
     if (form.products.some(p => !p.productId)) {
-      alert('Todos los productos deben estar seleccionados');
+      toast.warning('Todos los productos deben estar seleccionados');
       return;
     }
     setSaving(true);
@@ -172,7 +176,7 @@ function KitModal({ kit, products, onClose, onSave }: { kit: Kit | null; product
       onSave();
       onClose();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error al guardar');
+      toast.error(error.response?.data?.error || 'Error al guardar');
     } finally {
       setSaving(false);
     }

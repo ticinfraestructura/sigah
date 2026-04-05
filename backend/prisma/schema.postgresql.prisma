@@ -19,6 +19,7 @@ model User {
   firstName String
   lastName  String
   roleId    String?  @db.Uuid
+  passwordChangedAt DateTime? // Fecha del último cambio de contraseña (para rotación)
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

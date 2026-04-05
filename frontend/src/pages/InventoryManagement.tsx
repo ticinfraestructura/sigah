@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { productApi, categoryApi, inventoryApi } from '../services/api';
 import { Product, Category, ProductLot, StockMovement, Unit } from '../types';
+import { useToast } from '../components/ui/Toast';
 
 const unitLabels: Record<string, string> = {
   UNIT: 'Unidad',
@@ -83,6 +84,7 @@ export default function InventoryManagement() {
 
 // ==================== PRODUCTS TAB ====================
 function ProductsTab() {
+  const toast = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,7 +139,7 @@ function ProductsTab() {
       await productApi.update(product.id, { isActive: !product.isActive });
       fetchData();
     } catch (error: any) {
-      alert(error.response?.data?.error || `Error al ${action}`);
+      toast.error(error.response?.data?.error || `Error al ${action}`);
     }
   };
 
@@ -298,6 +300,7 @@ function ProductsTab() {
 
 // ==================== CATEGORIES TAB ====================
 function CategoriesTab() {
+  const toast = useToast();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [includeInactive, setIncludeInactive] = useState(false);
@@ -336,7 +339,7 @@ function CategoriesTab() {
       }
       fetchData();
     } catch (error: any) {
-      alert(error.response?.data?.error || `Error al ${action}`);
+      toast.error(error.response?.data?.error || `Error al ${action}`);
     }
   };
 
@@ -437,6 +440,7 @@ function CategoriesTab() {
 
 // ==================== LOTS TAB ====================
 function LotsTab() {
+  const toast = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<string>('');
   const [lots, setLots] = useState<ProductLot[]>([]);
@@ -487,7 +491,7 @@ function LotsTab() {
       await productApi.deleteLot(selectedProduct, lot.id);
       fetchLots();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error al eliminar');
+      toast.error(error.response?.data?.error || 'Error al eliminar');
     }
   };
 
@@ -820,6 +824,7 @@ function MovementsTab() {
 
 // ==================== ADJUSTMENTS TAB ====================
 function AdjustmentsTab() {
+  const toast = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<string>('');
   const [lots, setLots] = useState<ProductLot[]>([]);
@@ -868,7 +873,7 @@ function AdjustmentsTab() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProduct) {
-      alert('Seleccione un producto');
+      toast.warning('Seleccione un producto');
       return;
     }
 
@@ -882,10 +887,10 @@ function AdjustmentsTab() {
           expiryDate: form.expiryDate || undefined,
           reason: form.reason || undefined
         });
-        alert('Entrada registrada exitosamente');
+        toast.success('Entrada registrada exitosamente');
       } else {
         if (!form.lotId) {
-          alert('Seleccione un lote');
+          toast.warning('Seleccione un lote');
           setSaving(false);
           return;
         }
@@ -895,13 +900,13 @@ function AdjustmentsTab() {
           quantity: parseInt(form.quantity),
           reason: form.reason
         });
-        alert('Ajuste registrado exitosamente');
+        toast.success('Ajuste registrado exitosamente');
       }
       setForm({ lotId: '', lotNumber: '', quantity: '', expiryDate: '', reason: '' });
       setSelectedProduct('');
       fetchProducts();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error al procesar');
+      toast.error(error.response?.data?.error || 'Error al procesar');
     } finally {
       setSaving(false);
     }
@@ -1091,6 +1096,7 @@ interface ProductModalProps {
 }
 
 function ProductModal({ product, categories, onClose, onSave }: ProductModalProps) {
+  const toast = useToast();
   const isEditing = !!product;
   const [form, setForm] = useState({
     code: product?.code || '',
@@ -1144,7 +1150,7 @@ function ProductModal({ product, categories, onClose, onSave }: ProductModalProp
       setEditingLotId(null);
       loadLots(); // Recargar para reflejar cambios
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error al actualizar fecha');
+      toast.error(error.response?.data?.error || 'Error al actualizar fecha');
     }
   };
 
@@ -1160,7 +1166,7 @@ function ProductModal({ product, categories, onClose, onSave }: ProductModalProp
       onSave();
       onClose();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error al guardar');
+      toast.error(error.response?.data?.error || 'Error al guardar');
     } finally {
       setSaving(false);
     }
@@ -1352,6 +1358,7 @@ interface CategoryModalProps {
 }
 
 function CategoryModal({ category, onClose, onSave }: CategoryModalProps) {
+  const toast = useToast();
   const isEditing = !!category;
   const [form, setForm] = useState({
     name: category?.name || '',
@@ -1372,7 +1379,7 @@ function CategoryModal({ category, onClose, onSave }: CategoryModalProps) {
       onSave();
       onClose();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error al guardar');
+      toast.error(error.response?.data?.error || 'Error al guardar');
     } finally {
       setSaving(false);
     }
@@ -1449,6 +1456,7 @@ interface LotModalProps {
 }
 
 function LotModal({ productId, lot, onClose, onSave }: LotModalProps) {
+  const toast = useToast();
   const isEditing = !!lot;
   const [form, setForm] = useState({
     lotNumber: lot?.lotNumber || '',
@@ -1500,7 +1508,7 @@ function LotModal({ productId, lot, onClose, onSave }: LotModalProps) {
       onSave();
       onClose();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error al guardar');
+      toast.error(error.response?.data?.error || 'Error al guardar');
     } finally {
       setSaving(false);
     }

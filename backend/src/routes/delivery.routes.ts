@@ -5,6 +5,7 @@ import { authenticate, authorize, AuthRequest } from '../middleware/auth.middlew
 import { AuditService } from '../services/audit.service';
 import { InventoryService } from '../services/inventory.service';
 import { NotificationService } from './notification.routes';
+import { deliveryZodSchemas, validateZodRequest } from '../middleware/validation.middleware';
 
 const router = Router();
 
@@ -78,18 +79,26 @@ function validateSegregation(delivery: any, userId: string, action: string): voi
 }
 
 // Get all deliveries with filters
-router.get('/', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/', authenticate, validateZodRequest({ query: deliveryZodSchemas.listQuery }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
-    const { 
-      requestId, 
+    const {
+      requestId,
       status,
-      startDate, 
-      endDate, 
+      startDate,
+      endDate,
       warehouseUserId,
-      page = '1', 
-      limit = '50' 
-    } = req.query;
+      page = 1,
+      limit = 50
+    } = req.query as {
+      requestId?: string;
+      status?: 'PENDING_AUTHORIZATION' | 'AUTHORIZED' | 'RECEIVED_WAREHOUSE' | 'IN_PREPARATION' | 'READY' | 'DELIVERED' | 'CANCELLED';
+      startDate?: string;
+      endDate?: string;
+      warehouseUserId?: string;
+      page?: number;
+      limit?: number;
+    };
 
     const where: any = {};
 
@@ -104,7 +113,7 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
       };
     }
 
-    const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
+    const skip = (page - 1) * limit;
 
     const [deliveries, total] = await Promise.all([
       prisma.delivery.findMany({
@@ -128,7 +137,7 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
         },
         orderBy: { createdAt: 'desc' },
         skip,
-        take: parseInt(limit as string)
+        take: limit
       }),
       prisma.delivery.count({ where })
     ]);
@@ -137,10 +146,10 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
       success: true,
       data: deliveries,
       pagination: {
-        page: parseInt(page as string),
-        limit: parseInt(limit as string),
+        page,
+        limit,
         total,
-        pages: Math.ceil(total / parseInt(limit as string))
+        pages: Math.ceil(total / limit)
       }
     });
   } catch (error) {
@@ -149,7 +158,7 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
 });
 
 // Get delivery by ID
-router.get('/:id', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/:id', authenticate, validateZodRequest({ params: deliveryZodSchemas.idParam }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const delivery = await prisma.delivery.findUnique({
@@ -195,20 +204,12 @@ router.get('/:id', authenticate, async (req: Request, res: Response, next: NextF
 });
 
 // ============ PASO 1: Crear solicitud de entrega (pendiente de autorización) ============
-router.post('/', authenticate, authorize('ADMIN', 'WAREHOUSE', 'AUTHORIZER'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/', authenticate, authorize('ADMIN', 'WAREHOUSE', 'AUTHORIZER'), validateZodRequest({ body: deliveryZodSchemas.create }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const auditService = new AuditService(prisma);
     const notificationService = new NotificationService(prisma);
     const { requestId, products, kits, notes, isPartial } = req.body;
-
-    if (!requestId) {
-      throw new AppError('Solicitud es requerida', 400);
-    }
-
-    if ((!products || products.length === 0) && (!kits || kits.length === 0)) {
-      throw new AppError('Debe incluir al menos un producto o kit', 400);
-    }
 
     const request = await prisma.request.findUnique({
       where: { id: requestId },
@@ -327,7 +328,7 @@ router.post('/', authenticate, authorize('ADMIN', 'WAREHOUSE', 'AUTHORIZER'), as
 });
 
 // ============ PASO 2: Autorizar entrega (AUTHORIZER o ADMIN) ============
-router.post('/:id/authorize', authenticate, authorize('ADMIN', 'AUTHORIZER'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/:id/authorize', authenticate, authorize('ADMIN', 'AUTHORIZER'), validateZodRequest({ params: deliveryZodSchemas.idParam, body: deliveryZodSchemas.authorize }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const auditService = new AuditService(prisma);
@@ -397,7 +398,7 @@ router.post('/:id/authorize', authenticate, authorize('ADMIN', 'AUTHORIZER'), as
 });
 
 // ============ PASO 3: Recibir en bodega (WAREHOUSE) ============
-router.post('/:id/receive-warehouse', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/:id/receive-warehouse', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZodRequest({ params: deliveryZodSchemas.idParam, body: deliveryZodSchemas.notesOnly }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const auditService = new AuditService(prisma);
@@ -455,7 +456,7 @@ router.post('/:id/receive-warehouse', authenticate, authorize('ADMIN', 'WAREHOUS
 });
 
 // ============ PASO 4: Iniciar preparación en bodega ============
-router.post('/:id/prepare', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/:id/prepare', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZodRequest({ params: deliveryZodSchemas.idParam, body: deliveryZodSchemas.notesOnly }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const auditService = new AuditService(prisma);
@@ -513,7 +514,7 @@ router.post('/:id/prepare', authenticate, authorize('ADMIN', 'WAREHOUSE'), async
 });
 
 // ============ PASO 5: Marcar como lista para entrega (descuenta inventario) ============
-router.post('/:id/ready', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/:id/ready', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZodRequest({ params: deliveryZodSchemas.idParam, body: deliveryZodSchemas.notesOnly }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const inventoryService = new InventoryService(prisma);
@@ -654,15 +655,11 @@ router.post('/:id/ready', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (
 });
 
 // ============ PASO 6: Confirmar entrega al beneficiario (DISPATCHER) ============
-router.post('/:id/deliver', authenticate, authorize('ADMIN', 'DISPATCHER'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/:id/deliver', authenticate, authorize('ADMIN', 'DISPATCHER'), validateZodRequest({ params: deliveryZodSchemas.idParam, body: deliveryZodSchemas.deliver }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const auditService = new AuditService(prisma);
     const { receivedBy, receiverDocument, receiverSignature, notes } = req.body;
-
-    if (!receivedBy || !receiverDocument) {
-      throw new AppError('Nombre y documento del receptor son requeridos', 400);
-    }
 
     const delivery = await prisma.delivery.findUnique({
       where: { id: req.params.id },
@@ -784,16 +781,12 @@ router.post('/:id/deliver', authenticate, authorize('ADMIN', 'DISPATCHER'), asyn
 });
 
 // ============ Cancelar entrega ============
-router.post('/:id/cancel', authenticate, authorize('ADMIN'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/:id/cancel', authenticate, authorize('ADMIN'), validateZodRequest({ params: deliveryZodSchemas.idParam, body: deliveryZodSchemas.cancel }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const inventoryService = new InventoryService(prisma);
     const auditService = new AuditService(prisma);
     const { reason } = req.body;
-
-    if (!reason) {
-      throw new AppError('Motivo de cancelación es requerido', 400);
-    }
 
     const delivery = await prisma.delivery.findUnique({
       where: { id: req.params.id },

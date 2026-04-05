@@ -14,7 +14,8 @@ import {
   Settings,
   Clock,
   Phone,
-  X
+  X,
+  Copy
 } from 'lucide-react';
 import api from '../services/api';
 
@@ -50,6 +51,7 @@ interface Notification {
   channel: string;
   whatsappSent: boolean;
   whatsappSentAt: string | null;
+  whatsappError?: string | null;
   isRead: boolean;
   createdAt: string;
   receiver: {
@@ -65,6 +67,14 @@ interface Notification {
     lastName: string;
     email: string;
   } | null;
+}
+
+interface WhatsAppStatus {
+  officialApiConfigured: boolean;
+  officialApiReady: boolean;
+  officialApiReason?: string;
+  mode: 'real' | 'simulated';
+  runtimeMode?: 'auto' | 'simulated' | 'real';
 }
 
 // Iconos de tipo
@@ -92,12 +102,15 @@ export default function NotificationsManagement() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [types, setTypes] = useState<NotificationType[]>([]);
   const [criticalities, setCriticalities] = useState<Criticality[]>([]);
+  const [whatsAppStatus, setWhatsAppStatus] = useState<WhatsAppStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [changingMode, setChangingMode] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterCriticality, setFilterCriticality] = useState('');
+  const [filterWhatsAppError, setFilterWhatsAppError] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -116,16 +129,18 @@ export default function NotificationsManagement() {
 
   const fetchData = async () => {
     try {
-      const [usersRes, configRes, notificationsRes] = await Promise.all([
+      const [usersRes, configRes, notificationsRes, statusRes] = await Promise.all([
         api.get('/whatsapp-notifications/users'),
         api.get('/whatsapp-notifications/config'),
-        api.get('/whatsapp-notifications')
+        api.get('/whatsapp-notifications'),
+        api.get('/whatsapp-notifications/status')
       ]);
 
       setUsers(usersRes.data.data);
       setTypes(configRes.data.data.types);
       setCriticalities(configRes.data.data.criticalities);
       setNotifications(notificationsRes.data.data);
+      setWhatsAppStatus(statusRes.data.data.whatsapp);
     } catch (err) {
       console.error('Error fetching data:', err);
     } finally {
@@ -144,12 +159,17 @@ export default function NotificationsManagement() {
       
       if (response.data.success) {
         const waStatus = response.data.data.whatsapp;
+        const tgStatus = response.data.data.telegram;
+        const traceCode = response.data.data.notification?.code;
         if (waStatus.sent) {
-          setSuccess(`✅ Notificación enviada exitosamente por WhatsApp. ID: ${waStatus.messageId}`);
+          setSuccess(`✅ Notificación enviada por WhatsApp. Código: ${traceCode} | ID: ${waStatus.messageId || 'N/A'}`);
+        } else if (tgStatus?.sent) {
+          setSuccess(`✅ Notificación enviada por Telegram (fallback). Código: ${traceCode} | ID: ${tgStatus.messageId || 'N/A'}`);
         } else if (formData.sendWhatsApp) {
-          setSuccess(`⚠️ Notificación guardada. WhatsApp: ${waStatus.error || 'Usuario sin teléfono registrado'}`);
+          const modeLabel = waStatus.simulated ? 'simulado' : 'interno';
+          setSuccess(`⚠️ Notificación registrada (Código: ${traceCode}). WhatsApp no enviado (${modeLabel}/${waStatus.provider || 'N/A'}): ${waStatus.error || 'Usuario sin teléfono registrado'}`);
         } else {
-          setSuccess('✅ Notificación guardada correctamente');
+          setSuccess(`✅ Notificación interna registrada. Código: ${traceCode}`);
         }
 
         fetchData();
@@ -180,6 +200,48 @@ export default function NotificationsManagement() {
 
   const selectedUser = users.find(u => u.id === formData.receiverId);
 
+  const copyTraceCode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setSuccess(`Código copiado: ${code}`);
+      setTimeout(() => setSuccess(''), 2500);
+    } catch {
+      setError('No se pudo copiar el código de trazabilidad');
+      setTimeout(() => setError(''), 2500);
+    }
+  };
+
+  const handleToggleMode = async () => {
+    if (!whatsAppStatus || changingMode) return;
+
+    const nextMode = whatsAppStatus.mode === 'real' ? 'simulated' : 'real';
+
+    try {
+      setChangingMode(true);
+      setError('');
+      const response = await api.post('/whatsapp-notifications/mode', { mode: nextMode });
+      const result = response.data?.data;
+
+      setWhatsAppStatus(prev => prev
+        ? {
+            ...prev,
+            mode: result?.mode || prev.mode,
+            runtimeMode: result?.runtimeMode || prev.runtimeMode,
+            officialApiReady: result?.officialApiReady ?? prev.officialApiReady,
+            officialApiReason: result?.officialApiReason ?? prev.officialApiReason
+          }
+        : prev
+      );
+
+      setSuccess(response.data?.message || `Modo actualizado a ${nextMode}`);
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'No se pudo cambiar el modo de WhatsApp');
+    } finally {
+      setChangingMode(false);
+    }
+  };
+
   const filteredNotifications = notifications.filter(n => {
     const matchesSearch = 
       n.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -188,7 +250,8 @@ export default function NotificationsManagement() {
       n.receiver.lastName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = !filterType || n.type === filterType;
     const matchesCriticality = !filterCriticality || n.criticality === filterCriticality;
-    return matchesSearch && matchesType && matchesCriticality;
+    const matchesWhatsAppError = !filterWhatsAppError || (!!n.whatsappError && !n.whatsappSent);
+    return matchesSearch && matchesType && matchesCriticality && matchesWhatsAppError;
   });
 
   if (loading) {
@@ -220,6 +283,49 @@ export default function NotificationsManagement() {
           Nueva Notificación
         </button>
       </div>
+
+      {whatsAppStatus?.mode === 'simulated' && (
+        <div className="p-4 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg flex items-start gap-3 text-yellow-800 dark:text-yellow-300">
+          <AlertCircle className="w-5 h-5 mt-0.5" />
+          <div>
+            <p className="font-semibold">WhatsApp en modo simulado</p>
+            <p className="text-sm mt-1">
+              Los mensajes no se están enviando de forma real. {whatsAppStatus.officialApiReason || 'Configure proveedor real para operación productiva.'}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {whatsAppStatus && (
+        <div className="p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+              Modo WhatsApp: {whatsAppStatus.mode === 'real' ? 'Real' : 'Simulado'}
+            </p>
+            <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+              Runtime: {whatsAppStatus.runtimeMode || 'auto'}
+              {whatsAppStatus.mode !== 'real' && whatsAppStatus.officialApiReason ? ` · ${whatsAppStatus.officialApiReason}` : ''}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleToggleMode}
+            disabled={changingMode}
+            className={`relative inline-flex h-8 w-16 items-center rounded-full transition-colors ${
+              whatsAppStatus.mode === 'real' ? 'bg-green-600' : 'bg-amber-500'
+            } ${changingMode ? 'opacity-60 cursor-not-allowed' : ''}`}
+            title="Alternar modo WhatsApp"
+          >
+            <span className="sr-only">Alternar modo WhatsApp</span>
+            <span
+              className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
+                whatsAppStatus.mode === 'real' ? 'translate-x-9' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -310,6 +416,15 @@ export default function NotificationsManagement() {
               ))}
             </select>
           </div>
+          <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input
+              type="checkbox"
+              checked={filterWhatsAppError}
+              onChange={(e) => setFilterWhatsAppError(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            />
+            Solo con error WhatsApp
+          </label>
         </div>
       </div>
 
@@ -352,7 +467,22 @@ export default function NotificationsManagement() {
                     <p className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs">
                       {notification.message}
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">Código: {notification.code}</p>
+                    <div className="text-xs text-gray-400 mt-1 flex items-center gap-2">
+                      <span>Código: {notification.code}</span>
+                      <button
+                        type="button"
+                        onClick={() => copyTraceCode(notification.code)}
+                        className="text-primary-600 dark:text-primary-400 hover:underline inline-flex items-center gap-1"
+                      >
+                        <Copy className="w-3 h-3" />
+                        Copiar
+                      </button>
+                    </div>
+                    {!notification.whatsappSent && notification.whatsappError && (
+                      <p className="text-xs text-amber-700 dark:text-amber-300 mt-1 truncate max-w-xs" title={notification.whatsappError}>
+                        WhatsApp: {notification.whatsappError}
+                      </p>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <p className="text-gray-900 dark:text-white">

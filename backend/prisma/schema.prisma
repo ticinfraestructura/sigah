@@ -19,6 +19,7 @@ model User {
   whatsappApiKey String?  // API Key de CallMeBot para enviar WhatsApp reales
   telegramChatId String?  // Chat ID de Telegram para notificaciones
   roleId    String?  @db.Uuid
+  passwordChangedAt DateTime? // Fecha del último cambio de contraseña (para rotación)
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

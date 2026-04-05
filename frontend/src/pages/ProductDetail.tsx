@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Plus, Clock, Edit2, Trash2, Package, TrendingUp, TrendingDown, RotateCcw, Filter, Download, History, AlertTriangle } from 'lucide-react';
 import { productApi } from '../services/api';
 import { Product, ProductLot, StockMovement } from '../types';
+import { useToast } from '../components/ui/Toast';
 
 const movementTypeLabels: Record<string, { label: string; color: string; icon: any }> = {
   ENTRY: { label: 'Entrada', color: 'text-green-600 bg-green-100', icon: TrendingUp },
@@ -33,6 +34,7 @@ export default function ProductDetail() {
   const [dateTo, setDateTo] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     if (id) fetchProduct();
@@ -120,7 +122,7 @@ export default function ProductDetail() {
       setNewLot({ quantity: 0, lotNumber: '', expiryDate: '' });
       fetchProduct();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error al agregar lote');
+      toast.error(error.response?.data?.error || 'Error al agregar lote');
     }
   };
 
@@ -147,7 +149,7 @@ export default function ProductDetail() {
       setEditingLot(null);
       fetchProduct();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error al actualizar lote');
+      toast.error(error.response?.data?.error || 'Error al actualizar lote');
     }
   };
 
@@ -159,7 +161,7 @@ export default function ProductDetail() {
 
   const handleDeleteLot = async () => {
     if (!deletingLotId || !deleteReason.trim()) {
-      alert('Debe ingresar un motivo para la eliminación');
+      toast.warning('Debe ingresar un motivo para la eliminación');
       return;
     }
     try {
@@ -169,7 +171,7 @@ export default function ProductDetail() {
       setDeleteReason('');
       fetchProduct();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error al eliminar lote');
+      toast.error(error.response?.data?.error || 'Error al eliminar lote');
     }
   };
 

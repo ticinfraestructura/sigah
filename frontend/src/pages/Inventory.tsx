@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Package, Plus, Search, AlertTriangle, Clock, Edit2, Trash2 } from 'lucide-react';
 import { productApi, categoryApi, inventoryApi } from '../services/api';
 import { Product, Category, Unit } from '../types';
+import { useToast } from '../components/ui/Toast';
 
 const unitLabels: Record<string, string> = {
   UNIT: 'Unidad',
@@ -23,6 +24,7 @@ export default function Inventory() {
   const [perishableFilter, setPerishableFilter] = useState<string>('');
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const toast = useToast();
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
@@ -38,9 +40,10 @@ export default function Inventory() {
     if (!confirm(`¿Desactivar el producto "${product.name}"? Podrá reactivarlo después.`)) return;
     try {
       await productApi.delete(product.id);
+      toast.success('Producto desactivado');
       fetchData();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error al desactivar');
+      toast.error(error.response?.data?.error || 'Error al desactivar');
     }
   };
 
@@ -245,6 +248,7 @@ interface ProductModalProps {
 }
 
 function ProductModal({ product, categories, onClose, onSave }: ProductModalProps) {
+  const toast = useToast();
   const isEditing = !!product;
   const [form, setForm] = useState({
     code: product?.code || '',
@@ -291,7 +295,7 @@ function ProductModal({ product, categories, onClose, onSave }: ProductModalProp
       onSave();
       onClose();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error al guardar');
+      toast.error(error.response?.data?.error || 'Error al guardar');
     } finally {
       setSaving(false);
     }

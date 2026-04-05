@@ -4,22 +4,29 @@ import { AppError } from '../middleware/error.middleware';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth.middleware';
 import { AuditService } from '../services/audit.service';
 import { InventoryService } from '../services/inventory.service';
-import { validate, productValidations, commonValidations } from '../middleware/validation.middleware';
+import { productZodSchemas, validateZodRequest } from '../middleware/validation.middleware';
 
 const router = Router();
 
 // Get all products with filters
-router.get('/', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/', authenticate, validateZodRequest({ query: productZodSchemas.listQuery }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
-    const { 
-      categoryId, 
-      isPerishable, 
-      search, 
+    const {
+      categoryId,
+      isPerishable,
+      search,
       includeInactive,
-      page = '1',
-      limit = '50'
-    } = req.query;
+      page = 1,
+      limit = 50
+    } = req.query as {
+      categoryId?: string;
+      isPerishable?: 'true' | 'false';
+      search?: string;
+      includeInactive?: 'true' | 'false';
+      page?: number;
+      limit?: number;
+    };
 
     const where: any = {};
     
@@ -43,7 +50,7 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
       ];
     }
 
-    const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
+    const skip = (page - 1) * limit;
     
     const [products, total] = await Promise.all([
       prisma.product.findMany({
@@ -57,7 +64,7 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
         },
         orderBy: { name: 'asc' },
         skip,
-        take: parseInt(limit as string)
+        take: limit
       }),
       prisma.product.count({ where })
     ]);
@@ -72,10 +79,10 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
       success: true,
       data: productsWithStock,
       pagination: {
-        page: parseInt(page as string),
-        limit: parseInt(limit as string),
+        page,
+        limit,
         total,
-        pages: Math.ceil(total / parseInt(limit as string))
+        pages: Math.ceil(total / limit)
       }
     });
   } catch (error) {
@@ -84,7 +91,7 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
 });
 
 // Get product by ID
-router.get('/:id', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/:id', authenticate, validateZodRequest({ params: productZodSchemas.idParam }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const product = await prisma.product.findUnique({
@@ -114,7 +121,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response, next: NextF
 });
 
 // Get product lots
-router.get('/:id/lots', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/:id/lots', authenticate, validateZodRequest({ params: productZodSchemas.idParam }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const lots = await prisma.productLot.findMany({
@@ -132,10 +139,16 @@ router.get('/:id/lots', authenticate, async (req: Request, res: Response, next: 
 });
 
 // Get product movements
-router.get('/:id/movements', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/:id/movements', authenticate, validateZodRequest({ params: productZodSchemas.idParam, query: productZodSchemas.movementsQuery }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
-    const { startDate, endDate, type, page = '1', limit = '50' } = req.query;
+    const { startDate, endDate, type, page = 1, limit = 50 } = req.query as {
+      startDate?: string;
+      endDate?: string;
+      type?: string;
+      page?: number;
+      limit?: number;
+    };
 
     const where: any = { productId: req.params.id };
 
@@ -150,7 +163,7 @@ router.get('/:id/movements', authenticate, async (req: Request, res: Response, n
       where.type = type;
     }
 
-    const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
+    const skip = (page - 1) * limit;
 
     const [movements, total] = await Promise.all([
       prisma.stockMovement.findMany({
@@ -161,7 +174,7 @@ router.get('/:id/movements', authenticate, async (req: Request, res: Response, n
         },
         orderBy: { createdAt: 'desc' },
         skip,
-        take: parseInt(limit as string)
+        take: limit
       }),
       prisma.stockMovement.count({ where })
     ]);
@@ -170,10 +183,10 @@ router.get('/:id/movements', authenticate, async (req: Request, res: Response, n
       success: true,
       data: movements,
       pagination: {
-        page: parseInt(page as string),
-        limit: parseInt(limit as string),
+        page,
+        limit,
         total,
-        pages: Math.ceil(total / parseInt(limit as string))
+        pages: Math.ceil(total / limit)
       }
     });
   } catch (error) {
@@ -182,15 +195,11 @@ router.get('/:id/movements', authenticate, async (req: Request, res: Response, n
 });
 
 // Create product
-router.post('/', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZodRequest({ body: productZodSchemas.create }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const auditService = new AuditService(prisma);
     const { code, name, description, categoryId, unit, isPerishable, minStock } = req.body;
-
-    if (!code || !name || !categoryId) {
-      throw new AppError('Código, nombre y categoría son requeridos', 400);
-    }
 
     const existing = await prisma.product.findUnique({ where: { code } });
     if (existing) {
@@ -224,7 +233,7 @@ router.post('/', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: Auth
 });
 
 // Update product
-router.put('/:id', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.put('/:id', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZodRequest({ params: productZodSchemas.idParam, body: productZodSchemas.update }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const auditService = new AuditService(prisma);
@@ -257,15 +266,11 @@ router.put('/:id', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: Au
 });
 
 // Add lot to product
-router.post('/:id/lots', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/:id/lots', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZodRequest({ params: productZodSchemas.idParam, body: productZodSchemas.addLot }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const inventoryService = new InventoryService(prisma);
     const { lotNumber, quantity, expiryDate, reason } = req.body;
-
-    if (!quantity || quantity <= 0) {
-      throw new AppError('La cantidad debe ser mayor a 0', 400);
-    }
 
     const lot = await inventoryService.registerEntry(
       req.params.id,
@@ -283,7 +288,7 @@ router.post('/:id/lots', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (r
 });
 
 // Update lot
-router.put('/:id/lots/:lotId', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.put('/:id/lots/:lotId', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZodRequest({ params: productZodSchemas.lotParams, body: productZodSchemas.updateLot }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { lotNumber, quantity, expiryDate } = req.body;
@@ -302,7 +307,6 @@ router.put('/:id/lots/:lotId', authenticate, authorize('ADMIN', 'WAREHOUSE'), as
     const updateData: any = {};
     if (lotNumber !== undefined) updateData.lotNumber = lotNumber;
     if (quantity !== undefined) {
-      if (quantity < 0) throw new AppError('La cantidad no puede ser negativa', 400);
       updateData.quantity = quantity;
     }
     if (expiryDate !== undefined) {
@@ -333,7 +337,7 @@ router.put('/:id/lots/:lotId', authenticate, authorize('ADMIN', 'WAREHOUSE'), as
 });
 
 // Delete lot
-router.delete('/:id/lots/:lotId', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.delete('/:id/lots/:lotId', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZodRequest({ params: productZodSchemas.lotParams, body: productZodSchemas.deleteLotBody }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { id: productId, lotId } = req.params;
@@ -388,7 +392,7 @@ router.delete('/:id/lots/:lotId', authenticate, authorize('ADMIN', 'WAREHOUSE'),
 });
 
 // Get audit history for product
-router.get('/:id/audit', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/:id/audit', authenticate, validateZodRequest({ params: productZodSchemas.idParam }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { id } = req.params;
@@ -415,7 +419,7 @@ router.get('/:id/audit', authenticate, async (req: Request, res: Response, next:
 });
 
 // Get audit history for a specific lot
-router.get('/:id/lots/:lotId/audit', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/:id/lots/:lotId/audit', authenticate, validateZodRequest({ params: productZodSchemas.lotParams }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { lotId } = req.params;
@@ -439,7 +443,7 @@ router.get('/:id/lots/:lotId/audit', authenticate, async (req: Request, res: Res
 });
 
 // Delete (deactivate) product
-router.delete('/:id', authenticate, authorize('ADMIN'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.delete('/:id', authenticate, authorize('ADMIN'), validateZodRequest({ params: productZodSchemas.idParam }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const auditService = new AuditService(prisma);

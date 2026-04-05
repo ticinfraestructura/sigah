@@ -1,0 +1,220 @@
+# SIGAH - Entorno de Staging/Pruebas
+version: '3.8'
+
+services:
+  # ============================================
+  # Nginx Proxy Staging
+  # ============================================
+  nginx-proxy-staging:
+    image: nginx:alpine
+    container_name: sigah-nginx-staging
+    restart: unless-stopped
+    ports:
+      - "8080:80"     # HTTP en puerto 8080
+      - "8443:443"    # HTTPS en puerto 8443
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d/staging.conf:/etc/nginx/conf.d/default.conf:ro
+      - nginx_staging_logs:/var/log/nginx
+    networks:
+      - sigah-staging-network
+    depends_on:
+      - sigah-backend-staging
+      - sigah-frontend-staging
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ============================================
+  # Backend Staging
+  # ============================================
+  sigah-backend-staging:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: sigah-backend-staging
+    restart: unless-stopped
+    environment:
+      NODE_ENV: staging
+      PORT: 3001
+      DATABASE_URL: postgresql://sigah:${STAGING_DB_PASSWORD}@sigah-db-staging:5432/sigah_staging
+      REDIS_URL: redis://sigah-redis-staging:6379
+      JWT_SECRET: ${STAGING_JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
+      ALLOWED_ORIGINS: ${STAGING_ALLOWED_ORIGINS:-http://localhost:8080,https://staging.dominio.com}
+      TZ: America/Bogota
+      # Configuración staging
+      LOG_LEVEL: debug
+      ENABLE_SWAGGER: true
+      ENABLE_DEBUG_ROUTES: true
+    volumes:
+      - backend_staging_logs:/app/logs
+      - uploads_staging_data:/app/uploads
+    networks:
+      - sigah-staging-network
+    depends_on:
+      sigah-db-staging:
+        condition: service_healthy
+      sigah-redis-staging:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # ============================================
+  # Frontend Staging
+  # ============================================
+  sigah-frontend-staging:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /sigah-api
+        VITE_BASE_PATH: /sigah/
+        NODE_ENV: staging
+        REACT_APP_API_URL: /sigah-api
+    container_name: sigah-frontend-staging
+    restart: unless-stopped
+    environment:
+      TZ: America/Bogota
+    networks:
+      - sigah-staging-network
+    depends_on:
+      - sigah-backend-staging
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  # ============================================
+  # PostgreSQL Staging
+  # ============================================
+  sigah-db-staging:
+    image: postgres:16-alpine
+    container_name: sigah-db-staging
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sigah
+      POSTGRES_PASSWORD: ${STAGING_DB_PASSWORD}
+      POSTGRES_DB: sigah_staging
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+      TZ: America/Bogota
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_staging_data:/var/lib/postgresql/data
+      - postgres_staging_backups:/backups
+      - ./database/init-staging:/docker-entrypoint-initdb.d
+    networks:
+      - sigah-staging-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sigah -d sigah_staging -h localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # ============================================
+  # Redis Staging
+  # ============================================
+  sigah-redis-staging:
+    image: redis:7-alpine
+    container_name: sigah-redis-staging
+    restart: unless-stopped
+    command: >
+      redis-server 
+      --appendonly yes 
+      --maxmemory 256mb 
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+    volumes:
+      - redis_staging_data:/data
+    networks:
+      - sigah-staging-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+        reservations:
+          memory: 128M
+
+  # ============================================
+  # Herramientas de Staging
+  # ============================================
+  pgadmin-staging:
+    image: dpage/pgadmin4:latest
+    container_name: sigah-pgadmin-staging
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-staging@sigah.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-staging123}
+    volumes:
+      - pgadmin_staging_data:/var/lib/pgadmin
+    networks:
+      - sigah-staging-network
+    ports:
+      - "5051:80"
+    depends_on:
+      - sigah-db-staging
+
+# ============================================
+# Red y Volúmenes Staging
+# ============================================
+networks:
+  sigah-staging-network:
+    name: sigah-staging-network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.23.0.0/16
+          gateway: 172.23.0.1
+
+volumes:
+  postgres_staging_data:
+    name: sigah-postgres-staging-data
+  postgres_staging_backups:
+    name: sigah-postgres-staging-backups
+  redis_staging_data:
+    name: sigah-redis-staging-data
+  backend_staging_logs:
+    name: sigah-backend-staging-logs
+  nginx_staging_logs:
+    name: sigah-nginx-staging-logs
+  uploads_staging_data:
+    name: sigah-uploads-staging-data
+  pgadmin_staging_data:
+    name: sigah-pgadmin-staging-data

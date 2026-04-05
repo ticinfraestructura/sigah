@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { SocketProvider } from './contexts/SocketContext';
+import { ToastProvider } from './components/ui/Toast';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
@@ -42,6 +43,7 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 function App() {
   return (
     <ThemeProvider>
+      <ToastProvider>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors">
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -156,6 +158,7 @@ function App() {
         />
         </Routes>
       </div>
+      </ToastProvider>
     </ThemeProvider>
   );
 }

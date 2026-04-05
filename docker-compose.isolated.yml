@@ -1,0 +1,102 @@
+# SIGAH - Totalmente aislado de infraestructura existente
+# NO AFECTA Tomcat ni otros servicios
+
+version: '3.8'
+
+services:
+  # Base de datos PostgreSQL para SIGAH (independiente)
+  postgres:
+    image: postgres:16-alpine
+    container_name: sigah-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-sigah}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      POSTGRES_DB: ${DB_NAME:-sigah}
+      TZ: America/Bogota
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - sigah-isolated
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-sigah} -d ${DB_NAME:-sigah}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    # PUERTO INTERNO - Solo accesible desde localhost
+
+  redis:
+    image: redis:7-alpine
+    container_name: sigah-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - sigah-isolated
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # PUERTO INTERNO - Solo accesible desde localhost
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sigah-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://${DB_USER:-sigah}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-sigah}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost,https://tu-dominio.com}
+      TZ: America/Bogota
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - sigah-isolated
+    # EXPONER solo a localhost para Nginx master
+    ports:
+      - "127.0.0.1:3001:3001"  # Solo localhost
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /sigah-api  # Importante: ruta para proxy Nginx
+        VITE_BASE_PATH: /sigah/   # Base path para React
+    container_name: sigah-frontend
+    restart: unless-stopped
+    # Puerto diferente para no conflictuar con Tomcat
+    ports:
+      - "127.0.0.1:8080:80"  # Solo localhost, Nginx master lo accesa
+    depends_on:
+      - backend
+    networks:
+      - sigah-isolated
+
+# Volumenes completamente independientes
+volumes:
+  postgres_data:
+    name: sigah-postgres-data
+  redis_data:
+    name: sigah-redis-data
+
+# Red aislada para SIGAH
+networks:
+  sigah-isolated:
+    name: sigah-isolated
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16  # Subred diferente para evitar conflictos

@@ -4,14 +4,22 @@ import { AppError } from '../middleware/error.middleware';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth.middleware';
 import { AuditService } from '../services/audit.service';
 import { InventoryService } from '../services/inventory.service';
+import { returnZodSchemas, validateZodRequest } from '../middleware/validation.middleware';
 
 const router = Router();
 
 // Get all returns
-router.get('/', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/', authenticate, validateZodRequest({ query: returnZodSchemas.listQuery }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
-    const { deliveryId, reason, startDate, endDate, page = '1', limit = '50' } = req.query;
+    const { deliveryId, reason, startDate, endDate, page = 1, limit = 50 } = req.query as {
+      deliveryId?: string;
+      reason?: string;
+      startDate?: string;
+      endDate?: string;
+      page?: number;
+      limit?: number;
+    };
 
     const where: any = {};
 
@@ -30,7 +38,7 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
       };
     }
 
-    const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
+    const skip = (page - 1) * limit;
 
     const [returns, total] = await Promise.all([
       prisma.return.findMany({
@@ -46,7 +54,7 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
         },
         orderBy: { returnDate: 'desc' },
         skip,
-        take: parseInt(limit as string)
+        take: limit
       }),
       prisma.return.count({ where })
     ]);
@@ -55,10 +63,10 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
       success: true,
       data: returns,
       pagination: {
-        page: parseInt(page as string),
-        limit: parseInt(limit as string),
+        page,
+        limit,
         total,
-        pages: Math.ceil(total / parseInt(limit as string))
+        pages: Math.ceil(total / limit)
       }
     });
   } catch (error) {
@@ -67,7 +75,7 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
 });
 
 // Get return by ID
-router.get('/:id', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/:id', authenticate, validateZodRequest({ params: returnZodSchemas.idParam }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const returnRecord = await prisma.return.findUnique({
@@ -95,20 +103,12 @@ router.get('/:id', authenticate, async (req: Request, res: Response, next: NextF
 });
 
 // Create return (adds back to inventory if in good condition)
-router.post('/', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZodRequest({ body: returnZodSchemas.create }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const inventoryService = new InventoryService(prisma);
     const auditService = new AuditService(prisma);
     const { deliveryId, reason, items, notes } = req.body;
-
-    if (!deliveryId || !reason) {
-      throw new AppError('Entrega y motivo son requeridos', 400);
-    }
-
-    if (!items || items.length === 0) {
-      throw new AppError('Debe incluir al menos un producto', 400);
-    }
 
     const delivery = await prisma.delivery.findUnique({
       where: { id: deliveryId },

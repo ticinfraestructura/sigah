@@ -1,0 +1,181 @@
+# SIGAH - Entorno de Desarrollo
+version: '3.8'
+
+services:
+  # ============================================
+  # Backend Desarrollo
+  # ============================================
+  sigah-backend-dev:
+    image: node:20-alpine
+    container_name: sigah-backend-dev
+    restart: "no"  # No reiniciar automáticamente en dev
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DATABASE_URL: postgresql://sigah:dev123@sigah-db-dev:5432/sigah_dev
+      REDIS_URL: redis://sigah-redis-dev:6379
+      JWT_SECRET: dev-secret-key-not-for-production-2024
+      JWT_EXPIRES_IN: 7d
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173
+      TZ: America/Bogota
+      # Hot reload
+      CHOKIDAR_USEPOLLING: true
+    volumes:
+      # Montar código para hot reload
+      - ./backend:/app
+      - backend_dev_logs:/app/logs
+      - uploads_dev_data:/app/uploads
+    networks:
+      - sigah-dev-network
+    ports:
+      - "3001:3001"  # Exponer para desarrollo local
+    depends_on:
+      sigah-db-dev:
+        condition: service_healthy
+      sigah-redis-dev:
+        condition: service_healthy
+    working_dir: /app
+    command: >
+      sh -c "
+      apk add --no-cache openssl &&
+      npm install --legacy-peer-deps &&
+      npx prisma generate &&
+      npm run dev"
+
+  # ============================================
+  # Frontend Desarrollo
+  # ============================================
+  sigah-frontend-dev:
+    image: node:20-alpine
+    container_name: sigah-frontend-dev
+    restart: "no"
+    environment:
+      TZ: America/Bogota
+      VITE_API_URL: /sigah-api
+      VITE_BASE_PATH: /
+      VITE_API_TARGET: http://sigah-backend-dev:3001
+    volumes:
+      # Montar código para hot reload
+      - ./frontend:/app
+      - frontend_dev_node_modules:/app/node_modules
+    networks:
+      - sigah-dev-network
+    ports:
+      - "3000:3000"  # Exponer para desarrollo local
+    depends_on:
+      - sigah-backend-dev
+    working_dir: /app
+    command: >
+      sh -c "
+      npm install --legacy-peer-deps &&
+      npm run dev -- --host 0.0.0.0 --port 3000"
+
+  # ============================================
+  # PostgreSQL Desarrollo
+  # ============================================
+  sigah-db-dev:
+    image: postgres:16-alpine
+    container_name: sigah-db-dev
+    restart: "no"
+    environment:
+      POSTGRES_USER: sigah
+      POSTGRES_PASSWORD: dev123
+      POSTGRES_DB: sigah_dev
+      TZ: America/Bogota
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./database/init-dev:/docker-entrypoint-initdb.d
+    networks:
+      - sigah-dev-network
+    ports:
+      - "5433:5432"  # Puerto diferente para no conflictuar
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sigah -d sigah_dev -h localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ============================================
+  # Redis Desarrollo
+  # ============================================
+  sigah-redis-dev:
+    image: redis:7-alpine
+    container_name: sigah-redis-dev
+    restart: "no"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_dev_data:/data
+    networks:
+      - sigah-dev-network
+    ports:
+      - "6380:6379"  # Puerto diferente para no conflictuar
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+
+  # ============================================
+  # pgAdmin para Desarrollo
+  # ============================================
+  pgadmin-dev:
+    image: dpage/pgadmin4:latest
+    container_name: sigah-pgadmin-dev
+    restart: "no"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: dev@sigah.com
+      PGADMIN_DEFAULT_PASSWORD: dev123
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    volumes:
+      - pgadmin_dev_data:/var/lib/pgadmin
+    networks:
+      - sigah-dev-network
+    ports:
+      - "5050:80"
+    depends_on:
+      - sigah-db-dev
+
+  # ============================================
+  # Redis Commander para Desarrollo
+  # ============================================
+  redis-commander-dev:
+    image: rediscommander/redis-commander:latest
+    container_name: sigah-redis-commander-dev
+    restart: "no"
+    environment:
+      REDIS_HOSTS: local:sigah-redis-dev:6379
+    networks:
+      - sigah-dev-network
+    ports:
+      - "8081:8081"
+    depends_on:
+      - sigah-redis-dev
+
+# ============================================
+# Red y Volúmenes Desarrollo
+# ============================================
+networks:
+  sigah-dev-network:
+    name: sigah-dev-network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.22.0.0/16
+          gateway: 172.22.0.1
+
+volumes:
+  postgres_dev_data:
+    name: sigah-postgres-dev-data
+  redis_dev_data:
+    name: sigah-redis-dev-data
+  backend_dev_logs:
+    name: sigah-backend-dev-logs
+  uploads_dev_data:
+    name: sigah-uploads-dev-data
+  frontend_dev_node_modules:
+    name: sigah-frontend-dev-node-modules
+  pgadmin_dev_data:
+    name: sigah-pgadmin-dev-data

@@ -419,25 +419,681 @@ export const schemas = {
   })
 };
 
+const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
+const whatsappPhoneRegex = /^\+?\d{10,15}$/;
+
+const normalizeOptionalText = (value: unknown) => {
+  if (value === undefined || value === null) return value;
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+};
+
+const normalizePhoneInput = (value: unknown) => {
+  const normalized = normalizeOptionalText(value);
+  if (typeof normalized !== 'string') return normalized;
+  return normalized.replace(/[\s\-\(\)]/g, '');
+};
+
+const optionalWhatsappPhoneSchema = z.preprocess(
+  normalizePhoneInput,
+  z
+    .string()
+    .regex(whatsappPhoneRegex, 'Celular inválido. Use formato internacional, por ejemplo +573001234567')
+    .optional()
+    .nullable()
+);
+
+const optionalApiKeySchema = z.preprocess(normalizeOptionalText, z.string().min(4).max(255).optional().nullable());
+
+export const authZodSchemas = {
+  login: z.object({
+    email: z.string().email('Email inválido').trim().toLowerCase(),
+    password: z.string().min(1, 'Contraseña requerida')
+  }),
+  changePassword: z.object({
+    currentPassword: z.string().min(1, 'Contraseña actual requerida'),
+    newPassword: z
+      .string()
+      .regex(
+        strongPasswordRegex,
+        'La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula, número y carácter especial'
+      )
+  }),
+  sessionParam: z.object({
+    sessionId: z.string().min(1, 'sessionId requerido')
+  })
+};
+
+export const userZodSchemas = {
+  idParam: z.object({
+    id: z.string().uuid('ID inválido')
+  }),
+  create: z.object({
+    email: z.string().email('Email inválido').trim().toLowerCase(),
+    password: z
+      .string()
+      .regex(
+        strongPasswordRegex,
+        'La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula, número y carácter especial'
+      ),
+    firstName: z.string().trim().min(2, 'Nombre mínimo 2 caracteres').max(80, 'Nombre máximo 80 caracteres'),
+    lastName: z.string().trim().min(2, 'Apellido mínimo 2 caracteres').max(80, 'Apellido máximo 80 caracteres'),
+    phone: optionalWhatsappPhoneSchema,
+    whatsappApiKey: optionalApiKeySchema,
+    telegramChatId: z.preprocess(normalizeOptionalText, z.string().max(255).optional().nullable()),
+    roleId: z.string().uuid('Rol inválido').optional().nullable()
+  }),
+  update: z
+    .object({
+      email: z.string().email('Email inválido').trim().toLowerCase().optional(),
+      password: z
+        .string()
+        .regex(
+          strongPasswordRegex,
+          'La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula, número y carácter especial'
+        )
+        .optional(),
+      firstName: z.string().trim().min(2).max(80).optional(),
+      lastName: z.string().trim().min(2).max(80).optional(),
+      phone: optionalWhatsappPhoneSchema,
+      whatsappApiKey: optionalApiKeySchema,
+      telegramChatId: z.preprocess(normalizeOptionalText, z.string().max(255).optional().nullable()),
+      roleId: z.string().uuid('Rol inválido').optional().nullable()
+    })
+    .refine((data) => Object.keys(data).length > 0, {
+      message: 'Debe enviar al menos un campo para actualizar'
+    }),
+  resetPassword: z.object({
+    newPassword: z
+      .string()
+      .regex(
+        strongPasswordRegex,
+        'La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula, número y carácter especial'
+      )
+  })
+};
+
+export const requestZodSchemas = {
+  listQuery: z.object({
+    status: z
+      .enum(['REGISTERED', 'IN_REVIEW', 'APPROVED', 'REJECTED', 'DELIVERED', 'PARTIALLY_DELIVERED', 'CANCELLED'])
+      .optional(),
+    beneficiaryId: z.string().uuid('beneficiaryId inválido').optional(),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+    search: z.string().trim().max(120).optional(),
+    page: z.coerce.number().int().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(100).optional()
+  }),
+  idParam: z.object({
+    id: z.string().uuid('ID inválido')
+  }),
+  create: z
+    .object({
+      beneficiaryId: z.string().uuid('Beneficiario inválido'),
+      products: z
+        .array(
+          z.object({
+            productId: z.string().uuid('ID de producto inválido'),
+            quantity: z.number().int().min(1, 'Cantidad debe ser mayor a 0')
+          })
+        )
+        .optional(),
+      kits: z
+        .array(
+          z.object({
+            kitId: z.string().uuid('ID de kit inválido'),
+            quantity: z.number().int().min(1, 'Cantidad debe ser mayor a 0')
+          })
+        )
+        .optional(),
+      priority: z.number().int().min(0).optional(),
+      notes: z.string().trim().max(500).optional()
+    })
+    .refine((data) => {
+      const hasProducts = (data.products?.length ?? 0) > 0;
+      const hasKits = (data.kits?.length ?? 0) > 0;
+      return hasProducts || hasKits;
+    }, {
+      message: 'Debe solicitar al menos un producto o kit',
+      path: ['products']
+    }),
+  updateStatus: z.object({
+    status: z.enum(['REGISTERED', 'IN_REVIEW', 'APPROVED', 'REJECTED', 'DELIVERED', 'PARTIALLY_DELIVERED', 'CANCELLED']),
+    notes: z.string().trim().max(500).optional()
+  }),
+  update: z
+    .object({
+      products: z.array(
+        z.object({
+          productId: z.string().uuid('ID de producto inválido'),
+          quantity: z.number().int().min(1, 'Cantidad debe ser mayor a 0')
+        })
+      ).optional(),
+      kits: z.array(
+        z.object({
+          kitId: z.string().uuid('ID de kit inválido'),
+          quantity: z.number().int().min(1, 'Cantidad debe ser mayor a 0')
+        })
+      ).optional(),
+      priority: z.number().int().min(0).optional(),
+      notes: z.string().trim().max(500).optional().nullable()
+    })
+    .refine((data) => Object.keys(data).length > 0, {
+      message: 'Debe enviar al menos un campo para actualizar'
+    })
+};
+
+export const deliveryZodSchemas = {
+  idParam: z.object({ id: z.string().uuid('ID inválido') }),
+  listQuery: z.object({
+    requestId: z.string().uuid('requestId inválido').optional(),
+    status: z.enum(['PENDING_AUTHORIZATION', 'AUTHORIZED', 'RECEIVED_WAREHOUSE', 'IN_PREPARATION', 'READY', 'DELIVERED', 'CANCELLED']).optional(),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+    warehouseUserId: z.string().uuid('warehouseUserId inválido').optional(),
+    page: z.coerce.number().int().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(100).optional()
+  }),
+  create: z
+    .object({
+      requestId: z.string().uuid('Solicitud inválida'),
+      products: z.array(
+        z.object({
+          productId: z.string().uuid('Producto inválido'),
+          quantity: z.number().int().min(1, 'Cantidad inválida')
+        })
+      ).optional(),
+      kits: z.array(
+        z.object({
+          kitId: z.string().uuid('Kit inválido'),
+          quantity: z.number().int().min(1, 'Cantidad inválida')
+        })
+      ).optional(),
+      notes: z.string().trim().max(500).optional(),
+      isPartial: z.boolean().optional()
+    })
+    .refine((data) => (data.products?.length ?? 0) > 0 || (data.kits?.length ?? 0) > 0, {
+      message: 'Debe incluir al menos un producto o kit',
+      path: ['products']
+    }),
+  authorize: z.object({
+    notes: z.string().trim().max(500).optional(),
+    isPartialAuth: z.boolean().optional(),
+    authorizedQuantities: z.record(z.string(), z.number().int().min(0)).optional()
+  }),
+  notesOnly: z.object({
+    notes: z.string().trim().max(500).optional()
+  }),
+  deliver: z.object({
+    receivedBy: z.string().trim().min(2).max(120),
+    receiverDocument: z.string().trim().min(3).max(30),
+    receiverSignature: z.string().trim().max(5000).optional(),
+    notes: z.string().trim().max(500).optional()
+  }),
+  cancel: z.object({
+    reason: z.string().trim().min(3, 'Motivo de cancelación es requerido').max(500)
+  })
+};
+
+const reportScalarSchema = z.union([
+  z.string().trim().max(500),
+  z.number(),
+  z.boolean(),
+  z.null()
+]);
+
+const reportFilterValueSchema = z.union([
+  reportScalarSchema,
+  z.array(reportScalarSchema).max(100)
+]);
+
+const reportFiltersSchema = z
+  .record(z.string().trim().min(1).max(80), reportFilterValueSchema)
+  .superRefine((value, ctx) => {
+    if (Object.keys(value).length > 40) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Demasiados filtros. Máximo permitido: 40'
+      });
+    }
+  });
+
+const reportRowSchema = z
+  .record(z.string().trim().min(1).max(120), z.union([reportScalarSchema, z.array(reportScalarSchema).max(50)]))
+  .superRefine((value, ctx) => {
+    if (Object.keys(value).length > 120) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Demasiadas columnas por fila. Máximo permitido: 120'
+      });
+    }
+  });
+
+const optionalReportDateSchema = z
+  .string()
+  .trim()
+  .max(40)
+  .optional()
+  .refine((value) => !value || !Number.isNaN(Date.parse(value)), 'Fecha inválida');
+
+export const reportZodSchemas = {
+  reportTypeParam: z.object({
+    reportType: z.enum(['inventory', 'kits', 'beneficiaries', 'requests', 'deliveries', 'authorizations', 'returns'])
+  }),
+  fieldsQuery: z.object({ subtype: z.string().trim().max(80).optional() }),
+  generate: z.object({
+    reportType: z.enum(['inventory', 'kits', 'beneficiaries', 'requests', 'deliveries', 'authorizations', 'returns']),
+    subtype: z.string().trim().max(80).optional(),
+    startDate: optionalReportDateSchema,
+    endDate: optionalReportDateSchema,
+    fields: z.array(z.string().trim().min(1).max(80)).max(120).optional(),
+    filters: reportFiltersSchema.optional(),
+    groupBy: z.string().trim().max(80).optional(),
+    sortBy: z.string().trim().max(80).optional(),
+    sortOrder: z.enum(['asc', 'desc']).optional()
+  }),
+  exportExcel: z.object({
+    reportType: z.enum(['inventory', 'kits', 'beneficiaries', 'requests', 'deliveries', 'authorizations', 'returns']),
+    subtype: z.string().trim().max(80).optional(),
+    startDate: optionalReportDateSchema,
+    endDate: optionalReportDateSchema,
+    filters: reportFiltersSchema.optional(),
+    data: z.array(reportRowSchema).max(5000).optional()
+  }),
+  exportPdf: z.object({
+    reportType: z.enum(['inventory', 'kits', 'beneficiaries', 'requests', 'deliveries', 'authorizations', 'returns']),
+    subtype: z.string().trim().max(80).optional(),
+    startDate: optionalReportDateSchema,
+    endDate: optionalReportDateSchema,
+    filters: reportFiltersSchema.optional(),
+    data: z.array(reportRowSchema).max(5000).optional(),
+    title: z.string().trim().max(160).optional()
+  })
+};
+
+export const productZodSchemas = {
+  idParam: z.object({ id: z.string().uuid('ID inválido') }),
+  lotParams: z.object({
+    id: z.string().uuid('ID de producto inválido'),
+    lotId: z.string().uuid('ID de lote inválido')
+  }),
+  listQuery: z.object({
+    categoryId: z.string().uuid('categoryId inválido').optional(),
+    isPerishable: z.enum(['true', 'false']).optional(),
+    search: z.string().trim().max(120).optional(),
+    includeInactive: z.enum(['true', 'false']).optional(),
+    page: z.coerce.number().int().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(100).optional()
+  }),
+  movementsQuery: z.object({
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+    type: z.enum(['ENTRY', 'EXIT', 'ADJUSTMENT', 'RETURN']).optional(),
+    page: z.coerce.number().int().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(100).optional()
+  }),
+  create: z.object({
+    code: z.string().trim().min(2).max(50),
+    name: z.string().trim().min(2).max(120),
+    description: z.string().trim().max(500).optional(),
+    categoryId: z.string().uuid('Categoría inválida'),
+    unit: z.string().trim().min(1).max(20).optional(),
+    isPerishable: z.boolean().optional(),
+    minStock: z.number().int().min(0).optional()
+  }),
+  update: z
+    .object({
+      code: z.string().trim().min(2).max(50).optional(),
+      name: z.string().trim().min(2).max(120).optional(),
+      description: z.string().trim().max(500).optional().nullable(),
+      categoryId: z.string().uuid('Categoría inválida').optional(),
+      unit: z.string().trim().min(1).max(20).optional(),
+      isPerishable: z.boolean().optional(),
+      minStock: z.number().int().min(0).optional(),
+      isActive: z.boolean().optional()
+    })
+    .refine((data) => Object.keys(data).length > 0, {
+      message: 'Debe enviar al menos un campo para actualizar'
+    }),
+  addLot: z.object({
+    lotNumber: z.string().trim().min(1).max(50).optional(),
+    quantity: z.number().int().positive('La cantidad debe ser mayor a 0'),
+    expiryDate: z.string().optional(),
+    reason: z.string().trim().max(255).optional()
+  }),
+  updateLot: z
+    .object({
+      lotNumber: z.string().trim().min(1).max(50).optional(),
+      quantity: z.number().int().min(0, 'La cantidad no puede ser negativa').optional(),
+      expiryDate: z.string().optional().nullable()
+    })
+    .refine((data) => Object.keys(data).length > 0, {
+      message: 'Debe enviar al menos un campo para actualizar lote'
+    }),
+  deleteLotBody: z.object({
+    reason: z.string().trim().max(255).optional()
+  })
+};
+
+export const beneficiaryZodSchemas = {
+  idParam: z.object({ id: z.string().uuid('ID inválido') }),
+  listQuery: z.object({
+    search: z.string().trim().max(120).optional(),
+    populationType: z.string().trim().max(50).optional(),
+    includeInactive: z.enum(['true', 'false']).optional(),
+    page: z.coerce.number().int().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(100).optional()
+  }),
+  create: z.object({
+    documentType: z.enum(['CC', 'TI', 'CE', 'PA', 'RC', 'NIT']),
+    documentNumber: z.string().trim().min(5).max(20),
+    firstName: z.string().trim().min(2).max(80),
+    lastName: z.string().trim().min(2).max(80),
+    phone: z.string().trim().max(30).optional(),
+    email: z.string().email('Email inválido').optional(),
+    address: z.string().trim().max(200).optional(),
+    city: z.string().trim().max(80).optional(),
+    populationType: z.string().trim().max(50).optional(),
+    familySize: z.number().int().min(1).optional(),
+    notes: z.string().trim().max(500).optional()
+  }),
+  update: z
+    .object({
+      documentType: z.enum(['CC', 'TI', 'CE', 'PA', 'RC', 'NIT']).optional(),
+      documentNumber: z.string().trim().min(5).max(20).optional(),
+      firstName: z.string().trim().min(2).max(80).optional(),
+      lastName: z.string().trim().min(2).max(80).optional(),
+      phone: z.string().trim().max(30).optional().nullable(),
+      email: z.string().email('Email inválido').optional().nullable(),
+      address: z.string().trim().max(200).optional().nullable(),
+      city: z.string().trim().max(80).optional().nullable(),
+      populationType: z.string().trim().max(50).optional().nullable(),
+      familySize: z.number().int().min(1).optional(),
+      notes: z.string().trim().max(500).optional().nullable(),
+      isActive: z.boolean().optional()
+    })
+    .refine((data) => Object.keys(data).length > 0, {
+      message: 'Debe enviar al menos un campo para actualizar'
+    }),
+  searchByDocumentQuery: z.object({
+    documentType: z.enum(['CC', 'TI', 'CE', 'PA', 'RC', 'NIT']),
+    documentNumber: z.string().trim().min(5).max(20)
+  })
+};
+
+export const roleZodSchemas = {
+  idParam: z.object({ id: z.string().uuid('ID inválido') }),
+  create: z.object({
+    name: z.string().trim().min(2).max(50),
+    description: z.string().trim().max(200).optional(),
+    permissions: z.array(z.object({ module: z.string().trim().min(1), action: z.string().trim().min(1) })).optional()
+  }),
+  update: z
+    .object({
+      name: z.string().trim().min(2).max(50).optional(),
+      description: z.string().trim().max(200).optional().nullable(),
+      permissions: z.array(z.object({ module: z.string().trim().min(1), action: z.string().trim().min(1) })).optional()
+    })
+    .refine((data) => Object.keys(data).length > 0, {
+      message: 'Debe enviar al menos un campo para actualizar'
+    }),
+  assign: z.object({
+    userId: z.string().uuid('Usuario inválido'),
+    roleId: z.string().uuid('Rol inválido')
+  })
+};
+
+export const returnZodSchemas = {
+  idParam: z.object({ id: z.string().uuid('ID inválido') }),
+  listQuery: z.object({
+    deliveryId: z.string().uuid('deliveryId inválido').optional(),
+    reason: z.string().trim().max(120).optional(),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+    page: z.coerce.number().int().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(100).optional()
+  }),
+  create: z.object({
+    deliveryId: z.string().uuid('Entrega inválida'),
+    reason: z.string().trim().min(1).max(200),
+    notes: z.string().trim().max(500).optional(),
+    items: z.array(z.object({
+      productId: z.string().uuid('Producto inválido'),
+      quantity: z.number().int().positive('Cantidad inválida'),
+      condition: z.string().trim().min(1),
+      lotId: z.string().uuid('Lote inválido').optional()
+    })).min(1, 'Debe incluir al menos un producto')
+  })
+};
+
+export const categoryZodSchemas = {
+  idParam: z.object({ id: z.string().uuid('ID inválido') }),
+  listQuery: z.object({ includeInactive: z.enum(['true', 'false']).optional() }),
+  create: z.object({
+    name: z.string().trim().min(2).max(100),
+    description: z.string().trim().max(500).optional()
+  }),
+  update: z
+    .object({
+      name: z.string().trim().min(2).max(100).optional(),
+      description: z.string().trim().max(500).optional().nullable(),
+      isActive: z.boolean().optional()
+    })
+    .refine((data) => Object.keys(data).length > 0, { message: 'Debe enviar al menos un campo para actualizar' })
+};
+
+export const inventoryZodSchemas = {
+  stockQuery: z.object({
+    categoryId: z.string().uuid().optional(),
+    isPerishable: z.enum(['true', 'false']).optional(),
+    lowStock: z.enum(['true', 'false']).optional()
+  }),
+  movementQuery: z.object({
+    productId: z.string().uuid().optional(),
+    type: z.enum(['ENTRY', 'EXIT', 'ADJUSTMENT', 'RETURN']).optional(),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+    page: z.coerce.number().int().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(100).optional()
+  }),
+  expiringQuery: z.object({
+    days: z.coerce.number().int().min(1).max(365).optional()
+  }),
+  adjustment: z.object({
+    productId: z.string().uuid('Producto inválido'),
+    lotId: z.string().uuid('Lote inválido'),
+    quantity: z.number().int('Cantidad inválida'),
+    reason: z.string().trim().min(3).max(255)
+  }),
+  entry: z.object({
+    productId: z.string().uuid('Producto inválido'),
+    quantity: z.number().int().positive('Cantidad inválida'),
+    lotNumber: z.string().trim().max(50).optional(),
+    expiryDate: z.string().optional(),
+    reason: z.string().trim().max(255).optional()
+  })
+};
+
+export const kitZodSchemas = {
+  idParam: z.object({ id: z.string().uuid('ID inválido') }),
+  listQuery: z.object({ includeInactive: z.enum(['true', 'false']).optional() }),
+  availabilityQuery: z.object({ quantity: z.coerce.number().int().min(1).optional() }),
+  historyQuery: z.object({
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+    status: z.string().trim().max(50).optional()
+  }),
+  create: z.object({
+    code: z.string().trim().min(2).max(50),
+    name: z.string().trim().min(2).max(120),
+    description: z.string().trim().max(500).optional(),
+    products: z.array(z.object({
+      productId: z.string().uuid('Producto inválido'),
+      quantity: z.number().int().positive('Cantidad inválida')
+    })).min(1, 'El kit debe tener al menos un producto')
+  }),
+  update: z
+    .object({
+      code: z.string().trim().min(2).max(50).optional(),
+      name: z.string().trim().min(2).max(120).optional(),
+      description: z.string().trim().max(500).optional().nullable(),
+      isActive: z.boolean().optional(),
+      products: z.array(z.object({
+        productId: z.string().uuid('Producto inválido'),
+        quantity: z.number().int().positive('Cantidad inválida')
+      })).optional()
+    })
+    .refine((data) => Object.keys(data).length > 0, { message: 'Debe enviar al menos un campo para actualizar' })
+};
+
+export const notificationZodSchemas = {
+  emptyQuery: z.object({}).strict(),
+  idParam: z.object({ id: z.string().uuid('ID inválido') }),
+  listQuery: z.object({
+    channel: z.enum(['INTERNAL', 'WHATSAPP', 'TELEGRAM']).optional(),
+    type: z.enum(['INFO', 'ALERT', 'DELIVERY', 'REQUEST', 'SYSTEM', 'REMINDER']).optional(),
+    criticality: z.enum(['INFORMATIVE', 'LOW', 'NORMAL', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
+    limit: z.coerce.number().int().min(1).max(200).optional(),
+    offset: z.coerce.number().int().min(0).optional()
+  }),
+  send: z.object({
+    receiverId: z.string().uuid('receiverId inválido'),
+    type: z.enum(['INFO', 'ALERT', 'DELIVERY', 'REQUEST', 'SYSTEM', 'REMINDER']),
+    criticality: z.enum(['INFORMATIVE', 'LOW', 'NORMAL', 'MEDIUM', 'HIGH', 'CRITICAL']).optional().default('NORMAL'),
+    title: z.string().trim().min(2).max(160),
+    message: z.string().trim().min(2).max(4000),
+    sendWhatsApp: z.boolean().optional().default(true),
+    referenceType: z.string().trim().max(50).optional(),
+    referenceId: z.string().trim().max(100).optional(),
+    actionUrl: z.string().url('actionUrl inválida').optional()
+  }),
+  sendBulk: z.object({
+    receiverIds: z.array(z.string().uuid('receiverId inválido')).min(1).max(100),
+    type: z.enum(['INFO', 'ALERT', 'DELIVERY', 'REQUEST', 'SYSTEM', 'REMINDER']),
+    criticality: z.enum(['INFORMATIVE', 'LOW', 'NORMAL', 'MEDIUM', 'HIGH', 'CRITICAL']).optional().default('NORMAL'),
+    title: z.string().trim().min(2).max(160),
+    message: z.string().trim().min(2).max(4000),
+    sendWhatsApp: z.boolean().optional().default(true)
+  }),
+  test: z.object({
+    phone: z.string().trim().min(8).max(30)
+  }),
+  telegramTest: z.object({
+    chatId: z.string().trim().min(3).max(64)
+  }),
+  setMode: z.object({
+    mode: z.enum(['auto', 'simulated', 'real'])
+  })
+};
+
+export const inAppNotificationZodSchemas = {
+  idParam: z.object({ id: z.string().uuid('ID inválido') }),
+  listQuery: z.object({
+    unreadOnly: z.enum(['true', 'false']).optional(),
+    limit: z.coerce.number().int().min(1).max(200).optional()
+  })
+};
+
+export const dashboardZodSchemas = {
+  chartsQuery: z.object({
+    months: z.coerce.number().int().min(1).max(24).optional()
+  }),
+  activityQuery: z.object({
+    limit: z.coerce.number().int().min(1).max(100).optional()
+  })
+};
+
+export const backupZodSchemas = {
+  nameParam: z.object({
+    name: z
+      .string()
+      .trim()
+      .min(1)
+      .max(255)
+      .regex(/^[a-zA-Z0-9._-]+$/, 'Nombre de backup inválido')
+  })
+};
+
+export const auditZodSchemas = {
+  entityParams: z.object({
+    entity: z.string().trim().min(1).max(80),
+    entityId: z.string().trim().min(1).max(120)
+  }),
+  searchQuery: z.object({
+    entity: z.string().trim().max(80).optional(),
+    entityId: z.string().trim().max(120).optional(),
+    userId: z.string().uuid('userId inválido').optional(),
+    action: z.string().trim().max(80).optional(),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+    page: z.coerce.number().int().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(200).optional()
+  }),
+  statsQuery: z.object({
+    startDate: z.string().optional(),
+    endDate: z.string().optional()
+  }),
+  compareQuery: z.object({
+    id1: z.string().trim().min(1),
+    id2: z.string().trim().min(1)
+  }),
+  exportQuery: z.object({
+    entity: z.string().trim().max(80).optional(),
+    entityId: z.string().trim().max(120).optional(),
+    userId: z.string().uuid('userId inválido').optional(),
+    action: z.string().trim().max(80).optional(),
+    startDate: z.string().optional(),
+    endDate: z.string().optional()
+  })
+};
+
 // ============ MIDDLEWARE DE VALIDACIÓN ZOD ============
 
-export const validateZod = <T>(schema: z.ZodSchema<T>) => {
+type ZodRequestSchemas = {
+  body?: z.ZodTypeAny;
+  params?: z.ZodTypeAny;
+  query?: z.ZodTypeAny;
+};
+
+export const validateZodRequest = (requestSchemas: ZodRequestSchemas) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    try {
-      schema.parse(req.body);
-      next();
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          success: false,
-          error: 'Datos de entrada inválidos',
-          details: error.issues.map((e: z.ZodIssue) => ({
-            field: e.path.join('.'),
-            message: e.message
-          }))
+    const details: { field: string; message: string }[] = [];
+
+    const runValidation = (target: 'body' | 'params' | 'query', schema?: z.ZodTypeAny) => {
+      if (!schema) return;
+
+      const result = schema.safeParse(req[target]);
+      if (!result.success) {
+        result.error.issues.forEach((issue) => {
+          details.push({
+            field: [target, ...issue.path].join('.'),
+            message: issue.message
+          });
         });
+        return;
       }
-      next(error);
+
+      (req as any)[target] = result.data;
+    };
+
+    runValidation('params', requestSchemas.params);
+    runValidation('query', requestSchemas.query);
+    runValidation('body', requestSchemas.body);
+
+    if (details.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Datos de entrada inválidos',
+        details
+      });
     }
+
+    next();
   };
+};
+
+export const validateZod = <T>(schema: z.ZodSchema<T>) => {
+  return validateZodRequest({ body: schema });
 };

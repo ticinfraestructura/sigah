@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Plus, Search, Eye, XCircle, RotateCcw } from 'lucide-react';
 import { requestApi } from '../services/api';
 import { Request } from '../types';
+import { useToast } from '../components/ui/Toast';
 
 const statusLabels: Record<string, string> = {
   REGISTERED: 'Registrada', IN_REVIEW: 'En Revisión', APPROVED: 'Aprobada',
@@ -18,32 +19,35 @@ export default function Requests() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
+  const toast = useToast();
 
   const handleCancel = async (req: Request) => {
     if (req.status === 'CANCELLED' || req.status === 'DELIVERED') {
-      alert('Esta solicitud no puede ser cancelada');
+      toast.warning('Esta solicitud no puede ser cancelada');
       return;
     }
     if (!confirm(`¿Cancelar la solicitud "${req.code}"?`)) return;
     try {
       await requestApi.updateStatus(req.id, 'CANCELLED');
+      toast.success('Solicitud cancelada');
       fetchData();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error al cancelar');
+      toast.error(error.response?.data?.error || 'Error al cancelar');
     }
   };
 
   const handleReactivate = async (req: Request) => {
     if (req.status !== 'CANCELLED') {
-      alert('Solo se pueden reactivar solicitudes canceladas');
+      toast.warning('Solo se pueden reactivar solicitudes canceladas');
       return;
     }
     if (!confirm(`¿Reactivar la solicitud "${req.code}"? Volverá al estado "Registrada".`)) return;
     try {
       await requestApi.updateStatus(req.id, 'REGISTERED');
+      toast.success('Solicitud reactivada');
       fetchData();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error al reactivar');
+      toast.error(error.response?.data?.error || 'Error al reactivar');
     }
   };
 

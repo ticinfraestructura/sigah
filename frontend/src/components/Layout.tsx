@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useIdleTimeout } from '../hooks/useIdleTimeout';
+import { useToast } from './ui/Toast';
 import ThemeToggle from './ThemeToggle';
 import NotificationCenter from './NotificationCenter';
 import {
@@ -53,6 +55,21 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout, hasPermission } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const toast = useToast();
+
+  // Configurar idle timeout (30 minutos con advertencia a 5 minutos)
+  useIdleTimeout({
+    timeoutMinutes: 30,
+    warningMinutes: 5,
+    onWarning: () => {
+      toast.warning('Tu sesión expirará en 5 minutos por inactividad. Mueve el mouse o presiona una tecla para mantenerla activa.');
+    },
+    onTimeout: () => {
+      toast.error('Sesión expirada por inactividad. Por favor, inicia sesión nuevamente.');
+      logout();
+      navigate('/login');
+    }
+  });
 
   const handleLogout = () => {
     logout();
@@ -119,10 +136,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 key={item.name}
                 to={item.href}
                 onClick={() => setSidebarOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border-l-4 ${
                   isActive
-                    ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400'
-                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
+                    ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
                 <item.icon className="w-5 h-5" />
@@ -146,10 +163,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     key={item.name}
                     to={item.href}
                     onClick={() => setSidebarOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border-l-4 ${
                       isActive
-                        ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400'
-                        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
+                        ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400'
+                        : 'border-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
                     }`}
                   >
                     <item.icon className="w-5 h-5" />
@@ -232,6 +249,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <main className="p-4 lg:p-6">
           {children}
         </main>
+
+        {/* Footer */}
+        <footer className="text-center text-xs text-gray-400 dark:text-gray-500 py-4 border-t border-gray-100 dark:border-gray-800">
+          SIGAH v1.0.0 · Sistema de Gestión de Ayudas Humanitarias
+        </footer>
       </div>
     </div>
   );

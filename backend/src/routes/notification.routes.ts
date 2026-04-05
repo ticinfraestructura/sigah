@@ -1,15 +1,16 @@
 import { Router, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AuthRequest, authenticate, authorize } from '../middleware/auth.middleware';
+import { inAppNotificationZodSchemas, validateZodRequest } from '../middleware/validation.middleware';
 
 const router = Router();
 
 // Obtener notificaciones del usuario actual
-router.get('/', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/', authenticate, validateZodRequest({ query: inAppNotificationZodSchemas.listQuery }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const userId = req.user!.id;
-    const { unreadOnly, limit = 20 } = req.query;
+    const { unreadOnly, limit = 20 } = req.query as { unreadOnly?: 'true' | 'false'; limit?: number };
 
     const where: any = { receiverId: userId };
     if (unreadOnly === 'true') {
@@ -23,7 +24,7 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response, next: Next
         delivery: { select: { id: true, code: true, status: true } }
       },
       orderBy: { createdAt: 'desc' },
-      take: parseInt(limit as string)
+      take: limit
     });
 
     const unreadCount = await prisma.notification.count({
@@ -41,7 +42,7 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response, next: Next
 });
 
 // Marcar notificación como leída
-router.patch('/:id/read', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.patch('/:id/read', authenticate, validateZodRequest({ params: inAppNotificationZodSchemas.idParam }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { id } = req.params;

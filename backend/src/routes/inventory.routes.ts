@@ -4,11 +4,12 @@ import { AppError } from '../middleware/error.middleware';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth.middleware';
 import { InventoryService } from '../services/inventory.service';
 import { logAuditAction } from '../services/audit-advanced.service';
+import { inventoryZodSchemas, validateZodRequest } from '../middleware/validation.middleware';
 
 const router = Router();
 
 // Get current stock summary
-router.get('/stock', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/stock', authenticate, validateZodRequest({ query: inventoryZodSchemas.stockQuery }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { categoryId, isPerishable, lowStock } = req.query;
@@ -57,17 +58,24 @@ router.get('/stock', authenticate, async (req: Request, res: Response, next: Nex
 });
 
 // Get all movements with filters
-router.get('/movements', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/movements', authenticate, validateZodRequest({ query: inventoryZodSchemas.movementQuery }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
-    const { 
-      productId, 
-      type, 
-      startDate, 
-      endDate, 
-      page = '1', 
-      limit = '50' 
-    } = req.query;
+    const {
+      productId,
+      type,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 50
+    } = req.query as {
+      productId?: string;
+      type?: 'ENTRY' | 'EXIT' | 'ADJUSTMENT' | 'RETURN';
+      startDate?: string;
+      endDate?: string;
+      page?: number;
+      limit?: number;
+    };
 
     const where: any = {};
 
@@ -86,7 +94,7 @@ router.get('/movements', authenticate, async (req: Request, res: Response, next:
       };
     }
 
-    const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
+    const skip = (page - 1) * limit;
 
     const [movements, total] = await Promise.all([
       prisma.stockMovement.findMany({
@@ -98,7 +106,7 @@ router.get('/movements', authenticate, async (req: Request, res: Response, next:
         },
         orderBy: { createdAt: 'desc' },
         skip,
-        take: parseInt(limit as string)
+        take: limit
       }),
       prisma.stockMovement.count({ where })
     ]);
@@ -107,10 +115,10 @@ router.get('/movements', authenticate, async (req: Request, res: Response, next:
       success: true,
       data: movements,
       pagination: {
-        page: parseInt(page as string),
-        limit: parseInt(limit as string),
+        page,
+        limit,
         total,
-        pages: Math.ceil(total / parseInt(limit as string))
+        pages: Math.ceil(total / limit)
       }
     });
   } catch (error) {
@@ -119,11 +127,12 @@ router.get('/movements', authenticate, async (req: Request, res: Response, next:
 });
 
 // Get expiring products
-router.get('/expiring', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/expiring', authenticate, validateZodRequest({ query: inventoryZodSchemas.expiringQuery }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const inventoryService = new InventoryService(prisma);
-    const daysAhead = parseInt(req.query.days as string) || 30;
+    const { days = 30 } = req.query as { days?: number };
+    const daysAhead = days;
 
     const expiringProducts = await inventoryService.getExpiringProducts(daysAhead);
 
@@ -162,15 +171,11 @@ router.get('/by-category', authenticate, async (req: Request, res: Response, nex
 });
 
 // Manual stock adjustment
-router.post('/adjustment', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/adjustment', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZodRequest({ body: inventoryZodSchemas.adjustment }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const inventoryService = new InventoryService(prisma);
     const { productId, lotId, quantity, reason } = req.body;
-
-    if (!productId || !lotId || quantity === undefined || !reason) {
-      throw new AppError('Producto, lote, cantidad y motivo son requeridos', 400);
-    }
 
     // Obtener datos antes del ajuste para auditoría
     const lotBefore = await prisma.productLot.findUnique({
@@ -216,15 +221,11 @@ router.post('/adjustment', authenticate, authorize('ADMIN', 'WAREHOUSE'), async 
 });
 
 // Manual stock entry
-router.post('/entry', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/entry', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZodRequest({ body: inventoryZodSchemas.entry }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const inventoryService = new InventoryService(prisma);
     const { productId, quantity, lotNumber, expiryDate, reason } = req.body;
-
-    if (!productId || !quantity) {
-      throw new AppError('Producto y cantidad son requeridos', 400);
-    }
 
     // Obtener nombre del producto para auditoría
     const product = await prisma.product.findUnique({ where: { id: productId } });

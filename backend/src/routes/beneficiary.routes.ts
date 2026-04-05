@@ -3,14 +3,21 @@ import { PrismaClient } from '@prisma/client';
 import { AppError } from '../middleware/error.middleware';
 import { authenticate, hasPermission, AuthRequest } from '../middleware/auth.middleware';
 import { AuditService } from '../services/audit.service';
+import { beneficiaryZodSchemas, validateZodRequest } from '../middleware/validation.middleware';
 
 const router = Router();
 
 // Get all beneficiaries
-router.get('/', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/', authenticate, validateZodRequest({ query: beneficiaryZodSchemas.listQuery }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
-    const { search, populationType, includeInactive, page = '1', limit = '50' } = req.query;
+    const { search, populationType, includeInactive, page = 1, limit = 50 } = req.query as {
+      search?: string;
+      populationType?: string;
+      includeInactive?: 'true' | 'false';
+      page?: number;
+      limit?: number;
+    };
 
     const where: any = {};
     
@@ -30,14 +37,14 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
       ];
     }
 
-    const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
+    const skip = (page - 1) * limit;
 
     const [beneficiaries, total] = await Promise.all([
       prisma.beneficiary.findMany({
         where,
         orderBy: { lastName: 'asc' },
         skip,
-        take: parseInt(limit as string)
+        take: limit
       }),
       prisma.beneficiary.count({ where })
     ]);
@@ -46,10 +53,10 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
       success: true,
       data: beneficiaries,
       pagination: {
-        page: parseInt(page as string),
-        limit: parseInt(limit as string),
+        page,
+        limit,
         total,
-        pages: Math.ceil(total / parseInt(limit as string))
+        pages: Math.ceil(total / limit)
       }
     });
   } catch (error) {
@@ -58,7 +65,7 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
 });
 
 // Get beneficiary by ID with requests history
-router.get('/:id', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/:id', authenticate, validateZodRequest({ params: beneficiaryZodSchemas.idParam }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const beneficiary = await prisma.beneficiary.findUnique({
@@ -87,7 +94,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response, next: NextF
 });
 
 // Create beneficiary
-router.post('/', authenticate, hasPermission('beneficiaries', 'create'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/', authenticate, hasPermission('beneficiaries', 'create'), validateZodRequest({ body: beneficiaryZodSchemas.create }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const auditService = new AuditService(prisma);
@@ -104,10 +111,6 @@ router.post('/', authenticate, hasPermission('beneficiaries', 'create'), async (
       familySize,
       notes 
     } = req.body;
-
-    if (!documentType || !documentNumber || !firstName || !lastName) {
-      throw new AppError('Tipo de documento, número, nombre y apellido son requeridos', 400);
-    }
 
     const existing = await prisma.beneficiary.findUnique({
       where: { documentType_documentNumber: { documentType, documentNumber } }
@@ -142,7 +145,7 @@ router.post('/', authenticate, hasPermission('beneficiaries', 'create'), async (
 });
 
 // Update beneficiary
-router.put('/:id', authenticate, hasPermission('beneficiaries', 'edit'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.put('/:id', authenticate, hasPermission('beneficiaries', 'edit'), validateZodRequest({ params: beneficiaryZodSchemas.idParam, body: beneficiaryZodSchemas.update }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const auditService = new AuditService(prisma);
@@ -204,14 +207,10 @@ router.put('/:id', authenticate, hasPermission('beneficiaries', 'edit'), async (
 });
 
 // Search beneficiary by document
-router.get('/search/document', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/search/document', authenticate, validateZodRequest({ query: beneficiaryZodSchemas.searchByDocumentQuery }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { documentType, documentNumber } = req.query;
-
-    if (!documentType || !documentNumber) {
-      throw new AppError('Tipo y número de documento son requeridos', 400);
-    }
 
     const beneficiary = await prisma.beneficiary.findUnique({
       where: { 

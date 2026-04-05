@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Truck, Clock } from 'lucide-react';
 import { requestApi } from '../services/api';
 import { Request } from '../types';
+import { useToast } from '../components/ui/Toast';
 
 const statusLabels: Record<string, string> = {
   REGISTERED: 'Registrada', IN_REVIEW: 'En Revisión', APPROVED: 'Aprobada',
@@ -17,6 +18,7 @@ export default function RequestDetail() {
   const { id } = useParams<{ id: string }>();
   const [request, setRequest] = useState<Request | null>(null);
   const [loading, setLoading] = useState(true);
+  const toast = useToast();
 
   useEffect(() => { if (id) fetchRequest(); }, [id]);
 
@@ -34,7 +36,7 @@ export default function RequestDetail() {
       await requestApi.updateStatus(id!, status);
       fetchRequest();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error al actualizar');
+      toast.error(error.response?.data?.error || 'Error al actualizar');
     }
   };
 

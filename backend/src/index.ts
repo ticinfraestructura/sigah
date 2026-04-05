@@ -3,6 +3,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
+import cookieParser from 'cookie-parser';
+import csrf from 'csurf';
 import { PrismaClient } from '@prisma/client';
 import swaggerUi from 'swagger-ui-express';
 
@@ -29,6 +31,7 @@ import auditRoutes from './routes/audit.routes';
 import { errorHandler } from './middleware/error.middleware';
 import { detectSuspiciousActivity, additionalSecurityHeaders } from './middleware/security.middleware';
 import { httpLogger } from './middleware/http-logger.middleware';
+import { authenticate, userRateLimit } from './middleware/auth.middleware';
 
 // Config
 import { swaggerSpec } from './config/swagger.config';
@@ -64,16 +67,24 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// 2. CORS Restrictivo
+// 2. CORS Restrictivo para dominio.com/sigah
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
   'http://localhost:3000',
-  'http://127.0.0.1:3000'
+  'http://127.0.0.1:3000',
+  'http://localhost',
+  'https://dominio.com',
+  'https://dominio.com/sigah'
 ];
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Permitir requests sin origin (como mobile apps o Postman)
-    if (!origin) return callback(null, true);
+    // En producción, solo permitir origins conocidos
+    if (!origin) {
+      if (process.env.NODE_ENV === 'production') {
+        return callback(new Error('Origin requerido'), false);
+      }
+      return callback(null, true);
+    }
     
     // En desarrollo, permitir cualquier localhost/127.0.0.1
     if (process.env.NODE_ENV !== 'production') {
@@ -128,15 +139,52 @@ app.use('/api/', generalLimiter);
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/change-password', authLimiter);
 
-// 5. Limitar tamaño del body
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// 6. Compresión de respuestas
+// 7. Compresión de respuestas
 app.use(compression());
 
-// 7. Headers de seguridad adicionales
+// 7a. Parseo de body JSON y urlencoded
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// 8. CSRF Protection (solo en producción)
+if (process.env.NODE_ENV === 'production') {
+  const csrfProtection = csrf({ 
+    cookie: {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict'
+    }
+  });
+  
+  // Endpoint para obtener token CSRF
+  app.get('/api/csrf-token', csrfProtection, (req, res) => {
+    res.json({ csrfToken: (req as any).csrfToken() });
+  });
+  
+  // Aplicar CSRF a rutas que modifican estado (POST, PUT, DELETE, PATCH)
+  app.use((req, res, next) => {
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method) && 
+        !req.path.startsWith('/api/auth/')) {
+      return csrfProtection(req, res, next);
+    }
+    next();
+  });
+}
+
+// 8. Headers de seguridad adicionales
 app.use(additionalSecurityHeaders);
+
+// 7b. Headers de seguridad extra
+app.use((req, res, next) => {
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('X-Download-Options', 'noopen');
+  res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  }
+  next();
+});
 
 // 8. Detección de actividad sospechosa
 app.use(detectSuspiciousActivity);
@@ -178,14 +226,23 @@ app.use('/api/whatsapp-notifications', whatsappNotificationRoutes);
 app.use('/api/backups', backupRoutes);
 app.use('/api/audit', auditRoutes);
 
-// Health check con información extendida
+// Health check — info básica pública, detalle solo para admin autenticado
 app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    version: '1.0.0'
+  });
+});
+
+app.get('/api/health/detailed', authenticate, (req, res) => {
   res.json({ 
     status: 'ok', 
     timestamp: new Date().toISOString(),
     version: '1.0.0',
     uptime: process.uptime(),
-    memory: process.memoryUsage()
+    memory: process.memoryUsage(),
+    nodeVersion: process.version
   });
 });
 

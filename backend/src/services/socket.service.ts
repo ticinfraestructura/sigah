@@ -12,6 +12,7 @@ import { Server as HttpServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import logger from './logger.service';
+import { SECRET } from '../middleware/auth.middleware';
 
 // ============ TIPOS ============
 
@@ -64,12 +65,7 @@ export const initSocketServer = (httpServer: HttpServer): Server => {
         return next(new Error('Authentication required'));
       }
 
-      const secret = process.env.JWT_SECRET;
-      if (!secret) {
-        return next(new Error('Server configuration error'));
-      }
-
-      const decoded = jwt.verify(token, secret) as any;
+      const decoded = jwt.verify(token, SECRET) as any;
       socket.userId = decoded.id;
       socket.userRole = decoded.roleName;
       socket.userName = `${decoded.firstName} ${decoded.lastName}`;

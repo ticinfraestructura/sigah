@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import { AppError } from '../middleware/error.middleware';
-import { authenticate, AuthRequest } from '../middleware/auth.middleware';
+import { authenticate, AuthRequest, SECRET } from '../middleware/auth.middleware';
 import { logLoginAttempt } from '../middleware/security.middleware';
 import { 
   blacklistToken, 
@@ -14,33 +14,14 @@ import {
   terminateSession,
   getUserSessions
 } from '../services/session.service';
-import { validate, authValidations } from '../middleware/validation.middleware';
+import { authZodSchemas, validateZodRequest } from '../middleware/validation.middleware';
 
 const router = Router();
 
-// Validación del JWT Secret
-const JWT_SECRET = process.env.JWT_SECRET || 'sigah-dev-secret-key-min-32-chars!';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 
-// Validación de complejidad de contraseña
-const validatePasswordStrength = (password: string): { valid: boolean; message: string } => {
-  if (password.length < 8) {
-    return { valid: false, message: 'La contraseña debe tener al menos 8 caracteres' };
-  }
-  if (!/[A-Z]/.test(password)) {
-    return { valid: false, message: 'La contraseña debe contener al menos una mayúscula' };
-  }
-  if (!/[a-z]/.test(password)) {
-    return { valid: false, message: 'La contraseña debe contener al menos una minúscula' };
-  }
-  if (!/\d/.test(password)) {
-    return { valid: false, message: 'La contraseña debe contener al menos un número' };
-  }
-  return { valid: true, message: '' };
-};
-
 // Login con validación y protección contra fuerza bruta
-router.post('/login', validate(authValidations.login), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/login', validateZodRequest({ body: authZodSchemas.login }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { email, password } = req.body;
@@ -77,6 +58,19 @@ router.post('/login', validate(authValidations.login), async (req: Request, res:
       const failResult = recordFailedLogin(loginIdentifier);
       logLoginAttempt(false, email, req, 'Usuario no encontrado o inactivo');
       
+      // Registrar en auditoría DB (solo si el usuario existe en BD)
+      if (user?.id) {
+        await prisma.auditLog.create({
+          data: {
+            userId: user.id,
+            action: 'LOGIN_FAILED',
+            entity: 'Auth',
+            entityId: 'login',
+            newValues: JSON.stringify({ email, reason: 'Usuario inactivo', ip: req.ip })
+          }
+        });
+      }
+      
       if (failResult.locked) {
         throw new AppError('Cuenta bloqueada temporalmente por múltiples intentos fallidos.', 429);
       }
@@ -88,6 +82,17 @@ router.post('/login', validate(authValidations.login), async (req: Request, res:
       const failResult = recordFailedLogin(loginIdentifier);
       logLoginAttempt(false, email, req, 'Contraseña incorrecta');
       
+      // Registrar en auditoría DB
+      await prisma.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'LOGIN_FAILED',
+          entity: 'Auth',
+          entityId: 'login',
+          newValues: JSON.stringify({ email, reason: 'Contraseña incorrecta', ip: req.ip })
+        }
+      });
+      
       if (failResult.locked) {
         throw new AppError('Cuenta bloqueada temporalmente por múltiples intentos fallidos.', 429);
       }
@@ -97,6 +102,17 @@ router.post('/login', validate(authValidations.login), async (req: Request, res:
     // Login exitoso - limpiar intentos fallidos
     clearFailedLogins(loginIdentifier);
     logLoginAttempt(true, email, req, `Rol: ${user.role?.name || 'Sin rol'}`);
+
+    // Registrar login exitoso en auditoría DB
+    await prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: 'LOGIN_SUCCESS',
+        entity: 'Auth',
+        entityId: 'login',
+        newValues: JSON.stringify({ email, role: user.role?.name, ip: req.ip })
+      }
+    });
 
     // Obtener permisos del rol
     const permissions = user.role?.permissions.map(rp => ({
@@ -114,9 +130,16 @@ router.post('/login', validate(authValidations.login), async (req: Request, res:
         firstName: user.firstName,
         lastName: user.lastName
       },
-      JWT_SECRET,
+      SECRET,
       signOptions
     );
+
+    // Verificar si la contraseña necesita rotación (90 días)
+    const PASSWORD_MAX_AGE_DAYS = 90;
+    const passwordAge = user.passwordChangedAt 
+      ? Math.floor((Date.now() - new Date(user.passwordChangedAt).getTime()) / (1000 * 60 * 60 * 24))
+      : null; // null = nunca cambiada
+    const passwordExpired = passwordAge === null || passwordAge >= PASSWORD_MAX_AGE_DAYS;
 
     res.json({
       success: true,
@@ -130,7 +153,9 @@ router.post('/login', validate(authValidations.login), async (req: Request, res:
           roleId: user.roleId,
           roleName: user.role?.name || 'Sin Rol',
           permissions
-        }
+        },
+        passwordExpired,
+        passwordAgeDays: passwordAge
       }
     });
   } catch (error) {
@@ -147,20 +172,10 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
 });
 
 // Change password
-router.post('/change-password', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/change-password', authenticate, validateZodRequest({ body: authZodSchemas.changePassword }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { currentPassword, newPassword } = req.body;
-
-    if (!currentPassword || !newPassword) {
-      throw new AppError('Contraseña actual y nueva son requeridas', 400);
-    }
-
-    // Validar complejidad de la nueva contraseña
-    const passwordValidation = validatePasswordStrength(newPassword);
-    if (!passwordValidation.valid) {
-      throw new AppError(passwordValidation.message, 400);
-    }
 
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
     
@@ -182,7 +197,7 @@ router.post('/change-password', authenticate, async (req: AuthRequest, res: Resp
     const hashedPassword = await bcrypt.hash(newPassword, 12); // Aumentar rounds a 12
     await prisma.user.update({
       where: { id: user.id },
-      data: { password: hashedPassword }
+      data: { password: hashedPassword, passwordChangedAt: new Date() }
     });
 
     // Registrar en auditoría
@@ -244,7 +259,7 @@ router.get('/sessions', authenticate, async (req: AuthRequest, res: Response) =>
 });
 
 // Cerrar una sesión específica
-router.delete('/sessions/:sessionId', authenticate, async (req: AuthRequest, res: Response) => {
+router.delete('/sessions/:sessionId', authenticate, validateZodRequest({ params: authZodSchemas.sessionParam }), async (req: AuthRequest, res: Response) => {
   const { sessionId } = req.params;
   
   const terminated = terminateSession(sessionId);

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FileText, Download } from 'lucide-react';
 import { reportApi } from '../services/api';
+import { useToast } from '../components/ui/Toast';
 
 export default function Reports() {
   const [reportType, setReportType] = useState('requests');
@@ -8,6 +9,7 @@ export default function Reports() {
   const [endDate, setEndDate] = useState('');
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
 
   const generateReport = async () => {
     setLoading(true);
@@ -34,7 +36,7 @@ export default function Reports() {
       link.href = url;
       link.download = `reporte_${reportType}_${new Date().toISOString().split('T')[0]}.${format === 'excel' ? 'xlsx' : 'pdf'}`;
       link.click();
-    } catch (error) { console.error('Error:', error); alert('Error al exportar'); }
+    } catch (error) { console.error('Error:', error); toast.error('Error al exportar'); }
   };
 
   return (

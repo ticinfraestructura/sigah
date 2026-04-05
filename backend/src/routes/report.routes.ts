@@ -4,8 +4,32 @@ import { PrismaClient } from '@prisma/client';
 import * as XLSX from 'xlsx';
 import PDFDocument from 'pdfkit';
 import { authenticate, AuthRequest } from '../middleware/auth.middleware';
+import { reportZodSchemas, validateZodRequest } from '../middleware/validation.middleware';
+import rateLimit from 'express-rate-limit';
 
 const router = Router();
+
+const reportGenerateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: 'Demasiadas solicitudes de generación de reportes. Espere un momento.'
+  }
+});
+
+const reportExportLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: 'Demasiadas solicitudes de exportación. Espere un momento.'
+  }
+});
 
 // ============================================
 // TIPOS DE REPORTES DISPONIBLES
@@ -218,7 +242,7 @@ const SUBTYPE_FIELDS: Record<string, { id: string; name: string; default: boolea
 };
 
 // Obtener campos disponibles para un tipo de reporte
-router.get('/fields/:reportType', authenticate, async (req: AuthRequest, res: Response) => {
+router.get('/fields/:reportType', authenticate, validateZodRequest({ params: reportZodSchemas.reportTypeParam, query: reportZodSchemas.fieldsQuery }), async (req: AuthRequest, res: Response) => {
   const { reportType } = req.params;
   const { subtype } = req.query;
   
@@ -238,7 +262,7 @@ router.get('/fields/:reportType', authenticate, async (req: AuthRequest, res: Re
 // GENERACIÓN DE REPORTES PARAMETRIZABLES
 // ============================================
 
-router.post('/generate', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/generate', authenticate, reportGenerateLimiter, validateZodRequest({ body: reportZodSchemas.generate }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { 
@@ -252,10 +276,6 @@ router.post('/generate', authenticate, async (req: AuthRequest, res: Response, n
       sortBy,
       sortOrder = 'desc'
     } = req.body;
-
-    if (!reportType) {
-      return res.status(400).json({ success: false, error: 'Tipo de reporte requerido' });
-    }
 
     const dateFilter: any = {};
     if (startDate) dateFilter.gte = new Date(startDate);
@@ -960,7 +980,7 @@ async function generateReturnsReport(prisma: PrismaClient, subtype: string, date
 // EXPORTACIÓN A EXCEL
 // ============================================
 
-router.post('/export/excel', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/export/excel', authenticate, reportExportLimiter, validateZodRequest({ body: reportZodSchemas.exportExcel }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { reportType, subtype, startDate, endDate, filters, data: providedData } = req.body;
@@ -1043,7 +1063,7 @@ router.post('/export/excel', authenticate, async (req: AuthRequest, res: Respons
 // EXPORTACIÓN A PDF
 // ============================================
 
-router.post('/export/pdf', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/export/pdf', authenticate, reportExportLimiter, validateZodRequest({ body: reportZodSchemas.exportPdf }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { reportType, subtype, startDate, endDate, filters, data: providedData, title } = req.body;
@@ -1242,7 +1262,7 @@ router.post('/export/pdf', authenticate, async (req: AuthRequest, res: Response,
 // VISTA RÁPIDA / DASHBOARD DE REPORTES
 // ============================================
 
-router.get('/quick/:reportType', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/quick/:reportType', authenticate, validateZodRequest({ params: reportZodSchemas.reportTypeParam }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { reportType } = req.params;

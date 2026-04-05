@@ -1,8 +1,14 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import { randomUUID } from "crypto";
 
 const prisma = new PrismaClient();
+
+// Protección: no ejecutar seed en producción
+if (process.env.NODE_ENV === 'production') {
+  console.error('❌ FATAL: El seed no puede ejecutarse en producción.');
+  console.error('   Si necesita inicializar datos, use un script de migración dedicado.');
+  process.exit(1);
+}
 
 // Definición de permisos por módulo
 const PERMISSIONS = [
@@ -518,23 +524,46 @@ async function main() {
   // Add inventory lots
   for (const product of products) {
     const baseQuantity = Math.floor(Math.random() * 100) + 50;
-    
-    await prisma.productLot.create({
-      data: {
+
+    await prisma.productLot.upsert({
+      where: {
+        productId_lotNumber: {
+          productId: product.id,
+          lotNumber: `LOT-${product.code}-001`
+        }
+      },
+      update: {
+        quantity: baseQuantity,
+        isActive: true
+      },
+      create: {
         productId: product.id,
-        lotNumber: `LOT-${randomUUID().slice(0, 8)}`,
+        lotNumber: `LOT-${product.code}-001`,
         quantity: baseQuantity,
         isActive: true,
       },
     });
-// Add second lot for some products
+
+    // Add second lot for some products
     if (product.isPerishable) {
-      await prisma.productLot.create({
-        data: {
+      await prisma.productLot.upsert({
+        where: {
+          productId_lotNumber: {
+            productId: product.id,
+            lotNumber: `LOT-${product.code}-002`
+          }
+        },
+        update: {
+          quantity: Math.floor(baseQuantity / 2),
+          expiryDate: new Date(Date.now() + Math.random() * 180 * 24 * 60 * 60 * 1000),
+          isActive: true
+        },
+        create: {
           productId: product.id,
           lotNumber: `LOT-${product.code}-002`,
           quantity: Math.floor(baseQuantity / 2),
-          expiryDate: new Date(Date.now() + Math.random() * 180 * 24 * 60 * 60 * 1000)
+          expiryDate: new Date(Date.now() + Math.random() * 180 * 24 * 60 * 60 * 1000),
+          isActive: true
         }
       });
     }
@@ -564,13 +593,16 @@ async function main() {
     }
   });
 
-  await Promise.all([
-    prisma.kitProduct.create({ data: { kitId: kitAlimentario.id, productId: products[0].id, quantity: 3 } }),
-    prisma.kitProduct.create({ data: { kitId: kitAlimentario.id, productId: products[1].id, quantity: 2 } }),
-    prisma.kitProduct.create({ data: { kitId: kitAlimentario.id, productId: products[2].id, quantity: 1 } }),
-    prisma.kitProduct.create({ data: { kitId: kitAlimentario.id, productId: products[3].id, quantity: 2 } }),
-    prisma.kitProduct.create({ data: { kitId: kitAlimentario.id, productId: products[4].id, quantity: 4 } })
-  ]);
+  await prisma.kitProduct.deleteMany({ where: { kitId: kitAlimentario.id } });
+  await prisma.kitProduct.createMany({
+    data: [
+      { kitId: kitAlimentario.id, productId: products[0].id, quantity: 3 },
+      { kitId: kitAlimentario.id, productId: products[1].id, quantity: 2 },
+      { kitId: kitAlimentario.id, productId: products[2].id, quantity: 1 },
+      { kitId: kitAlimentario.id, productId: products[3].id, quantity: 2 },
+      { kitId: kitAlimentario.id, productId: products[4].id, quantity: 4 }
+    ]
+  });
 
   const kitAseo = await prisma.kit.upsert({
     where: { code: 'KIT-ASE' },
@@ -582,12 +614,15 @@ async function main() {
     }
   });
 
-  await Promise.all([
-    prisma.kitProduct.create({ data: { kitId: kitAseo.id, productId: products[5].id, quantity: 3 } }),
-    prisma.kitProduct.create({ data: { kitId: kitAseo.id, productId: products[6].id, quantity: 2 } }),
-    prisma.kitProduct.create({ data: { kitId: kitAseo.id, productId: products[7].id, quantity: 4 } }),
-    prisma.kitProduct.create({ data: { kitId: kitAseo.id, productId: products[8].id, quantity: 2 } })
-  ]);
+  await prisma.kitProduct.deleteMany({ where: { kitId: kitAseo.id } });
+  await prisma.kitProduct.createMany({
+    data: [
+      { kitId: kitAseo.id, productId: products[5].id, quantity: 3 },
+      { kitId: kitAseo.id, productId: products[6].id, quantity: 2 },
+      { kitId: kitAseo.id, productId: products[7].id, quantity: 4 },
+      { kitId: kitAseo.id, productId: products[8].id, quantity: 2 }
+    ]
+  });
 
   const kitEmergencia = await prisma.kit.upsert({
     where: { code: 'KIT-EME' },
@@ -599,11 +634,14 @@ async function main() {
     }
   });
 
-  await Promise.all([
-    prisma.kitProduct.create({ data: { kitId: kitEmergencia.id, productId: products[11].id, quantity: 2 } }),
-    prisma.kitProduct.create({ data: { kitId: kitEmergencia.id, productId: products[12].id, quantity: 1 } }),
-    prisma.kitProduct.create({ data: { kitId: kitEmergencia.id, productId: products[13].id, quantity: 1 } })
-  ]);
+  await prisma.kitProduct.deleteMany({ where: { kitId: kitEmergencia.id } });
+  await prisma.kitProduct.createMany({
+    data: [
+      { kitId: kitEmergencia.id, productId: products[11].id, quantity: 2 },
+      { kitId: kitEmergencia.id, productId: products[12].id, quantity: 1 },
+      { kitId: kitEmergencia.id, productId: products[13].id, quantity: 1 }
+    ]
+  });
 
   console.log('✅ Kits created');
 
@@ -674,8 +712,10 @@ async function main() {
   console.log('✅ Beneficiaries created');
 
   // Create sample requests
-  const request1 = await prisma.request.create({
-    data: {
+  const request1 = await prisma.request.upsert({
+    where: { code: 'SOL-2024-000001' },
+    update: {},
+    create: {
       code: 'SOL-2024-000001',
       beneficiaryId: beneficiaries[0].id,
       status: 'DELIVERED',
@@ -698,8 +738,10 @@ async function main() {
     }
   });
 
-  const request2 = await prisma.request.create({
-    data: {
+  const request2 = await prisma.request.upsert({
+    where: { code: 'SOL-2024-000002' },
+    update: {},
+    create: {
       code: 'SOL-2024-000002',
       beneficiaryId: beneficiaries[1].id,
       status: 'APPROVED',
@@ -725,8 +767,10 @@ async function main() {
     }
   });
 
-  const request3 = await prisma.request.create({
-    data: {
+  const request3 = await prisma.request.upsert({
+    where: { code: 'SOL-2024-000003' },
+    update: {},
+    create: {
       code: 'SOL-2024-000003',
       beneficiaryId: beneficiaries[2].id,
       status: 'IN_REVIEW',
@@ -748,8 +792,10 @@ async function main() {
     }
   });
 
-  const request4 = await prisma.request.create({
-    data: {
+  const request4 = await prisma.request.upsert({
+    where: { code: 'SOL-2024-000004' },
+    update: {},
+    create: {
       code: 'SOL-2024-000004',
       beneficiaryId: beneficiaries[3].id,
       status: 'REGISTERED',

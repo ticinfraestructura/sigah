@@ -1,10 +1,7 @@
 import axios from 'axios';
 
-// Obtener base path de Vite (import.meta.env.BASE_URL se define automáticamente)
-const BASE_URL = import.meta.env.BASE_URL || '/';
-// Asegurar que BASE_URL termine con / antes de agregar 'api'
-const normalizedBase = BASE_URL.endsWith('/') ? BASE_URL : BASE_URL + '/';
-const API_URL = `${normalizedBase}api`;
+// Para dominio.com/sigah, la API debe ser /sigah-api/
+const API_URL = '/sigah-api';
 
 const api = axios.create({
   baseURL: API_URL,

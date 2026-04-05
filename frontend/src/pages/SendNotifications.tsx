@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { 
   Send, MessageSquare, Users, Phone, Check, AlertCircle,
   Bell, Info, Truck, FileText, Settings, Clock, CheckCircle,
-  Search, RefreshCw
+  Search, RefreshCw, Copy
 } from 'lucide-react';
 import api from '../services/api';
 
@@ -37,9 +37,24 @@ interface Notification {
   message: string;
   channel: string;
   whatsappSent: boolean;
+  whatsappError?: string | null;
   createdAt: string;
   receiver: { firstName: string; lastName: string; phone: string | null };
   sender: { firstName: string; lastName: string };
+}
+
+interface WhatsAppStatus {
+  officialApiConfigured: boolean;
+  officialApiReady: boolean;
+  officialApiReason?: string;
+  mode: 'real' | 'simulated';
+  runtimeMode?: 'auto' | 'simulated' | 'real';
+}
+
+interface TelegramStatus {
+  botConfigured: boolean;
+  mode: 'real' | 'simulated';
+  reason?: string;
 }
 
 const typeIcons: Record<string, any> = {
@@ -65,8 +80,11 @@ export default function SendNotifications() {
   const [types, setTypes] = useState<NotificationType[]>([]);
   const [criticalities, setCriticalities] = useState<Criticality[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [whatsAppStatus, setWhatsAppStatus] = useState<WhatsAppStatus | null>(null);
+  const [telegramStatus, setTelegramStatus] = useState<TelegramStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [changingMode, setChangingMode] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [success, setSuccess] = useState('');
@@ -87,19 +105,53 @@ export default function SendNotifications() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [usersRes, configRes, notifRes] = await Promise.all([
+      const [usersRes, configRes, notifRes, statusRes] = await Promise.all([
         api.get('/whatsapp-notifications/users'),
         api.get('/whatsapp-notifications/config'),
-        api.get('/whatsapp-notifications', { params: { limit: 20 } })
+        api.get('/whatsapp-notifications', { params: { limit: 20 } }),
+        api.get('/whatsapp-notifications/status')
       ]);
       setUsers(usersRes.data.data);
       setTypes(configRes.data.data.types);
       setCriticalities(configRes.data.data.criticalities);
       setNotifications(notifRes.data.data);
+      setWhatsAppStatus(statusRes.data.data.whatsapp);
+      setTelegramStatus(statusRes.data.data.telegram || configRes.data.data.telegramStatus || null);
     } catch (err) {
       console.error('Error fetching data:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleToggleMode = async () => {
+    if (!whatsAppStatus || changingMode) return;
+
+    const nextMode = whatsAppStatus.mode === 'real' ? 'simulated' : 'real';
+
+    try {
+      setChangingMode(true);
+      setError('');
+      const response = await api.post('/whatsapp-notifications/mode', { mode: nextMode });
+      const result = response.data?.data;
+
+      setWhatsAppStatus(prev => prev
+        ? {
+            ...prev,
+            mode: result?.mode || prev.mode,
+            runtimeMode: result?.runtimeMode || prev.runtimeMode,
+            officialApiReady: result?.officialApiReady ?? prev.officialApiReady,
+            officialApiReason: result?.officialApiReason ?? prev.officialApiReason
+          }
+        : prev
+      );
+
+      setSuccess(response.data?.message || `Modo actualizado a ${nextMode}`);
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'No se pudo cambiar el modo de WhatsApp');
+    } finally {
+      setChangingMode(false);
     }
   };
 
@@ -120,11 +172,25 @@ export default function SendNotifications() {
     try {
       if (selectedUsers.length === 1) {
         // Envío individual
-        await api.post('/whatsapp-notifications/send', {
+        const response = await api.post('/whatsapp-notifications/send', {
           receiverId: selectedUsers[0],
           ...form
         });
-        setSuccess('Notificación enviada correctamente');
+
+        const waStatus = response.data?.data?.whatsapp;
+        const tgStatus = response.data?.data?.telegram;
+        const traceCode = response.data?.data?.notification?.code;
+
+        if (waStatus?.sent) {
+          setSuccess(`Notificación enviada por WhatsApp correctamente. Código: ${traceCode}`);
+        } else if (tgStatus?.sent) {
+          setSuccess(`Notificación enviada por Telegram (fallback). Código: ${traceCode}`);
+        } else if (form.sendWhatsApp) {
+          const modeLabel = waStatus?.simulated ? 'simulado' : 'interno';
+          setSuccess(`Notificación registrada (Código: ${traceCode}). WhatsApp no enviado (${modeLabel}/${waStatus?.provider || 'N/A'}): ${waStatus?.error || 'Sin detalle'}`);
+        } else {
+          setSuccess(`Notificación interna registrada. Código: ${traceCode}`);
+        }
       } else {
         // Envío masivo
         const response = await api.post('/whatsapp-notifications/send-bulk', {
@@ -132,7 +198,18 @@ export default function SendNotifications() {
           ...form
         });
         const data = response.data.data;
-        setSuccess(`Enviadas: ${data.sent}/${data.total} | WhatsApp: ${data.whatsappSent}`);
+        const failed = data.total - data.sent;
+        const telegramSent = data.results?.filter((r: any) => r.telegramSent).length || 0;
+        const fallbackUsed = data.results?.filter((r: any) => r.fallbackUsed).length || 0;
+        const firstError = data.results?.find((r: any) => r.error)?.error;
+
+        setSuccess(
+          `Procesadas: ${data.sent}/${data.total} | WhatsApp real: ${data.whatsappSent} | Telegram fallback: ${telegramSent}${fallbackUsed ? ` (intentado en ${fallbackUsed})` : ''}`
+        );
+
+        if (failed > 0) {
+          setError(`Algunas notificaciones no pudieron enviarse por WhatsApp. Revisa trazabilidad en historial. ${firstError ? `Detalle: ${firstError}` : ''}`);
+        }
       }
 
       // Limpiar formulario
@@ -158,6 +235,17 @@ export default function SendNotifications() {
   const selectAllWithPhone = () => {
     const usersWithPhone = users.filter(u => u.hasPhone).map(u => u.id);
     setSelectedUsers(usersWithPhone);
+  };
+
+  const copyTraceCode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setSuccess(`Código copiado: ${code}`);
+      setTimeout(() => setSuccess(''), 2500);
+    } catch {
+      setError('No se pudo copiar el código de trazabilidad');
+      setTimeout(() => setError(''), 2500);
+    }
   };
 
   const filteredUsers = users.filter(u =>
@@ -204,10 +292,73 @@ export default function SendNotifications() {
           {error}
         </div>
       )}
+
+      {telegramStatus && (
+        <div className={`p-4 border rounded-lg flex items-start gap-3 ${
+          telegramStatus.mode === 'real'
+            ? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800 text-green-800 dark:text-green-300'
+            : 'bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300'
+        }`}>
+          <AlertCircle className="w-5 h-5 mt-0.5" />
+          <div>
+            <p className="font-semibold">
+              Telegram {telegramStatus.mode === 'real' ? 'operativo' : 'en modo simulado'}
+            </p>
+            <p className="text-sm mt-1">
+              {telegramStatus.mode === 'real'
+                ? 'Fallback sin costo disponible si WhatsApp no se envía en modo real.'
+                : (telegramStatus.reason || 'Configure TELEGRAM_BOT_TOKEN para habilitar fallback real.')}
+            </p>
+          </div>
+        </div>
+      )}
       {success && (
         <div className="p-4 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg flex items-center gap-3 text-green-700 dark:text-green-400">
           <CheckCircle className="w-5 h-5" />
           {success}
+        </div>
+      )}
+
+      {whatsAppStatus && (
+        <div className="p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+              Modo WhatsApp: {whatsAppStatus.mode === 'real' ? 'Real' : 'Simulado'}
+            </p>
+            <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+              Runtime: {whatsAppStatus.runtimeMode || 'auto'}
+              {whatsAppStatus.mode !== 'real' && whatsAppStatus.officialApiReason ? ` · ${whatsAppStatus.officialApiReason}` : ''}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleToggleMode}
+            disabled={changingMode}
+            className={`relative inline-flex h-8 w-16 items-center rounded-full transition-colors ${
+              whatsAppStatus.mode === 'real' ? 'bg-green-600' : 'bg-amber-500'
+            } ${changingMode ? 'opacity-60 cursor-not-allowed' : ''}`}
+            title="Alternar modo WhatsApp"
+          >
+            <span className="sr-only">Alternar modo WhatsApp</span>
+            <span
+              className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
+                whatsAppStatus.mode === 'real' ? 'translate-x-9' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+      )}
+
+      {whatsAppStatus?.mode === 'simulated' && (
+        <div className="p-4 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg flex items-start gap-3 text-yellow-800 dark:text-yellow-300">
+          <AlertCircle className="w-5 h-5 mt-0.5" />
+          <div>
+            <p className="font-semibold">WhatsApp en modo simulado</p>
+            <p className="text-sm mt-1">
+              Los mensajes no se están enviando de forma real. {whatsAppStatus.officialApiReason || 'Configure proveedor real para operación productiva.'}
+            </p>
+          </div>
         </div>
       )}
 
@@ -375,9 +526,15 @@ export default function SendNotifications() {
                   </span>
                 </label>
 
+                {selectedUsers.length === 0 && (
+                  <span className="text-xs text-amber-700 dark:text-amber-300">
+                    Selecciona al menos un destinatario
+                  </span>
+                )}
+
                 <button
                   onClick={handleSend}
-                  disabled={sending || selectedUsers.length === 0}
+                  disabled={sending}
                   className="btn-primary flex items-center gap-2 disabled:opacity-50"
                 >
                   {sending ? (
@@ -457,6 +614,24 @@ export default function SendNotifications() {
                           Para: {notif.receiver.firstName} {notif.receiver.lastName} • 
                           {new Date(notif.createdAt).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' })}
                         </p>
+                        <div className="mt-2 flex items-center gap-2">
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            Código: {notif.code}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => copyTraceCode(notif.code)}
+                            className="text-xs text-primary-600 dark:text-primary-400 hover:underline inline-flex items-center gap-1"
+                          >
+                            <Copy className="w-3 h-3" />
+                            Copiar
+                          </button>
+                        </div>
+                        {!notif.whatsappSent && notif.whatsappError && (
+                          <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                            WhatsApp: {notif.whatsappError}
+                          </p>
+                        )}
                       </div>
                     </div>
                   );

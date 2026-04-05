@@ -2,6 +2,7 @@ import { Router, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { authenticate, AuthRequest, hasPermission } from '../middleware/auth.middleware';
+import { userZodSchemas, validateZodRequest } from '../middleware/validation.middleware';
 
 const router = Router();
 
@@ -54,7 +55,7 @@ router.get('/', authenticate, hasPermission('users', 'view'), async (req: AuthRe
 });
 
 // Obtener un usuario por ID
-router.get('/:id', authenticate, hasPermission('users', 'view'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/:id', authenticate, hasPermission('users', 'view'), validateZodRequest({ params: userZodSchemas.idParam }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { id } = req.params;
@@ -102,25 +103,10 @@ router.get('/:id', authenticate, hasPermission('users', 'view'), async (req: Aut
 });
 
 // Crear un nuevo usuario
-router.post('/', authenticate, hasPermission('users', 'create'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/', authenticate, hasPermission('users', 'create'), validateZodRequest({ body: userZodSchemas.create }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { email, password, firstName, lastName, phone, whatsappApiKey, telegramChatId, roleId } = req.body;
-
-    // Validaciones
-    if (!email || !password || !firstName || !lastName) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Email, contraseña, nombre y apellido son requeridos' 
-      });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'La contraseña debe tener al menos 6 caracteres' 
-      });
-    }
 
     // Verificar email único
     const existing = await prisma.user.findUnique({ where: { email } });
@@ -195,7 +181,7 @@ router.post('/', authenticate, hasPermission('users', 'create'), async (req: Aut
 });
 
 // Actualizar un usuario
-router.put('/:id', authenticate, hasPermission('users', 'edit'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.put('/:id', authenticate, hasPermission('users', 'edit'), validateZodRequest({ params: userZodSchemas.idParam, body: userZodSchemas.update }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { id } = req.params;
@@ -231,8 +217,9 @@ router.put('/:id', authenticate, hasPermission('users', 'edit'), async (req: Aut
     if (whatsappApiKey !== undefined) updateData.whatsappApiKey = whatsappApiKey || null;
     if (telegramChatId !== undefined) updateData.telegramChatId = telegramChatId || null;
     if (roleId !== undefined) updateData.roleId = roleId || null;
-    if (password && password.length >= 6) {
+    if (password) {
       updateData.password = await bcrypt.hash(password, 10);
+      updateData.passwordChangedAt = new Date();
     }
 
     const updatedUser = await prisma.user.update({
@@ -283,7 +270,7 @@ router.put('/:id', authenticate, hasPermission('users', 'edit'), async (req: Aut
 });
 
 // Activar/Desactivar usuario
-router.patch('/:id/toggle-active', authenticate, hasPermission('users', 'activate'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.patch('/:id/toggle-active', authenticate, hasPermission('users', 'activate'), validateZodRequest({ params: userZodSchemas.idParam }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { id } = req.params;
@@ -333,7 +320,7 @@ router.patch('/:id/toggle-active', authenticate, hasPermission('users', 'activat
 });
 
 // Eliminar un usuario
-router.delete('/:id', authenticate, hasPermission('users', 'delete'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.delete('/:id', authenticate, hasPermission('users', 'delete'), validateZodRequest({ params: userZodSchemas.idParam }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { id } = req.params;
@@ -384,18 +371,11 @@ router.delete('/:id', authenticate, hasPermission('users', 'delete'), async (req
 });
 
 // Resetear contraseña de usuario
-router.post('/:id/reset-password', authenticate, hasPermission('users', 'edit'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/:id/reset-password', authenticate, hasPermission('users', 'edit'), validateZodRequest({ params: userZodSchemas.idParam, body: userZodSchemas.resetPassword }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { id } = req.params;
     const { newPassword } = req.body;
-
-    if (!newPassword || newPassword.length < 6) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'La nueva contraseña debe tener al menos 6 caracteres' 
-      });
-    }
 
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) {
@@ -406,7 +386,7 @@ router.post('/:id/reset-password', authenticate, hasPermission('users', 'edit'),
 
     await prisma.user.update({
       where: { id },
-      data: { password: hashedPassword }
+      data: { password: hashedPassword, passwordChangedAt: new Date() }
     });
 
     // Registrar en auditoría

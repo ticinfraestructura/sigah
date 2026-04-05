@@ -1,9 +1,11 @@
 import { Router, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest, hasPermission } from '../middleware/auth.middleware';
-import whatsappService, { WhatsAppMessage } from '../services/whatsapp.service';
-import telegramService, { TelegramMessage } from '../services/telegram.service';
+import whatsappService, { WhatsAppMessage, WhatsAppResponse } from '../services/whatsapp.service';
+import telegramService, { TelegramMessage, TelegramResponse } from '../services/telegram.service';
 import { v4 as uuidv4 } from 'uuid';
+import rateLimit from 'express-rate-limit';
+import { notificationZodSchemas, validateZodRequest } from '../middleware/validation.middleware';
 
 const router = Router();
 
@@ -11,11 +13,39 @@ const router = Router();
 const NOTIFICATION_TYPES = ['INFO', 'ALERT', 'DELIVERY', 'REQUEST', 'SYSTEM', 'REMINDER'];
 const CRITICALITY_LEVELS = ['INFORMATIVE', 'LOW', 'NORMAL', 'MEDIUM', 'HIGH', 'CRITICAL'];
 
+const notificationSendLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: 'Demasiadas solicitudes de notificación. Espere un momento.'
+  }
+});
+
+const notificationBulkLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: 'Demasiadas solicitudes masivas. Espere un momento.'
+  }
+});
+
 // Obtener todas las notificaciones enviadas
-router.get('/', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/', authenticate, validateZodRequest({ query: notificationZodSchemas.listQuery }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
-    const { channel, type, criticality, limit = 50, offset = 0 } = req.query;
+    const { channel, type, criticality, limit = 50, offset = 0 } = req.query as {
+      channel?: 'INTERNAL' | 'WHATSAPP' | 'TELEGRAM';
+      type?: 'INFO' | 'ALERT' | 'DELIVERY' | 'REQUEST' | 'SYSTEM' | 'REMINDER';
+      criticality?: 'INFORMATIVE' | 'LOW' | 'NORMAL' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+      limit?: number;
+      offset?: number;
+    };
 
     const where: any = {};
     if (channel) where.channel = channel;
@@ -33,8 +63,8 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response, next: Next
         }
       },
       orderBy: { createdAt: 'desc' },
-      take: Number(limit),
-      skip: Number(offset)
+      take: limit,
+      skip: offset
     });
 
     const total = await prisma.notification.count({ where });
@@ -44,8 +74,8 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response, next: Next
       data: notifications,
       pagination: {
         total,
-        limit: Number(limit),
-        offset: Number(offset)
+        limit,
+        offset
       }
     });
   } catch (error) {
@@ -54,7 +84,7 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response, next: Next
 });
 
 // Obtener usuarios disponibles para enviar notificación
-router.get('/users', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/users', authenticate, validateZodRequest({ query: notificationZodSchemas.emptyQuery }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
 
@@ -87,7 +117,9 @@ router.get('/users', authenticate, async (req: AuthRequest, res: Response, next:
 });
 
 // Obtener tipos y criticidades disponibles
-router.get('/config', authenticate, (req: AuthRequest, res: Response) => {
+router.get('/config', authenticate, validateZodRequest({ query: notificationZodSchemas.emptyQuery }), (req: AuthRequest, res: Response) => {
+  const whatsappStatus = whatsappService.getWhatsAppConfigStatus();
+  const telegramStatus = telegramService.getTelegramConfigStatus();
   res.json({
     success: true,
     data: {
@@ -100,13 +132,120 @@ router.get('/config', authenticate, (req: AuthRequest, res: Response) => {
         value: c,
         label: whatsappService.CRITICALITY_LABELS[c],
         icon: whatsappService.CRITICALITY_ICONS[c]
-      }))
+      })),
+      whatsappStatus,
+      telegramStatus
     }
   });
 });
 
+// Checklist productivo de WhatsApp
+router.get('/checklist', authenticate, validateZodRequest({ query: notificationZodSchemas.emptyQuery }), (req: AuthRequest, res: Response) => {
+  const whatsappStatus = whatsappService.getWhatsAppConfigStatus();
+  const telegramStatus = telegramService.getTelegramConfigStatus();
+  const hasPhoneId = !!process.env.WHATSAPP_PHONE_ID;
+  const hasAccessToken = !!process.env.WHATSAPP_ACCESS_TOKEN;
+  const hasApiUrl = !!process.env.WHATSAPP_API_URL;
+  const hasTelegramBotToken = !!process.env.TELEGRAM_BOT_TOKEN;
+
+  const checklist = [
+    {
+      id: 'env_phone_id',
+      title: 'WHATSAPP_PHONE_ID configurado',
+      ok: hasPhoneId,
+      severity: 'required',
+      detail: hasPhoneId ? 'Configurado' : 'Falta variable de entorno'
+    },
+    {
+      id: 'env_access_token',
+      title: 'WHATSAPP_ACCESS_TOKEN configurado',
+      ok: hasAccessToken,
+      severity: 'required',
+      detail: hasAccessToken ? 'Configurado' : 'Falta variable de entorno'
+    },
+    {
+      id: 'env_api_url',
+      title: 'WHATSAPP_API_URL configurado',
+      ok: hasApiUrl,
+      severity: 'recommended',
+      detail: hasApiUrl ? 'Configurado' : 'Se usará valor por defecto del servicio'
+    },
+    {
+      id: 'official_api_ready',
+      title: 'API oficial lista para envío real',
+      ok: whatsappStatus.officialApiReady,
+      severity: 'required',
+      detail: whatsappStatus.officialApiReady
+        ? 'El sistema puede enviar mensajes reales por API oficial'
+        : whatsappStatus.officialApiReason || 'No lista'
+    },
+    {
+      id: 'telegram_bot_token',
+      title: 'TELEGRAM_BOT_TOKEN configurado (fallback sin costo)',
+      ok: hasTelegramBotToken,
+      severity: 'recommended',
+      detail: telegramStatus.botConfigured ? 'Configurado' : (telegramStatus.reason || 'No configurado')
+    }
+  ];
+
+  const blockingItems = checklist.filter(item => item.severity === 'required' && !item.ok);
+
+  res.json({
+    success: true,
+    data: {
+      mode: whatsappStatus.effectiveMode,
+      runtimeMode: whatsappStatus.runtimeMode,
+      operational: whatsappStatus.effectiveMode === 'real',
+      telegram: telegramStatus,
+      checklist,
+      blockingItems,
+      nextStep: whatsappStatus.effectiveMode === 'real'
+        ? 'Ejecute POST /api/whatsapp-notifications/test con un número real para verificación final.'
+        : 'Complete los ítems requeridos y repita la prueba en /api/whatsapp-notifications/test.'
+    }
+  });
+});
+
+// Estado operativo de proveedores de notificación
+router.get('/status', authenticate, validateZodRequest({ query: notificationZodSchemas.emptyQuery }), (req: AuthRequest, res: Response) => {
+  const whatsappStatus = whatsappService.getWhatsAppConfigStatus();
+  const telegramStatus = telegramService.getTelegramConfigStatus();
+
+  res.json({
+    success: true,
+    data: {
+      whatsapp: {
+        ...whatsappStatus,
+        mode: whatsappStatus.effectiveMode
+      },
+      telegram: telegramStatus
+    }
+  });
+});
+
+// Cambiar modo runtime de WhatsApp (auto/simulated/real)
+router.post('/mode', authenticate, hasPermission('settings', 'edit'), validateZodRequest({ body: notificationZodSchemas.setMode }), (req: AuthRequest, res: Response) => {
+  const { mode } = req.body as { mode: 'auto' | 'simulated' | 'real' };
+
+  whatsappService.setWhatsAppRuntimeMode(mode);
+  const whatsappStatus = whatsappService.getWhatsAppConfigStatus();
+
+  res.json({
+    success: true,
+    data: {
+      mode: whatsappStatus.effectiveMode,
+      runtimeMode: whatsappStatus.runtimeMode,
+      officialApiReady: whatsappStatus.officialApiReady,
+      officialApiReason: whatsappStatus.officialApiReason
+    },
+    message: mode === 'real' && !whatsappStatus.officialApiReady
+      ? 'Modo real solicitado, pero no hay credenciales oficiales válidas. El sistema operará en modo simulado cuando no exista proveedor alterno.'
+      : `Modo de WhatsApp actualizado a ${mode}`
+  });
+});
+
 // Enviar notificación
-router.post('/send', authenticate, hasPermission('users', 'view'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/send', authenticate, hasPermission('users', 'view'), notificationSendLimiter, validateZodRequest({ body: notificationZodSchemas.send }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { 
@@ -121,28 +260,7 @@ router.post('/send', authenticate, hasPermission('users', 'view'), async (req: A
       actionUrl
     } = req.body;
 
-    // Validaciones
-    if (!receiverId || !type || !title || !message) {
-      return res.status(400).json({
-        success: false,
-        error: 'receiverId, type, title y message son requeridos'
-      });
-    }
-
-    if (!NOTIFICATION_TYPES.includes(type)) {
-      return res.status(400).json({
-        success: false,
-        error: `Tipo inválido. Valores permitidos: ${NOTIFICATION_TYPES.join(', ')}`
-      });
-    }
-
     const critLevel = criticality || 'NORMAL';
-    if (!CRITICALITY_LEVELS.includes(critLevel)) {
-      return res.status(400).json({
-        success: false,
-        error: `Criticidad inválida. Valores permitidos: ${CRITICALITY_LEVELS.join(', ')}`
-      });
-    }
 
     // Obtener usuario destino
     const receiver = await prisma.user.findUnique({
@@ -190,7 +308,13 @@ router.post('/send', authenticate, hasPermission('users', 'view'), async (req: A
     });
 
     // Resultados de envío
-    let whatsappResult: { success: boolean; messageId?: string; error?: string } = { success: false };
+    let whatsappResult: WhatsAppResponse = {
+      success: false,
+      deliveryMode: 'simulated',
+      provider: 'SIMULATED',
+      simulated: true,
+      error: 'No intentado'
+    };
     let telegramResult: { success: boolean; messageId?: number; error?: string } = { success: false };
     
     const senderName = `${req.user!.firstName} ${req.user!.lastName}`;
@@ -217,8 +341,14 @@ router.post('/send', authenticate, hasPermission('users', 'view'), async (req: A
       whatsappResult = await whatsappService.sendWhatsAppMessage(whatsappData);
     }
 
-    // Enviar por Telegram si el usuario tiene telegramChatId
-    if ((receiver as any).telegramChatId) {
+    const whatsappRealSent = whatsappResult.success && !whatsappResult.simulated;
+    const shouldUseTelegramFallback =
+      sendWhatsApp &&
+      !!(receiver as any).telegramChatId &&
+      !whatsappRealSent;
+
+    // Enviar por Telegram solo como fallback cuando WhatsApp no fue real
+    if (shouldUseTelegramFallback) {
       const telegramData: TelegramMessage = {
         chatId: (receiver as any).telegramChatId,
         type,
@@ -238,14 +368,18 @@ router.post('/send', authenticate, hasPermission('users', 'view'), async (req: A
     }
 
     // Actualizar notificación con resultados
+    const combinedDeliveryError = [whatsappResult.error, telegramResult.error]
+      .filter((value): value is string => !!value)
+      .join(' | ');
+
     await prisma.notification.update({
       where: { id: notification.id },
       data: {
-        channel: telegramResult.success ? 'TELEGRAM' : (whatsappResult.success ? 'WHATSAPP' : 'INTERNAL'),
-        whatsappSent: whatsappResult.success,
-        whatsappSentAt: whatsappResult.success ? new Date() : null,
-        whatsappMessageId: whatsappResult.messageId || (telegramResult.messageId?.toString()),
-        whatsappError: whatsappResult.error || telegramResult.error
+        channel: telegramResult.success ? 'TELEGRAM' : (whatsappRealSent ? 'WHATSAPP' : 'INTERNAL'),
+        whatsappSent: whatsappRealSent,
+        whatsappSentAt: whatsappRealSent ? new Date() : null,
+        whatsappMessageId: whatsappRealSent ? whatsappResult.messageId : undefined,
+        whatsappError: combinedDeliveryError || null
       }
     });
 
@@ -261,7 +395,7 @@ router.post('/send', authenticate, hasPermission('users', 'view'), async (req: A
           type,
           criticality: critLevel,
           receiverId,
-          whatsappSent: whatsappResult.success,
+          whatsappSent: whatsappRealSent,
           telegramSent: telegramResult.success
         })
       }
@@ -272,9 +406,12 @@ router.post('/send', authenticate, hasPermission('users', 'view'), async (req: A
       data: {
         notification,
         whatsapp: {
-          sent: whatsappResult.success,
+          sent: whatsappRealSent,
           messageId: whatsappResult.messageId,
-          error: whatsappResult.error
+          error: whatsappResult.error,
+          deliveryMode: whatsappResult.deliveryMode,
+          provider: whatsappResult.provider,
+          simulated: whatsappResult.simulated
         },
         telegram: {
           sent: telegramResult.success,
@@ -289,7 +426,7 @@ router.post('/send', authenticate, hasPermission('users', 'view'), async (req: A
 });
 
 // Enviar notificación masiva a múltiples usuarios
-router.post('/send-bulk', authenticate, hasPermission('users', 'edit'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/send-bulk', authenticate, hasPermission('users', 'edit'), notificationBulkLimiter, validateZodRequest({ body: notificationZodSchemas.sendBulk }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { 
@@ -300,13 +437,6 @@ router.post('/send-bulk', authenticate, hasPermission('users', 'edit'), async (r
       message, 
       sendWhatsApp = true 
     } = req.body;
-
-    if (!receiverIds || !Array.isArray(receiverIds) || receiverIds.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'receiverIds debe ser un array con al menos un ID'
-      });
-    }
 
     const results = [];
     
@@ -331,9 +461,17 @@ router.post('/send-bulk', authenticate, hasPermission('users', 'edit'), async (r
           }
         });
 
-        let whatsappSent = false;
+        let whatsappResult: WhatsAppResponse = {
+          success: false,
+          deliveryMode: 'simulated',
+          provider: 'SIMULATED',
+          simulated: true,
+          error: 'No intentado'
+        };
+        let telegramResult: { success: boolean; messageId?: number; error?: string } = { success: false };
+
         if (sendWhatsApp && receiver.phone) {
-          const result = await whatsappService.sendWhatsAppMessage({
+          whatsappResult = await whatsappService.sendWhatsAppMessage({
             to: receiver.phone,
             type,
             criticality: critLevel,
@@ -345,25 +483,64 @@ router.post('/send-bulk', authenticate, hasPermission('users', 'edit'), async (r
             timestamp: new Date(),
             callmebotApiKey: (receiver as any).whatsappApiKey || undefined
           });
+        } else {
+          whatsappResult = {
+            success: !sendWhatsApp,
+            deliveryMode: 'simulated',
+            provider: 'SIMULATED',
+            simulated: true,
+            error: sendWhatsApp
+              ? 'Usuario sin teléfono registrado'
+              : 'Envío por WhatsApp deshabilitado'
+          };
+        }
 
-          whatsappSent = result.success;
-          
-          await prisma.notification.update({
-            where: { id: notification.id },
-            data: {
-              whatsappSent: result.success,
-              whatsappSentAt: result.success ? new Date() : null,
-              whatsappMessageId: result.messageId,
-              whatsappError: result.error
-            }
+        const whatsappRealSent = whatsappResult.success && !whatsappResult.simulated;
+        const shouldUseTelegramFallback =
+          sendWhatsApp &&
+          !!(receiver as any).telegramChatId &&
+          !whatsappRealSent;
+
+        if (shouldUseTelegramFallback) {
+          telegramResult = await telegramService.sendTelegramMessage({
+            chatId: (receiver as any).telegramChatId,
+            type,
+            criticality: critLevel,
+            title,
+            message,
+            senderName: `${req.user!.firstName} ${req.user!.lastName}`,
+            receiverName: `${receiver.firstName} ${receiver.lastName}`,
+            traceCode,
+            timestamp: new Date()
           });
         }
+
+        const combinedDeliveryError = [whatsappResult.error, telegramResult.error]
+          .filter((value): value is string => !!value)
+          .join(' | ');
+
+        await prisma.notification.update({
+          where: { id: notification.id },
+          data: {
+            channel: telegramResult.success ? 'TELEGRAM' : (whatsappRealSent ? 'WHATSAPP' : 'INTERNAL'),
+            whatsappSent: whatsappRealSent,
+            whatsappSentAt: whatsappRealSent ? new Date() : null,
+            whatsappMessageId: whatsappRealSent ? whatsappResult.messageId : null,
+            whatsappError: combinedDeliveryError || null
+          }
+        });
 
         results.push({
           receiverId,
           receiverName: `${receiver.firstName} ${receiver.lastName}`,
-          success: true,
-          whatsappSent
+          success: whatsappResult.success || telegramResult.success,
+          whatsappSent: whatsappRealSent,
+          telegramSent: telegramResult.success,
+          fallbackUsed: shouldUseTelegramFallback,
+          error: combinedDeliveryError || undefined,
+          deliveryMode: whatsappResult.deliveryMode,
+          provider: whatsappResult.provider,
+          simulated: whatsappResult.simulated
         });
       } catch (err) {
         results.push({
@@ -389,22 +566,45 @@ router.post('/send-bulk', authenticate, hasPermission('users', 'edit'), async (r
 });
 
 // Enviar mensaje de prueba
-router.post('/test', authenticate, hasPermission('users', 'edit'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/test', authenticate, hasPermission('users', 'edit'), notificationSendLimiter, validateZodRequest({ body: notificationZodSchemas.test }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { phone } = req.body;
 
-    if (!phone) {
-      return res.status(400).json({
-        success: false,
-        error: 'Se requiere un número de teléfono'
-      });
-    }
-
     const result = await whatsappService.sendTestMessage(phone);
+    const operational = result.success && !result.simulated;
 
     res.json({
       success: result.success,
-      data: result
+      data: {
+        ...result,
+        operational,
+        note: operational
+          ? 'Mensaje enviado en modo real'
+          : 'Mensaje en modo simulado o sin proveedor real configurado'
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Enviar mensaje de prueba por Telegram
+router.post('/telegram/test', authenticate, hasPermission('users', 'edit'), notificationSendLimiter, validateZodRequest({ body: notificationZodSchemas.telegramTest }), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { chatId } = req.body as { chatId: string };
+
+    const result: TelegramResponse = await telegramService.sendTestMessage(chatId);
+    const operational = result.success && !result.simulated;
+
+    res.json({
+      success: result.success,
+      data: {
+        ...result,
+        operational,
+        note: operational
+          ? 'Mensaje de Telegram enviado en modo real'
+          : 'Mensaje de Telegram en modo simulado o sin bot configurado'
+      }
     });
   } catch (error) {
     next(error);
@@ -412,7 +612,7 @@ router.post('/test', authenticate, hasPermission('users', 'edit'), async (req: A
 });
 
 // Marcar notificación como leída
-router.patch('/:id/read', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.patch('/:id/read', authenticate, validateZodRequest({ params: notificationZodSchemas.idParam }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { id } = req.params;

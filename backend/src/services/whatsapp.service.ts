@@ -62,6 +62,85 @@ export interface WhatsAppResponse {
   success: boolean;
   messageId?: string;
   error?: string;
+  deliveryMode: 'real' | 'simulated';
+  provider: 'TEXTMEBOT' | 'WHATSAPP_API' | 'SIMULATED';
+  simulated: boolean;
+}
+
+export type WhatsAppRuntimeMode = 'auto' | 'simulated' | 'real';
+
+export interface WhatsAppConfigStatus {
+  officialApiConfigured: boolean;
+  officialApiReady: boolean;
+  officialApiReason?: string;
+  runtimeMode: WhatsAppRuntimeMode;
+  effectiveMode: 'simulated' | 'real';
+}
+
+let runtimeMode: WhatsAppRuntimeMode = 'auto';
+
+function mapProviderError(errorMessage?: string): string {
+  if (!errorMessage) {
+    return 'Error desconocido al enviar WhatsApp.';
+  }
+
+  const normalized = errorMessage.toLowerCase();
+
+  if (normalized.includes('disconnected from the api')) {
+    return 'Tu número está desconectado en TextMeBot. Reconcéctalo desde https://api.textmebot.com/status.php?apikey=TU_API_KEY.';
+  }
+
+  if (normalized.includes('fetch failed')) {
+    return 'No se pudo conectar con el proveedor de WhatsApp. Verifica conectividad de red, firewall y estado del proveedor.';
+  }
+
+  if (normalized.includes('phone_number')) {
+    return 'Número de destino inválido para WhatsApp. Verifica formato internacional (ej: +573001112233).';
+  }
+
+  if (normalized.includes('token') || normalized.includes('oauth')) {
+    return 'Token de WhatsApp inválido o expirado. Actualiza WHATSAPP_ACCESS_TOKEN y reintenta.';
+  }
+
+  return errorMessage;
+}
+
+export function getWhatsAppConfigStatus(): WhatsAppConfigStatus {
+  const configured = !!(WHATSAPP_PHONE_ID && WHATSAPP_ACCESS_TOKEN);
+  const placeholders =
+    WHATSAPP_PHONE_ID === 'TU_PHONE_NUMBER_ID_AQUI' ||
+    WHATSAPP_ACCESS_TOKEN === 'TU_ACCESS_TOKEN_AQUI';
+
+  const officialApiReady = configured && !placeholders;
+  const effectiveMode = runtimeMode === 'simulated'
+    ? 'simulated'
+    : runtimeMode === 'real'
+    ? (officialApiReady ? 'real' : 'simulated')
+    : (officialApiReady ? 'real' : 'simulated');
+
+  const forcedRealWithoutCredentials = runtimeMode === 'real' && !officialApiReady;
+
+  return {
+    officialApiConfigured: configured,
+    officialApiReady,
+    officialApiReason: forcedRealWithoutCredentials
+      ? 'Modo real forzado, pero faltan credenciales oficiales válidas. Se aplicará fallback simulado cuando no exista proveedor alterno.'
+      : !configured
+      ? 'Faltan WHATSAPP_PHONE_ID o WHATSAPP_ACCESS_TOKEN'
+      : placeholders
+      ? 'WHATSAPP_PHONE_ID / WHATSAPP_ACCESS_TOKEN están en valores placeholder'
+      : undefined,
+    runtimeMode,
+    effectiveMode
+  };
+}
+
+export function getWhatsAppRuntimeMode(): WhatsAppRuntimeMode {
+  return runtimeMode;
+}
+
+export function setWhatsAppRuntimeMode(mode: WhatsAppRuntimeMode): void {
+  runtimeMode = mode;
 }
 
 /**
@@ -82,6 +161,17 @@ export function formatPhoneNumber(phone: string): string {
   }
   
   return cleaned;
+}
+
+function formatPhoneForOfficialApi(phone: string): string {
+  const formatted = formatPhoneNumber(phone);
+  let digits = formatted.replace(/\D/g, '');
+
+  if (!digits.startsWith('57') && digits.length === 10) {
+    digits = `57${digits}`;
+  }
+
+  return digits;
 }
 
 /**
@@ -173,13 +263,26 @@ async function sendViaTextMeBot(phone: string, message: string, apiKey: string):
     if (response.ok && !responseText.toLowerCase().includes('error')) {
       const messageId = `TMB_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       logger.info(`[WHATSAPP-TEXTMEBOT] Mensaje enviado exitosamente`, { to: cleanPhone, messageId });
-      return { success: true, messageId };
+      return {
+        success: true,
+        messageId,
+        deliveryMode: 'real',
+        provider: 'TEXTMEBOT',
+        simulated: false
+      };
     } else {
       throw new Error(responseText || 'Error en TextMeBot API');
     }
   } catch (error: any) {
-    logger.error(`[WHATSAPP-TEXTMEBOT] Error:`, { error: error.message });
-    return { success: false, error: error.message };
+    const errorMessage = mapProviderError(error?.message);
+    logger.error(`[WHATSAPP-TEXTMEBOT] Error:`, { error: errorMessage, rawError: error?.message });
+    return {
+      success: false,
+      error: errorMessage,
+      deliveryMode: 'real',
+      provider: 'TEXTMEBOT',
+      simulated: false
+    };
   }
 }
 
@@ -190,7 +293,22 @@ async function sendViaTextMeBot(phone: string, message: string, apiKey: string):
 export async function sendWhatsAppMessage(data: WhatsAppMessage): Promise<WhatsAppResponse> {
   try {
     const formattedPhone = formatPhoneNumber(data.to);
+    const officialApiPhone = formatPhoneForOfficialApi(data.to);
     const messageText = buildWhatsAppMessage(data);
+    const configStatus = getWhatsAppConfigStatus();
+
+    if (configStatus.runtimeMode === 'simulated') {
+      logger.warn('[WHATSAPP] Modo simulado forzado manualmente');
+      const simulatedId = `SIM_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      return {
+        success: true,
+        messageId: simulatedId,
+        error: 'Simulación activa por configuración manual del modo de envío.',
+        deliveryMode: 'simulated',
+        provider: 'SIMULATED',
+        simulated: true
+      };
+    }
 
     // Opción 1: Usar TextMeBot si hay apiKey configurada
     if (data.callmebotApiKey) {
@@ -199,9 +317,7 @@ export async function sendWhatsAppMessage(data: WhatsAppMessage): Promise<WhatsA
     }
 
     // Opción 2: Usar WhatsApp Business API oficial si está configurada
-    if (WHATSAPP_PHONE_ID && WHATSAPP_ACCESS_TOKEN && 
-        WHATSAPP_PHONE_ID !== 'TU_PHONE_NUMBER_ID_AQUI' && 
-        WHATSAPP_ACCESS_TOKEN !== 'TU_ACCESS_TOKEN_AQUI') {
+    if (configStatus.officialApiReady) {
       
       logger.info('[WHATSAPP] Usando WhatsApp Business API oficial');
 
@@ -216,7 +332,7 @@ export async function sendWhatsAppMessage(data: WhatsAppMessage): Promise<WhatsA
           body: JSON.stringify({
             messaging_product: 'whatsapp',
             recipient_type: 'individual',
-            to: formattedPhone,
+            to: officialApiPhone,
             type: 'text',
             text: { preview_url: true, body: messageText }
           })
@@ -231,7 +347,13 @@ export async function sendWhatsAppMessage(data: WhatsAppMessage): Promise<WhatsA
 
       const messageId = responseData?.messages?.[0]?.id;
       logger.info(`[WHATSAPP] Mensaje enviado exitosamente`, { to: formattedPhone, messageId });
-      return { success: true, messageId };
+      return {
+        success: true,
+        messageId,
+        deliveryMode: 'real',
+        provider: 'WHATSAPP_API',
+        simulated: false
+      };
     }
 
     // Opción 3: Modo simulación (desarrollo)
@@ -250,12 +372,26 @@ export async function sendWhatsAppMessage(data: WhatsAppMessage): Promise<WhatsA
     console.log('    2. Recibirá un apikey, agréguela al perfil del usuario');
     console.log('─'.repeat(50));
     
-    return { success: true, messageId: simulatedId };
+    return {
+      success: true,
+      messageId: simulatedId,
+      error: `Simulación activa: ${configStatus.officialApiReason || 'sin proveedor real configurado para este usuario'}`,
+      deliveryMode: 'simulated',
+      provider: 'SIMULATED',
+      simulated: true
+    };
 
   } catch (error: any) {
-    const errorMessage = error.response?.data?.error?.message || error.message;
-    logger.error(`[WHATSAPP] Error al enviar mensaje`, { to: data.to, error: errorMessage });
-    return { success: false, error: errorMessage };
+    const rawError = error.response?.data?.error?.message || error.message;
+    const errorMessage = mapProviderError(rawError);
+    logger.error(`[WHATSAPP] Error al enviar mensaje`, { to: data.to, error: errorMessage, rawError });
+    return {
+      success: false,
+      error: errorMessage,
+      deliveryMode: 'real',
+      provider: 'WHATSAPP_API',
+      simulated: false
+    };
   }
 }
 
@@ -279,6 +415,9 @@ export async function sendTestMessage(phone: string): Promise<WhatsAppResponse> 
 export default {
   sendWhatsAppMessage,
   sendTestMessage,
+  getWhatsAppConfigStatus,
+  getWhatsAppRuntimeMode,
+  setWhatsAppRuntimeMode,
   buildWhatsAppMessage,
   formatPhoneNumber,
   ICONS,

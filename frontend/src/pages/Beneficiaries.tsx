@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Search, Edit2 } from 'lucide-react';
 import { beneficiaryApi } from '../services/api';
 import { Beneficiary, DocumentType } from '../types';
+import { useToast } from '../components/ui/Toast';
 
 const populationLabels: Record<string, string> = {
   DISPLACED: 'Desplazado', REFUGEE: 'Refugiado', VULNERABLE: 'Vulnerable',
@@ -120,6 +121,7 @@ interface BeneficiaryModalProps {
 }
 
 function BeneficiaryModal({ beneficiary, onClose, onSave }: BeneficiaryModalProps) {
+  const toast = useToast();
   const isEditing = !!beneficiary;
   const [form, setForm] = useState({
     documentType: beneficiary?.documentType || 'CC',
@@ -147,7 +149,7 @@ function BeneficiaryModal({ beneficiary, onClose, onSave }: BeneficiaryModalProp
       onSave();
       onClose();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error al guardar');
+      toast.error(error.response?.data?.error || 'Error al guardar');
     } finally {
       setSaving(false);
     }

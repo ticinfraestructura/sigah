@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import { AppError } from './error.middleware';
 import { isTokenBlacklisted } from '../services/session.service';
@@ -7,14 +8,13 @@ import { isTokenBlacklisted } from '../services/session.service';
 // Validación crítica del JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
-  console.error('❌ CRITICAL: JWT_SECRET no está configurado en las variables de entorno');
-  console.error('   Configure JWT_SECRET en el archivo .env con al menos 32 caracteres');
-  // En desarrollo, usar un secret por defecto (solo para desarrollo)
   if (process.env.NODE_ENV === 'production') {
-    throw new Error('JWT_SECRET es requerido en producción');
+    throw new Error('❌ FATAL: JWT_SECRET es OBLIGATORIO en producción. Configure en .env con al menos 32 caracteres.');
   }
+  console.warn('⚠️ JWT_SECRET no configurado. Generando secret aleatorio para desarrollo.');
+  console.warn('   Configure JWT_SECRET en .env para sesiones persistentes entre reinicios.');
 }
-const SECRET = JWT_SECRET || 'sigah-dev-secret-key-min-32-chars!';
+export const SECRET = JWT_SECRET || crypto.randomBytes(64).toString('hex');
 
 // Interfaz para permisos del usuario
 interface UserPermission {
@@ -112,6 +112,24 @@ export const authenticate = async (
       lastName: user.lastName,
       permissions
     };
+
+    // Actualizar última actividad del usuario
+    userLastActivity.set(user.id, Date.now());
+
+    // Rate limiting por userId integrado en autenticación
+    const now = Date.now();
+    const entry = userRequestCounts.get(user.id);
+    if (!entry || now - entry.windowStart > USER_RATE_LIMIT_WINDOW_MS) {
+      userRequestCounts.set(user.id, { count: 1, windowStart: now });
+    } else {
+      entry.count++;
+      if (entry.count > USER_RATE_LIMIT_MAX) {
+        return res.status(429).json({
+          success: false,
+          error: 'Demasiadas solicitudes. Por favor, espere un momento.'
+        });
+      }
+    }
 
     next();
   } catch (error) {
@@ -212,6 +230,59 @@ const ROLE_NAME_MAP: Record<string, string> = {
   'Despachador': 'Despachador',
   'Operador': 'Operador',
   'Consulta': 'Consulta'
+};
+
+// Rate limiting por userId (complementa el rate limit por IP)
+const userRequestCounts = new Map<string, { count: number; windowStart: number }>();
+
+// Session activity tracking para idle timeout
+const userLastActivity = new Map<string, number>();
+const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutos
+
+// Limpiar actividad antigua cada hora
+setInterval(() => {
+  const cutoff = Date.now() - SESSION_IDLE_TIMEOUT_MS * 2;
+  for (const [userId, timestamp] of userLastActivity.entries()) {
+    if (timestamp < cutoff) {
+      userLastActivity.delete(userId);
+    }
+  }
+}, 60 * 60 * 1000);
+const USER_RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minuto
+const USER_RATE_LIMIT_MAX = 100; // máximo 100 requests por minuto por usuario
+
+// Limpiar contadores antiguos cada 5 minutos
+setInterval(() => {
+  const now = Date.now();
+  for (const [userId, data] of userRequestCounts.entries()) {
+    if (now - data.windowStart > USER_RATE_LIMIT_WINDOW_MS * 2) {
+      userRequestCounts.delete(userId);
+    }
+  }
+}, 5 * 60 * 1000);
+
+export const userRateLimit = (req: AuthRequest, res: Response, next: NextFunction) => {
+  if (!req.user) return next();
+
+  const userId = req.user.id;
+  const now = Date.now();
+  const entry = userRequestCounts.get(userId);
+
+  if (!entry || now - entry.windowStart > USER_RATE_LIMIT_WINDOW_MS) {
+    userRequestCounts.set(userId, { count: 1, windowStart: now });
+    return next();
+  }
+
+  entry.count++;
+
+  if (entry.count > USER_RATE_LIMIT_MAX) {
+    return res.status(429).json({
+      success: false,
+      error: 'Demasiadas solicitudes. Por favor, espere un momento.'
+    });
+  }
+
+  next();
 };
 
 // Legacy: mantener compatibilidad con authorize existente

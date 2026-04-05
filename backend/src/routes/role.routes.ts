@@ -1,6 +1,7 @@
 import { Router, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest, isAdmin, clearPermissionsCache } from '../middleware/auth.middleware';
+import { roleZodSchemas, validateZodRequest } from '../middleware/validation.middleware';
 
 const router = Router();
 
@@ -131,7 +132,7 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response, next: Next
 });
 
 // Obtener un rol por ID
-router.get('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/:id', authenticate, validateZodRequest({ params: roleZodSchemas.idParam }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { id } = req.params;
@@ -176,14 +177,10 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response, next: N
 });
 
 // Crear un nuevo rol
-router.post('/', authenticate, isAdmin(), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/', authenticate, isAdmin(), validateZodRequest({ body: roleZodSchemas.create }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { name, description, permissions } = req.body;
-
-    if (!name) {
-      return res.status(400).json({ success: false, error: 'El nombre es requerido' });
-    }
 
     // Verificar que el nombre no exista
     const existing = await prisma.role.findUnique({ where: { name } });
@@ -246,7 +243,7 @@ router.post('/', authenticate, isAdmin(), async (req: AuthRequest, res: Response
 });
 
 // Actualizar un rol
-router.put('/:id', authenticate, isAdmin(), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.put('/:id', authenticate, isAdmin(), validateZodRequest({ params: roleZodSchemas.idParam, body: roleZodSchemas.update }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { id } = req.params;
@@ -319,7 +316,7 @@ router.put('/:id', authenticate, isAdmin(), async (req: AuthRequest, res: Respon
 });
 
 // Eliminar un rol
-router.delete('/:id', authenticate, isAdmin(), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.delete('/:id', authenticate, isAdmin(), validateZodRequest({ params: roleZodSchemas.idParam }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { id } = req.params;
@@ -371,14 +368,10 @@ router.delete('/:id', authenticate, isAdmin(), async (req: AuthRequest, res: Res
 });
 
 // Asignar rol a usuario
-router.post('/assign', authenticate, isAdmin(), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/assign', authenticate, isAdmin(), validateZodRequest({ body: roleZodSchemas.assign }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { userId, roleId } = req.body;
-
-    if (!userId || !roleId) {
-      return res.status(400).json({ success: false, error: 'userId y roleId son requeridos' });
-    }
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {

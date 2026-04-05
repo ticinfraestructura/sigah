@@ -6,6 +6,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { Role, Permission } from '../types';
 import api from '../services/api';
+import { useToast } from '../components/ui/Toast';
 
 // Módulos del sistema
 const SYSTEM_MODULES = {
@@ -43,6 +44,7 @@ const ACTION_LABELS: Record<string, string> = {
 
 export default function RolesManagement() {
   const { isAdmin } = useAuth();
+  const toast = useToast();
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
@@ -95,20 +97,21 @@ export default function RolesManagement() {
 
   const handleDeleteRole = async (role: Role) => {
     if (role.isSystem) {
-      alert('No se puede eliminar un rol del sistema');
+      toast.warning('No se puede eliminar un rol del sistema');
       return;
     }
     if (role.userCount && role.userCount > 0) {
-      alert(`No se puede eliminar el rol porque tiene ${role.userCount} usuario(s) asignado(s)`);
+      toast.warning(`No se puede eliminar el rol porque tiene ${role.userCount} usuario(s) asignado(s)`);
       return;
     }
     if (!confirm(`¿Está seguro de eliminar el rol "${role.name}"?`)) return;
 
     try {
       await api.delete(`/roles/${role.id}`);
+      toast.success('Rol eliminado');
       loadRoles();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Error al eliminar');
+      toast.error(err.response?.data?.error || 'Error al eliminar');
     }
   };
 

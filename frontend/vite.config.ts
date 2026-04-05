@@ -4,8 +4,8 @@ import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
-  // Base path para cuando se despliega en subruta (ej: tudominio.com/sigah)
-  base: process.env.VITE_BASE_PATH || '/',
+  // Base path para dominio.com/sigah
+  base: '/sigah/',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -14,14 +14,24 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      '/api': {
-        target: 'http://localhost:3001',
+      '/sigah-api': {
+        target: process.env.VITE_API_TARGET || 'http://localhost:3001',
         changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/sigah-api/, '/api'),
       },
       '/socket.io': {
-        target: 'http://localhost:3001',
+        target: process.env.VITE_API_TARGET || 'http://localhost:3001',
         changeOrigin: true,
         ws: true,
+      },
+    },
+  },
+  preview: {
+    proxy: {
+      '/sigah-api': {
+        target: process.env.VITE_API_TARGET || 'http://localhost:3001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/sigah-api/, '/api'),
       },
     },
   },

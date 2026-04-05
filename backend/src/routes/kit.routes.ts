@@ -4,11 +4,12 @@ import { AppError } from '../middleware/error.middleware';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth.middleware';
 import { AuditService } from '../services/audit.service';
 import { InventoryService } from '../services/inventory.service';
+import { kitZodSchemas, validateZodRequest } from '../middleware/validation.middleware';
 
 const router = Router();
 
 // Get all kits
-router.get('/', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/', authenticate, validateZodRequest({ query: kitZodSchemas.listQuery }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const includeInactive = req.query.includeInactive === 'true';
@@ -34,7 +35,7 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
 });
 
 // Get kit by ID
-router.get('/:id', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/:id', authenticate, validateZodRequest({ params: kitZodSchemas.idParam }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const kit = await prisma.kit.findUnique({
@@ -64,11 +65,11 @@ router.get('/:id', authenticate, async (req: Request, res: Response, next: NextF
 });
 
 // Get kit availability (check if all products have enough stock)
-router.get('/:id/availability', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/:id/availability', authenticate, validateZodRequest({ params: kitZodSchemas.idParam, query: kitZodSchemas.availabilityQuery }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const inventoryService = new InventoryService(prisma);
-    const quantity = parseInt(req.query.quantity as string) || 1;
+    const { quantity = 1 } = req.query as { quantity?: number };
 
     const kit = await prisma.kit.findUnique({
       where: { id: req.params.id },
@@ -121,19 +122,11 @@ router.get('/:id/availability', authenticate, async (req: Request, res: Response
 });
 
 // Create kit
-router.post('/', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZodRequest({ body: kitZodSchemas.create }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const auditService = new AuditService(prisma);
     const { code, name, description, products } = req.body;
-
-    if (!code || !name) {
-      throw new AppError('Código y nombre son requeridos', 400);
-    }
-
-    if (!products || !Array.isArray(products) || products.length === 0) {
-      throw new AppError('El kit debe tener al menos un producto', 400);
-    }
 
     const existing = await prisma.kit.findUnique({ where: { code } });
     if (existing) {
@@ -176,7 +169,7 @@ router.post('/', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: Auth
 });
 
 // Update kit
-router.put('/:id', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.put('/:id', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZodRequest({ params: kitZodSchemas.idParam, body: kitZodSchemas.update }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const auditService = new AuditService(prisma);
@@ -240,10 +233,14 @@ router.put('/:id', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: Au
 });
 
 // Get kit delivery history
-router.get('/:id/history', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/:id/history', authenticate, validateZodRequest({ params: kitZodSchemas.idParam, query: kitZodSchemas.historyQuery }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
-    const { startDate, endDate, status } = req.query;
+    const { startDate, endDate, status } = req.query as {
+      startDate?: string;
+      endDate?: string;
+      status?: 'PENDING_AUTHORIZATION' | 'AUTHORIZED' | 'RECEIVED_WAREHOUSE' | 'IN_PREPARATION' | 'READY' | 'DELIVERED' | 'CANCELLED';
+    };
 
     const kit = await prisma.kit.findUnique({
       where: { id: req.params.id },
@@ -328,7 +325,7 @@ router.get('/:id/history', authenticate, async (req: Request, res: Response, nex
 });
 
 // Delete (deactivate) kit
-router.delete('/:id', authenticate, authorize('ADMIN'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.delete('/:id', authenticate, authorize('ADMIN'), validateZodRequest({ params: kitZodSchemas.idParam }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const auditService = new AuditService(prisma);

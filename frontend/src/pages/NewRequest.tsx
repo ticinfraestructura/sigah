@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { requestApi, beneficiaryApi, kitApi, productApi } from '../services/api';
 import { Beneficiary, Kit, Product } from '../types';
+import { useToast } from '../components/ui/Toast';
 
 export default function NewRequest() {
   const navigate = useNavigate();
@@ -11,6 +12,7 @@ export default function NewRequest() {
   const [products, setProducts] = useState<Product[]>([]);
   const [form, setForm] = useState({ beneficiaryId: '', kits: [] as {kitId: string; quantity: number}[], products: [] as {productId: string; quantity: number}[], notes: '' });
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     Promise.all([beneficiaryApi.getAll(), kitApi.getAll(), productApi.getAll()])
@@ -19,14 +21,14 @@ export default function NewRequest() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.beneficiaryId) return alert('Seleccione un beneficiario');
-    if (form.kits.length === 0 && form.products.length === 0) return alert('Agregue al menos un kit o producto');
+    if (!form.beneficiaryId) { toast.warning('Seleccione un beneficiario'); return; }
+    if (form.kits.length === 0 && form.products.length === 0) { toast.warning('Agregue al menos un kit o producto'); return; }
     setLoading(true);
     try {
       const response = await requestApi.create(form);
       navigate(`/requests/${response.data.data.id}`);
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error');
+      toast.error(error.response?.data?.error || 'Error al crear solicitud');
     } finally { setLoading(false); }
   };
 

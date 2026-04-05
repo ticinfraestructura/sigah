@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { AppError } from '../middleware/error.middleware';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth.middleware';
 import { AuditService } from '../services/audit.service';
+import { requestZodSchemas, validateZodRequest } from '../middleware/validation.middleware';
 
 const router = Router();
 
@@ -30,18 +31,26 @@ function generateRequestCode(): string {
 }
 
 // Get all requests with filters
-router.get('/', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/', authenticate, validateZodRequest({ query: requestZodSchemas.listQuery }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
-    const { 
-      status, 
-      beneficiaryId, 
-      startDate, 
-      endDate, 
+    const {
+      status,
+      beneficiaryId,
+      startDate,
+      endDate,
       search,
-      page = '1', 
-      limit = '50' 
-    } = req.query;
+      page = 1,
+      limit = 50
+    } = req.query as {
+      status?: RequestStatus;
+      beneficiaryId?: string;
+      startDate?: string;
+      endDate?: string;
+      search?: string;
+      page?: number;
+      limit?: number;
+    };
 
     const where: any = {};
 
@@ -69,7 +78,7 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
       ];
     }
 
-    const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
+    const skip = (page - 1) * limit;
 
     const [requests, total] = await Promise.all([
       prisma.request.findMany({
@@ -82,7 +91,7 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
         },
         orderBy: { requestDate: 'desc' },
         skip,
-        take: parseInt(limit as string)
+        take: limit
       }),
       prisma.request.count({ where })
     ]);
@@ -91,10 +100,10 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
       success: true,
       data: requests,
       pagination: {
-        page: parseInt(page as string),
-        limit: parseInt(limit as string),
+        page,
+        limit,
         total,
-        pages: Math.ceil(total / parseInt(limit as string))
+        pages: Math.ceil(total / limit)
       }
     });
   } catch (error) {
@@ -103,7 +112,7 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
 });
 
 // Get request by ID with full details
-router.get('/:id', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/:id', authenticate, validateZodRequest({ params: requestZodSchemas.idParam }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const request = await prisma.request.findUnique({
@@ -137,19 +146,11 @@ router.get('/:id', authenticate, async (req: Request, res: Response, next: NextF
 });
 
 // Create request
-router.post('/', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZodRequest({ body: requestZodSchemas.create }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const auditService = new AuditService(prisma);
     const { beneficiaryId, products, kits, priority, notes } = req.body;
-
-    if (!beneficiaryId) {
-      throw new AppError('Beneficiario es requerido', 400);
-    }
-
-    if ((!products || products.length === 0) && (!kits || kits.length === 0)) {
-      throw new AppError('Debe solicitar al menos un producto o kit', 400);
-    }
 
     const beneficiary = await prisma.beneficiary.findUnique({ where: { id: beneficiaryId } });
     if (!beneficiary || !beneficiary.isActive) {
@@ -199,15 +200,11 @@ router.post('/', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: Auth
 });
 
 // Update request status
-router.patch('/:id/status', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.patch('/:id/status', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZodRequest({ params: requestZodSchemas.idParam, body: requestZodSchemas.updateStatus }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const auditService = new AuditService(prisma);
     const { status, notes } = req.body;
-
-    if (!status) {
-      throw new AppError('Estado es requerido', 400);
-    }
 
     const request = await prisma.request.findUnique({ where: { id: req.params.id } });
     if (!request) {
@@ -280,7 +277,7 @@ router.patch('/:id/status', authenticate, authorize('ADMIN', 'WAREHOUSE'), async
 });
 
 // Update request items
-router.put('/:id', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.put('/:id', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZodRequest({ params: requestZodSchemas.idParam, body: requestZodSchemas.update }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const auditService = new AuditService(prisma);
@@ -353,7 +350,7 @@ router.put('/:id', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: Au
 });
 
 // Get requests history
-router.get('/:id/history', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/:id/history', authenticate, validateZodRequest({ params: requestZodSchemas.idParam }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const histories = await prisma.requestHistory.findMany({

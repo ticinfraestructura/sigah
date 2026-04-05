@@ -71,6 +71,22 @@ export interface TelegramResponse {
   success: boolean;
   messageId?: number;
   error?: string;
+  simulated?: boolean;
+}
+
+export interface TelegramConfigStatus {
+  botConfigured: boolean;
+  mode: 'real' | 'simulated';
+  reason?: string;
+}
+
+export function getTelegramConfigStatus(): TelegramConfigStatus {
+  const botConfigured = !!TELEGRAM_BOT_TOKEN;
+  return {
+    botConfigured,
+    mode: botConfigured ? 'real' : 'simulated',
+    reason: botConfigured ? undefined : 'Falta TELEGRAM_BOT_TOKEN'
+  };
 }
 
 /**
@@ -112,7 +128,7 @@ ${critIcon} Criticidad: *${critLabel}*
 👥 Para: ${escapeMarkdown(data.receiverName)}
 🆔 Código: \`${data.traceCode}\`
 📅 Fecha: ${escapeMarkdown(formattedDate)}
-🕐 Hora: ${formattedTime}
+🕐 Hora: ${escapeMarkdown(formattedTime)}
 `;
 
   if (data.referenceType && data.referenceId) {
@@ -164,7 +180,8 @@ export async function sendTelegramMessage(data: TelegramMessage): Promise<Telegr
       
       return {
         success: true,
-        messageId: simulatedId
+        messageId: simulatedId,
+        simulated: true
       };
     }
 
@@ -204,7 +221,8 @@ export async function sendTelegramMessage(data: TelegramMessage): Promise<Telegr
 
     return {
       success: true,
-      messageId
+      messageId,
+      simulated: false
     };
 
   } catch (error: any) {
@@ -217,7 +235,8 @@ export async function sendTelegramMessage(data: TelegramMessage): Promise<Telegr
 
     return {
       success: false,
-      error: errorMessage
+      error: errorMessage,
+      simulated: false
     };
   }
 }
@@ -276,6 +295,7 @@ export async function getUpdates(): Promise<any> {
 export default {
   sendTelegramMessage,
   sendTestMessage,
+  getTelegramConfigStatus,
   buildTelegramMessage,
   getBotInfo,
   getUpdates,

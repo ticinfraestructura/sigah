@@ -4,6 +4,7 @@ import {
   CheckCircle, XCircle, Edit2, Plus, Trash2, RefreshCw
 } from 'lucide-react';
 import { auditApi } from '../services/api';
+import { useToast } from '../components/ui/Toast';
 
 interface AuditLog {
   id: string;
@@ -56,6 +57,7 @@ const actionColors: Record<string, string> = {
 };
 
 export default function InventoryAudit() {
+  const toast = useToast();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [stats, setStats] = useState<AuditStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -129,7 +131,7 @@ export default function InventoryAudit() {
       link.click();
     } catch (error) {
       console.error('Error exporting:', error);
-      alert('Error al exportar');
+      toast.error('Error al exportar');
     }
   };
 

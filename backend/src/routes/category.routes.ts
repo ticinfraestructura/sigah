@@ -3,11 +3,12 @@ import { PrismaClient } from '@prisma/client';
 import { AppError } from '../middleware/error.middleware';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth.middleware';
 import { AuditService } from '../services/audit.service';
+import { categoryZodSchemas, validateZodRequest } from '../middleware/validation.middleware';
 
 const router = Router();
 
 // Get all categories
-router.get('/', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/', authenticate, validateZodRequest({ query: categoryZodSchemas.listQuery }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const includeInactive = req.query.includeInactive === 'true';
@@ -24,7 +25,7 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
 });
 
 // Get category by ID
-router.get('/:id', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/:id', authenticate, validateZodRequest({ params: categoryZodSchemas.idParam }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const category = await prisma.category.findUnique({
@@ -43,15 +44,11 @@ router.get('/:id', authenticate, async (req: Request, res: Response, next: NextF
 });
 
 // Create category
-router.post('/', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZodRequest({ body: categoryZodSchemas.create }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const auditService = new AuditService(prisma);
     const { name, description } = req.body;
-
-    if (!name) {
-      throw new AppError('El nombre es requerido', 400);
-    }
 
     const existing = await prisma.category.findUnique({ where: { name } });
     if (existing) {
@@ -71,7 +68,7 @@ router.post('/', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: Auth
 });
 
 // Update category
-router.put('/:id', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.put('/:id', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZodRequest({ params: categoryZodSchemas.idParam, body: categoryZodSchemas.update }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const auditService = new AuditService(prisma);
@@ -103,7 +100,7 @@ router.put('/:id', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (req: Au
 });
 
 // Delete (deactivate) category
-router.delete('/:id', authenticate, authorize('ADMIN'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.delete('/:id', authenticate, authorize('ADMIN'), validateZodRequest({ params: categoryZodSchemas.idParam }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const auditService = new AuditService(prisma);

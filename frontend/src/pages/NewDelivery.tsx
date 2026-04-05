@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, User, Package, FileText, AlertCircle, Users } from 'lucide-react';
 import { requestApi, deliveryApi, beneficiaryApi } from '../services/api';
 import { Request, Beneficiary } from '../types';
+import { useToast } from '../components/ui/Toast';
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   APPROVED: { label: 'Aprobada', color: 'bg-green-100 text-green-800' },
@@ -20,6 +21,7 @@ export default function NewDelivery() {
     isPartial: false 
   });
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
   
   // Para selección de receptor
   const [receiverType, setReceiverType] = useState<'beneficiary' | 'other'>('beneficiary');
@@ -79,7 +81,7 @@ export default function NewDelivery() {
       });
       navigate('/deliveries');
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error al crear la entrega');
+      toast.error(error.response?.data?.error || 'Error al crear la entrega');
     } finally { 
       setLoading(false); 
     }

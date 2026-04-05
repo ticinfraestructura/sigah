@@ -4,6 +4,7 @@
 
 import { Router, Response, NextFunction } from 'express';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth.middleware';
+import { auditZodSchemas, validateZodRequest } from '../middleware/validation.middleware';
 import { 
   getEntityHistory,
   searchAuditLogs,
@@ -21,7 +22,7 @@ const router = Router();
  *     tags: [Audit]
  *     summary: Get entity history
  */
-router.get('/entity/:entity/:entityId', authenticate, authorize('ADMIN'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/entity/:entity/:entityId', authenticate, authorize('ADMIN'), validateZodRequest({ params: auditZodSchemas.entityParams }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { entity, entityId } = req.params;
     const history = await getEntityHistory(entity, entityId);
@@ -42,9 +43,18 @@ router.get('/entity/:entity/:entityId', authenticate, authorize('ADMIN'), async 
  *     tags: [Audit]
  *     summary: Search audit logs
  */
-router.get('/search', authenticate, authorize('ADMIN'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/search', authenticate, authorize('ADMIN'), validateZodRequest({ query: auditZodSchemas.searchQuery }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const { entity, entityId, userId, action, startDate, endDate, page, limit } = req.query;
+    const { entity, entityId, userId, action, startDate, endDate, page = 1, limit = 50 } = req.query as {
+      entity?: string;
+      entityId?: string;
+      userId?: string;
+      action?: string;
+      startDate?: string;
+      endDate?: string;
+      page?: number;
+      limit?: number;
+    };
     
     const result = await searchAuditLogs({
       entity: entity as string,
@@ -53,8 +63,8 @@ router.get('/search', authenticate, authorize('ADMIN'), async (req: AuthRequest,
       action: action as string,
       startDate: startDate ? new Date(startDate as string) : undefined,
       endDate: endDate ? new Date(endDate as string) : undefined,
-      page: page ? parseInt(page as string) : 1,
-      limit: limit ? parseInt(limit as string) : 50
+      page,
+      limit
     });
     
     res.json({
@@ -62,8 +72,8 @@ router.get('/search', authenticate, authorize('ADMIN'), async (req: AuthRequest,
       data: result.data,
       pagination: {
         total: result.total,
-        page: page ? parseInt(page as string) : 1,
-        limit: limit ? parseInt(limit as string) : 50
+        page,
+        limit
       }
     });
   } catch (error) {
@@ -78,7 +88,7 @@ router.get('/search', authenticate, authorize('ADMIN'), async (req: AuthRequest,
  *     tags: [Audit]
  *     summary: Get audit statistics
  */
-router.get('/stats', authenticate, authorize('ADMIN'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/stats', authenticate, authorize('ADMIN'), validateZodRequest({ query: auditZodSchemas.statsQuery }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { startDate, endDate } = req.query;
     
@@ -103,17 +113,10 @@ router.get('/stats', authenticate, authorize('ADMIN'), async (req: AuthRequest, 
  *     tags: [Audit]
  *     summary: Compare two audit versions
  */
-router.get('/compare', authenticate, authorize('ADMIN'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/compare', authenticate, authorize('ADMIN'), validateZodRequest({ query: auditZodSchemas.compareQuery }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id1, id2 } = req.query;
-    
-    if (!id1 || !id2) {
-      return res.status(400).json({
-        success: false,
-        error: 'Se requieren id1 e id2'
-      });
-    }
-    
+
     const changes = await compareVersions(id1 as string, id2 as string);
     
     res.json({
@@ -132,7 +135,7 @@ router.get('/compare', authenticate, authorize('ADMIN'), async (req: AuthRequest
  *     tags: [Audit]
  *     summary: Export audit logs to CSV
  */
-router.get('/export', authenticate, authorize('ADMIN'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/export', authenticate, authorize('ADMIN'), validateZodRequest({ query: auditZodSchemas.exportQuery }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { entity, entityId, userId, action, startDate, endDate } = req.query;
     
