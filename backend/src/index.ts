@@ -80,11 +80,8 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
 
 app.use(cors({
   origin: (origin, callback) => {
-    // En producción, solo permitir origins conocidos
+    // Permitir requests sin Origin (healthchecks, curl, server-to-server)
     if (!origin) {
-      if (process.env.NODE_ENV === 'production') {
-        return callback(new Error('Origin requerido'), false);
-      }
       return callback(null, true);
     }
     
