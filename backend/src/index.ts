@@ -46,6 +46,8 @@ const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3001;
 
+app.set('trust proxy', 1);
+
 // ============ SEGURIDAD CRÍTICA ============
 
 // 1. Headers de seguridad con Helmet
@@ -145,6 +147,7 @@ app.use(compression());
 // 7a. Parseo de body JSON y urlencoded
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use(cookieParser());
 
 // 8. CSRF Protection (solo en producción)
 const enableCsrf = process.env.ENABLE_CSRF === 'true';
