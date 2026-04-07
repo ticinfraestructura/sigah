@@ -4,6 +4,51 @@
 
 Implementar un **ciclo de vida completo** con entornos diferenciados, automatización y monitoreo continuo.
 
+## ⚡ **Arranque Post-Reinicio (Operación Linux)**
+
+Objetivo: si el servidor se apaga o reinicia, volver a operación de SIGAH en minutos, con pasos repetibles.
+
+### Componentes
+- Script: `scripts/start_sigah.sh`
+- Servicio systemd: `deploy/systemd/sigah-startup.service`
+- Compose productivo por subruta: `docker-compose.subfolder.yml`
+
+### Flujo operativo real
+1. `systemd` arranca el script al boot.
+2. El script levanta `sigah-db`, `sigah-redis`, `sigah-backend`, `sigah-frontend`.
+3. El script evita conflicto de puertos eliminando `sigah-nginx-proxy` (80/443 lo maneja `rp-nginx`).
+4. Se conecta `rp-nginx` a `sigah-network`.
+5. Se validan endpoints de aplicación y API.
+
+### Instalación en Linux (una sola vez)
+```bash
+cd /opt/sigah
+sudo chmod +x scripts/start_sigah.sh
+sudo cp deploy/systemd/sigah-startup.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable sigah-startup.service
+sudo systemctl start sigah-startup.service
+sudo systemctl status sigah-startup.service --no-pager
+```
+
+### Verificación post-arranque
+```bash
+sudo docker compose -p sigah -f /opt/sigah/docker-compose.subfolder.yml ps
+curl -I https://saladecrisis.dosquebradas.gov.co/sigah/
+curl -i https://saladecrisis.dosquebradas.gov.co/sigah-api/health
+```
+
+### Recuperación rápida manual
+```bash
+cd /opt/sigah
+sudo /opt/sigah/scripts/start_sigah.sh
+```
+
+### Notas de operación
+- `rp-nginx` es el proxy principal expuesto a Internet.
+- No levantar `nginx-proxy` del compose subfolder en este escenario.
+- Si hay cambios locales en servidor, usar `git stash` antes de `git pull --ff-only`.
+
 ```
 Desarrollo → Staging → Producción
     ↓           ↓          ↓

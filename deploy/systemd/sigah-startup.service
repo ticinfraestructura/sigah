@@ -1,0 +1,13 @@
+[Unit]
+Description=SIGAH startup after boot
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/sigah/scripts/start_sigah.sh
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target
