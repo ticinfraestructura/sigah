@@ -725,18 +725,18 @@ export const productZodSchemas = {
     search: z.string().trim().max(120).optional(),
     includeInactive: z.enum(['true', 'false']).optional(),
     page: z.coerce.number().int().min(1).optional(),
-    limit: z.coerce.number().int().min(1).max(100).optional()
+    limit: z.coerce.number().int().min(1).max(500).optional()
   }),
   movementsQuery: z.object({
     startDate: z.string().optional(),
     endDate: z.string().optional(),
     type: z.enum(['ENTRY', 'EXIT', 'ADJUSTMENT', 'RETURN']).optional(),
     page: z.coerce.number().int().min(1).optional(),
-    limit: z.coerce.number().int().min(1).max(100).optional()
+    limit: z.coerce.number().int().min(1).max(500).optional()
   }),
   create: z.object({
     code: z.string().trim().min(2).max(50),
-    name: z.string().trim().min(2).max(120),
+    name: z.string().trim().min(2).max(100),
     description: z.string().trim().max(500).optional(),
     categoryId: z.string().uuid('Categoría inválida'),
     unit: z.string().trim().min(1).max(20).optional(),
