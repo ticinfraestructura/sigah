@@ -460,10 +460,23 @@ function LotsTab() {
 
   const fetchProducts = async () => {
     try {
-      const response = await productApi.getAll({ limit: 500 });
-      setProducts(response.data.data);
-    } catch (error) {
+      const response = await productApi.getAll({ limit: 100, includeInactive: true });
+      const payload = response.data?.data;
+      const productList = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : [];
+
+      const activeProducts = productList.filter((product: Product) => product.isActive !== false);
+      setProducts(activeProducts);
+
+      if (activeProducts.length === 0) {
+        toast.warning('No hay productos activos para gestionar lotes');
+      }
+    } catch (error: any) {
       console.error('Error loading products:', error);
+      toast.error(error.response?.data?.error || 'No se pudieron cargar los productos');
     }
   };
 
@@ -512,14 +525,22 @@ function LotsTab() {
               value={selectedProduct}
               onChange={(e) => setSelectedProduct(e.target.value)}
               className="input"
+              disabled={products.length === 0}
             >
-              <option value="">-- Seleccione un producto --</option>
+              <option value="">
+                {products.length === 0 ? '-- No hay productos disponibles --' : '-- Seleccione un producto --'}
+              </option>
               {products.map((product) => (
                 <option key={product.id} value={product.id}>
                   {product.code} - {product.name} (Stock: {product.totalStock || 0})
                 </option>
               ))}
             </select>
+            {products.length === 0 && (
+              <p className="text-xs text-amber-600 mt-1">
+                Cree o active productos en la pestaña de Productos para administrar lotes.
+              </p>
+            )}
           </div>
           {selectedProduct && (
             <button onClick={() => setShowModal(true)} className="btn-primary">
@@ -641,6 +662,7 @@ function LotsTab() {
 
 // ==================== MOVEMENTS TAB ====================
 function MovementsTab() {
+  const toast = useToast();
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -663,10 +685,23 @@ function MovementsTab() {
 
   const fetchProducts = async () => {
     try {
-      const response = await productApi.getAll({ limit: 500 });
-      setProducts(response.data.data);
-    } catch (error) {
+      const response = await productApi.getAll({ limit: 100, includeInactive: true });
+      const payload = response.data?.data;
+      const productList = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : [];
+
+      const activeProducts = productList.filter((product: Product) => product.isActive !== false);
+      setProducts(activeProducts);
+
+      if (activeProducts.length === 0) {
+        toast.warning('No hay productos activos disponibles para registrar entradas o ajustes');
+      }
+    } catch (error: any) {
       console.error('Error loading products:', error);
+      toast.error(error.response?.data?.error || 'No se pudieron cargar los productos');
     }
   };
 
@@ -851,10 +886,23 @@ function AdjustmentsTab() {
 
   const fetchProducts = async () => {
     try {
-      const response = await productApi.getAll({ limit: 500 });
-      setProducts(response.data.data);
-    } catch (error) {
+      const response = await productApi.getAll({ limit: 100, includeInactive: true });
+      const payload = response.data?.data;
+      const productList = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : [];
+
+      const activeProducts = productList.filter((product: Product) => product.isActive !== false);
+      setProducts(activeProducts);
+
+      if (activeProducts.length === 0) {
+        toast.warning('No hay productos activos disponibles para registrar entradas o ajustes');
+      }
+    } catch (error: any) {
       console.error('Error loading products:', error);
+      toast.error(error.response?.data?.error || 'No se pudieron cargar los productos');
     }
   };
 
@@ -863,8 +911,9 @@ function AdjustmentsTab() {
       setLoading(true);
       const response = await productApi.getLots(selectedProduct);
       setLots(response.data.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading lots:', error);
+      toast.error(error.response?.data?.error || 'No se pudieron cargar los lotes');
     } finally {
       setLoading(false);
     }
@@ -877,12 +926,28 @@ function AdjustmentsTab() {
       return;
     }
 
+    const quantity = Number(form.quantity);
+    if (!Number.isInteger(quantity)) {
+      toast.warning('La cantidad debe ser un número entero');
+      return;
+    }
+
+    if (mode === 'entry' && quantity <= 0) {
+      toast.warning('La entrada debe ser mayor que 0');
+      return;
+    }
+
+    if (mode === 'adjustment' && quantity === 0) {
+      toast.warning('El ajuste no puede ser 0');
+      return;
+    }
+
     setSaving(true);
     try {
       if (mode === 'entry') {
         await inventoryApi.createEntry({
           productId: selectedProduct,
-          quantity: parseInt(form.quantity),
+          quantity,
           lotNumber: form.lotNumber || undefined,
           expiryDate: form.expiryDate || undefined,
           reason: form.reason || undefined
@@ -894,10 +959,24 @@ function AdjustmentsTab() {
           setSaving(false);
           return;
         }
+
+        const selectedLot = lots.find(lot => lot.id === form.lotId);
+        if (!selectedLot) {
+          toast.warning('Lote inválido');
+          setSaving(false);
+          return;
+        }
+
+        if (selectedLot.quantity + quantity < 0) {
+          toast.warning('El ajuste resultaría en stock negativo para el lote');
+          setSaving(false);
+          return;
+        }
+
         await inventoryApi.createAdjustment({
           productId: selectedProduct,
           lotId: form.lotId,
-          quantity: parseInt(form.quantity),
+          quantity,
           reason: form.reason
         });
         toast.success('Ajuste registrado exitosamente');
@@ -959,15 +1038,23 @@ function AdjustmentsTab() {
                 setForm({ ...form, lotId: '' });
               }}
               className="input"
+              disabled={products.length === 0}
               required
             >
-              <option value="">-- Seleccione un producto --</option>
+              <option value="">
+                {products.length === 0 ? '-- No hay productos disponibles --' : '-- Seleccione un producto --'}
+              </option>
               {products.map((product) => (
                 <option key={product.id} value={product.id}>
                   {product.code} - {product.name} (Stock actual: {product.totalStock || 0})
                 </option>
               ))}
             </select>
+            {products.length === 0 && (
+              <p className="text-xs text-amber-600 mt-1">
+                Cree o active productos en la pestaña de Productos para poder registrar entradas.
+              </p>
+            )}
           </div>
 
           {selectedProductData && (
@@ -1036,17 +1123,17 @@ function AdjustmentsTab() {
                 </select>
               </div>
               <div>
-                <label className="label">Nueva Cantidad *</label>
+                <label className="label">Cantidad de ajuste (+ / -) *</label>
                 <input
                   type="number"
                   value={form.quantity}
                   onChange={(e) => setForm({ ...form, quantity: e.target.value })}
                   className="input"
-                  min="0"
+                  step="1"
                   required
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Ingrese la cantidad correcta final del lote (puede ser mayor o menor que la actual)
+                  Use valores positivos para aumentar stock y negativos para disminuirlo (salida/corrección)
                 </p>
               </div>
             </>

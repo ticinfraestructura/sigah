@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
   Shield, Plus, Edit2, Trash2, Users, Check, X, 
-  Save, ChevronDown, ChevronUp, AlertCircle
+  Save, ChevronDown, ChevronUp, AlertCircle, UserCheck
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Role, Permission } from '../types';
@@ -42,10 +42,21 @@ const ACTION_LABELS: Record<string, string> = {
   assign: 'Asignar'
 };
 
+interface SystemUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  isActive: boolean;
+  roleId?: string;
+}
+
 export default function RolesManagement() {
   const { isAdmin } = useAuth();
   const toast = useToast();
   const [roles, setRoles] = useState<Role[]>([]);
+  const [allUsers, setAllUsers] = useState<SystemUser[]>([]);
+  const [expandedRoleUsers, setExpandedRoleUsers] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -59,19 +70,42 @@ export default function RolesManagement() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    loadRoles();
+    loadData();
   }, []);
 
-  const loadRoles = async () => {
+  const loadData = async () => {
     try {
-      const response = await api.get('/roles');
-      setRoles(response.data.data);
+      const [rolesRes, usersRes] = await Promise.all([
+        api.get('/roles'),
+        api.get('/users')
+      ]);
+      setRoles(rolesRes.data.data);
+      setAllUsers(usersRes.data.data);
     } catch (err) {
-      console.error('Error loading roles:', err);
+      console.error('Error loading data:', err);
     } finally {
       setLoading(false);
     }
   };
+
+  const loadRoles = async () => {
+    try {
+      const [rolesRes, usersRes] = await Promise.all([
+        api.get('/roles'),
+        api.get('/users')
+      ]);
+      setRoles(rolesRes.data.data);
+      setAllUsers(usersRes.data.data);
+    } catch (err) {
+      console.error('Error loading roles:', err);
+    }
+  };
+
+  const getUsersForRole = (roleId: string): SystemUser[] =>
+    allUsers.filter(u => u.roleId === roleId);
+
+  const toggleRoleUsers = (roleId: string) =>
+    setExpandedRoleUsers(prev => prev === roleId ? null : roleId);
 
   const handleNewRole = () => {
     setEditingRole(null);
@@ -197,8 +231,8 @@ export default function RolesManagement() {
     return (
       <div className="card p-12 text-center">
         <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-        <h2 className="text-xl font-bold text-gray-900 mb-2">Acceso Denegado</h2>
-        <p className="text-gray-500">No tienes permisos para acceder a esta sección.</p>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Acceso Denegado</h2>
+        <p className="text-gray-500 dark:text-gray-400">No tienes permisos para acceder a esta sección.</p>
       </div>
     );
   }
@@ -208,8 +242,8 @@ export default function RolesManagement() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Roles y Permisos</h1>
-          <p className="text-gray-500">Gestiona los roles del sistema y sus permisos</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Roles y Permisos</h1>
+          <p className="text-gray-500 dark:text-gray-400">Gestiona los roles del sistema y sus permisos</p>
         </div>
         <button onClick={handleNewRole} className="btn-primary">
           <Plus className="w-4 h-4 mr-2" /> Nuevo Rol
@@ -223,18 +257,18 @@ export default function RolesManagement() {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
           </div>
         ) : roles.map(role => (
-          <div key={role.id} className="card hover:shadow-md transition-shadow">
+          <div key={role.id} className="card hover:shadow-md transition-shadow dark:bg-gray-800">
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                  role.isSystem ? 'bg-primary-100' : 'bg-gray-100'
+                  role.isSystem ? 'bg-primary-100 dark:bg-primary-900' : 'bg-gray-100 dark:bg-gray-700'
                 }`}>
                   <Shield className={`w-5 h-5 ${role.isSystem ? 'text-primary-600' : 'text-gray-600'}`} />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900">{role.name}</h3>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">{role.name}</h3>
                   {role.isSystem && (
-                    <span className="text-xs text-primary-600 bg-primary-50 px-2 py-0.5 rounded">
+                    <span className="text-xs text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900 px-2 py-0.5 rounded">
                       Sistema
                     </span>
                   )}
@@ -258,17 +292,52 @@ export default function RolesManagement() {
               </div>
             </div>
             
-            <p className="text-sm text-gray-500 mb-3">{role.description || 'Sin descripción'}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">{role.description || 'Sin descripción'}</p>
             
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-1 text-gray-500">
+            <div className="flex items-center justify-between text-sm mb-2">
+              <button
+                onClick={() => toggleRoleUsers(role.id)}
+                className="flex items-center gap-1 text-primary-600 dark:text-primary-400 hover:underline"
+              >
                 <Users className="w-4 h-4" />
-                <span>{role.userCount || 0} usuarios</span>
-              </div>
-              <span className="text-gray-400">
+                <span>{getUsersForRole(role.id).length} usuarios</span>
+                {expandedRoleUsers === role.id
+                  ? <ChevronUp className="w-3 h-3" />
+                  : <ChevronDown className="w-3 h-3" />}
+              </button>
+              <span className="text-gray-400 dark:text-gray-500">
                 {role.permissions.length} permisos
               </span>
             </div>
+
+            {expandedRoleUsers === role.id && (
+              <div className="mt-2 border dark:border-gray-600 rounded-lg overflow-hidden">
+                {getUsersForRole(role.id).length === 0 ? (
+                  <p className="text-xs text-gray-400 dark:text-gray-500 px-3 py-2 text-center">Sin usuarios asignados</p>
+                ) : (
+                  <div className="divide-y dark:divide-gray-600 max-h-40 overflow-y-auto">
+                    {getUsersForRole(role.id).map(u => (
+                      <div key={u.id} className="flex items-center gap-2 px-3 py-2">
+                        <UserCheck className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-gray-800 dark:text-gray-200 truncate">
+                            {u.firstName} {u.lastName}
+                          </p>
+                          <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{u.email}</p>
+                        </div>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+                          u.isActive
+                            ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                        }`}>
+                          {u.isActive ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -276,10 +345,10 @@ export default function RolesManagement() {
       {/* Modal de Edición */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
             {/* Header */}
-            <div className="px-6 py-4 border-b bg-gray-50">
-              <h2 className="text-lg font-bold text-gray-900">
+            <div className="px-6 py-4 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">
                 {editingRole ? `Editar Rol: ${editingRole.name}` : 'Nuevo Rol'}
               </h2>
             </div>
@@ -296,7 +365,7 @@ export default function RolesManagement() {
               {/* Datos básicos */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="label">Nombre del Rol *</label>
+                  <label className="label dark:text-gray-300">Nombre del Rol *</label>
                   <input
                     type="text"
                     value={formData.name}
@@ -307,7 +376,7 @@ export default function RolesManagement() {
                   />
                 </div>
                 <div>
-                  <label className="label">Descripción</label>
+                  <label className="label dark:text-gray-300">Descripción</label>
                   <input
                     type="text"
                     value={formData.description}
@@ -320,7 +389,7 @@ export default function RolesManagement() {
 
               {/* Permisos */}
               <div>
-                <label className="label mb-3">Permisos por Módulo</label>
+                <label className="label mb-3 dark:text-gray-300">Permisos por Módulo</label>
                 <div className="space-y-2">
                   {Object.entries(SYSTEM_MODULES).map(([moduleKey, moduleData]) => {
                     const { selected, total } = getModulePermissionCount(moduleKey);
@@ -328,10 +397,10 @@ export default function RolesManagement() {
                     const allSelected = selected === total;
                     
                     return (
-                      <div key={moduleKey} className="border rounded-lg overflow-hidden">
+                      <div key={moduleKey} className="border dark:border-gray-600 rounded-lg overflow-hidden">
                         {/* Header del módulo */}
                         <div 
-                          className="flex items-center justify-between px-4 py-3 bg-gray-50 cursor-pointer hover:bg-gray-100"
+                          className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                           onClick={() => toggleModule(moduleKey)}
                         >
                           <div className="flex items-center gap-3">
@@ -351,21 +420,21 @@ export default function RolesManagement() {
                               {allSelected && <Check className="w-3 h-3" />}
                               {!allSelected && selected > 0 && <div className="w-2 h-2 bg-primary-600 rounded-sm" />}
                             </button>
-                            <span className="font-medium text-gray-900">{moduleData.name}</span>
-                            <span className="text-xs text-gray-500">
+                            <span className="font-medium text-gray-900 dark:text-white">{moduleData.name}</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
                               ({selected}/{total})
                             </span>
                           </div>
-                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          {isExpanded ? <ChevronUp className="w-4 h-4 dark:text-gray-300" /> : <ChevronDown className="w-4 h-4 dark:text-gray-300" />}
                         </div>
                         
                         {/* Acciones del módulo */}
                         {isExpanded && (
-                          <div className="px-4 py-3 grid grid-cols-2 md:grid-cols-4 gap-2">
+                          <div className="px-4 py-3 grid grid-cols-2 md:grid-cols-4 gap-2 bg-white dark:bg-gray-800">
                             {moduleData.actions.map(action => (
                               <label 
                                 key={action} 
-                                className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded"
+                                className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-2 rounded"
                               >
                                 <input
                                   type="checkbox"
@@ -373,7 +442,7 @@ export default function RolesManagement() {
                                   onChange={() => togglePermission(moduleKey, action)}
                                   className="rounded text-primary-600"
                                 />
-                                <span className="text-sm">{ACTION_LABELS[action] || action}</span>
+                                <span className="text-sm dark:text-gray-300">{ACTION_LABELS[action] || action}</span>
                               </label>
                             ))}
                           </div>
@@ -386,7 +455,7 @@ export default function RolesManagement() {
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t bg-gray-50 flex justify-end gap-3">
+            <div className="px-6 py-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex justify-end gap-3">
               <button 
                 onClick={() => setShowForm(false)}
                 className="btn-secondary"
