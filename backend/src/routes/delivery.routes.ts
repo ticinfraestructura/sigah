@@ -513,26 +513,16 @@ router.post('/:id/prepare', authenticate, authorize('ADMIN', 'WAREHOUSE'), valid
   }
 });
 
-// ============ PASO 5: Marcar como lista para entrega (descuenta inventario) ============
+// ============ PASO 5: Marcar como lista para entrega ============
 router.post('/:id/ready', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZodRequest({ params: deliveryZodSchemas.idParam, body: deliveryZodSchemas.notesOnly }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
-    const inventoryService = new InventoryService(prisma);
     const auditService = new AuditService(prisma);
     const notificationService = new NotificationService(prisma);
     const { notes } = req.body;
 
     const delivery = await prisma.delivery.findUnique({
-      where: { id: req.params.id },
-      include: {
-        request: {
-          include: {
-            requestProducts: true,
-            requestKits: { include: { kit: { include: { kitProducts: true } } } }
-          }
-        },
-        deliveryDetails: true
-      }
+      where: { id: req.params.id }
     });
 
     if (!delivery) {
@@ -543,75 +533,8 @@ router.post('/:id/ready', authenticate, authorize('ADMIN', 'WAREHOUSE'), validat
       throw new AppError('La entrega debe estar en preparación', 400);
     }
 
-    // Procesar descuento de inventario en transacción
+    // Marcar como lista (inventario se descuenta únicamente al confirmar entrega al beneficiario)
     const updated = await prisma.$transaction(async (tx) => {
-      const updatedDetails: any[] = [];
-
-      for (const detail of delivery.deliveryDetails) {
-        if (detail.productId) {
-          // Asignar lotes usando FEFO
-          const allocations = await inventoryService.allocateStockFEFO(detail.productId, detail.quantity);
-          
-          for (const allocation of allocations) {
-            // Descontar del lote
-            await tx.productLot.update({
-              where: { id: allocation.lotId },
-              data: { quantity: { decrement: allocation.quantity } }
-            });
-
-            // Registrar movimiento
-            await tx.stockMovement.create({
-              data: {
-                productId: detail.productId,
-                lotId: allocation.lotId,
-                type: 'EXIT',
-                quantity: -allocation.quantity,
-                reason: `Entrega ${delivery.code}`,
-                reference: delivery.id,
-                userId: req.user!.id
-              }
-            });
-
-            // Actualizar detalle con el lote asignado
-            await tx.deliveryDetail.update({
-              where: { id: detail.id },
-              data: { lotId: allocation.lotId }
-            });
-          }
-        }
-
-        if (detail.kitId) {
-          // Procesar productos del kit
-          const requestKit = delivery.request.requestKits.find(rk => rk.kitId === detail.kitId);
-          if (requestKit?.kit) {
-            for (const kp of requestKit.kit.kitProducts) {
-              const totalQty = kp.quantity * detail.quantity;
-              const allocations = await inventoryService.allocateStockFEFO(kp.productId, totalQty);
-
-              for (const allocation of allocations) {
-                await tx.productLot.update({
-                  where: { id: allocation.lotId },
-                  data: { quantity: { decrement: allocation.quantity } }
-                });
-
-                await tx.stockMovement.create({
-                  data: {
-                    productId: kp.productId,
-                    lotId: allocation.lotId,
-                    type: 'EXIT',
-                    quantity: -allocation.quantity,
-                    reason: `Entrega ${delivery.code} - Kit ${requestKit.kit.code}`,
-                    reference: delivery.id,
-                    userId: req.user!.id
-                  }
-                });
-              }
-            }
-          }
-        }
-      }
-
-      // Actualizar estado de la entrega
       return tx.delivery.update({
         where: { id: req.params.id },
         data: {
@@ -621,7 +544,7 @@ router.post('/:id/ready', authenticate, authorize('ADMIN', 'WAREHOUSE'), validat
               fromStatus: delivery.status,
               toStatus: DeliveryStatus.READY,
               userId: req.user!.id,
-              notes: notes || 'Entrega lista - Inventario descontado'
+              notes: notes || 'Entrega lista para despacho'
             }
           }
         },
@@ -658,6 +581,7 @@ router.post('/:id/ready', authenticate, authorize('ADMIN', 'WAREHOUSE'), validat
 router.post('/:id/deliver', authenticate, authorize('ADMIN', 'DISPATCHER'), validateZodRequest({ params: deliveryZodSchemas.idParam, body: deliveryZodSchemas.deliver }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
+    const inventoryService = new InventoryService(prisma);
     const auditService = new AuditService(prisma);
     const { receivedBy, receiverDocument, receiverSignature, notes } = req.body;
 
@@ -668,7 +592,7 @@ router.post('/:id/deliver', authenticate, authorize('ADMIN', 'DISPATCHER'), vali
           include: {
             beneficiary: true,
             requestProducts: true,
-            requestKits: true
+            requestKits: { include: { kit: { include: { kitProducts: true } } } }
           }
         },
         deliveryDetails: true
@@ -686,8 +610,64 @@ router.post('/:id/deliver', authenticate, authorize('ADMIN', 'DISPATCHER'), vali
     // Validar segregación de funciones
     validateSegregation(delivery, req.user!.id, 'DELIVER');
 
-    // Actualizar cantidades entregadas en la solicitud y finalizar entrega
+    // Descontar inventario FEFO y finalizar entrega al confirmar con el beneficiario
     const updated = await prisma.$transaction(async (tx) => {
+      // Descontar inventario usando FEFO al momento de la entrega real al beneficiario
+      for (const detail of delivery.deliveryDetails) {
+        if (detail.productId) {
+          const allocations = await inventoryService.allocateStockFEFO(detail.productId, detail.quantity);
+          for (const allocation of allocations) {
+            await tx.productLot.update({
+              where: { id: allocation.lotId },
+              data: { quantity: { decrement: allocation.quantity } }
+            });
+            await tx.stockMovement.create({
+              data: {
+                productId: detail.productId,
+                lotId: allocation.lotId,
+                type: 'EXIT',
+                quantity: -allocation.quantity,
+                reason: `Entrega ${delivery.code} al beneficiario`,
+                reference: delivery.id,
+                userId: req.user!.id
+              }
+            });
+          }
+          if (allocations.length > 0) {
+            await tx.deliveryDetail.update({
+              where: { id: detail.id },
+              data: { lotId: allocations[0].lotId }
+            });
+          }
+        }
+        if (detail.kitId) {
+          const requestKit = (delivery.request.requestKits as any[]).find((rk: any) => rk.kitId === detail.kitId);
+          if (requestKit?.kit) {
+            for (const kp of requestKit.kit.kitProducts) {
+              const totalQty = kp.quantity * detail.quantity;
+              const allocations = await inventoryService.allocateStockFEFO(kp.productId, totalQty);
+              for (const allocation of allocations) {
+                await tx.productLot.update({
+                  where: { id: allocation.lotId },
+                  data: { quantity: { decrement: allocation.quantity } }
+                });
+                await tx.stockMovement.create({
+                  data: {
+                    productId: kp.productId,
+                    lotId: allocation.lotId,
+                    type: 'EXIT',
+                    quantity: -allocation.quantity,
+                    reason: `Entrega ${delivery.code} - Kit ${requestKit.kit.code}`,
+                    reference: delivery.id,
+                    userId: req.user!.id
+                  }
+                });
+              }
+            }
+          }
+        }
+      }
+
       // Actualizar cantidades entregadas en productos
       for (const detail of delivery.deliveryDetails) {
         if (detail.productId) {
@@ -784,13 +764,11 @@ router.post('/:id/deliver', authenticate, authorize('ADMIN', 'DISPATCHER'), vali
 router.post('/:id/cancel', authenticate, authorize('ADMIN'), validateZodRequest({ params: deliveryZodSchemas.idParam, body: deliveryZodSchemas.cancel }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
-    const inventoryService = new InventoryService(prisma);
     const auditService = new AuditService(prisma);
     const { reason } = req.body;
 
     const delivery = await prisma.delivery.findUnique({
-      where: { id: req.params.id },
-      include: { deliveryDetails: true }
+      where: { id: req.params.id }
     });
 
     if (!delivery) {
@@ -801,31 +779,9 @@ router.post('/:id/cancel', authenticate, authorize('ADMIN'), validateZodRequest(
       throw new AppError('No se puede cancelar una entrega ya completada', 400);
     }
 
-    // Si ya se descontó inventario (estado READY), hay que devolverlo
+    // El inventario se descuenta solo al confirmar entrega al beneficiario (DELIVERED).
+    // La cancelación en cualquier estado previo no requiere restaurar inventario.
     const updated = await prisma.$transaction(async (tx) => {
-      if (delivery.status === DeliveryStatus.READY) {
-        for (const detail of delivery.deliveryDetails) {
-          if (detail.productId && detail.lotId) {
-            await tx.productLot.update({
-              where: { id: detail.lotId },
-              data: { quantity: { increment: detail.quantity } }
-            });
-
-            await tx.stockMovement.create({
-              data: {
-                productId: detail.productId,
-                lotId: detail.lotId,
-                type: 'RETURN',
-                quantity: detail.quantity,
-                reason: `Cancelación de entrega ${delivery.code}: ${reason}`,
-                reference: delivery.id,
-                userId: req.user!.id
-              }
-            });
-          }
-        }
-      }
-
       return tx.delivery.update({
         where: { id: req.params.id },
         data: {
@@ -849,6 +805,55 @@ router.post('/:id/cancel', authenticate, authorize('ADMIN'), validateZodRequest(
     await auditService.log('Delivery', delivery.id, 'UPDATE', req.user!.id, { status: delivery.status }, { status: updated.status });
 
     res.json({ success: true, data: updated, message: 'Entrega cancelada' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============ Reactivar entrega cancelada (ADMIN) ============
+router.post('/:id/reactivate', authenticate, authorize('ADMIN'), validateZodRequest({ params: deliveryZodSchemas.idParam, body: deliveryZodSchemas.notesOnly }), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const prisma: PrismaClient = req.app.get('prisma');
+    const auditService = new AuditService(prisma);
+    const { notes } = req.body;
+
+    const delivery = await prisma.delivery.findUnique({
+      where: { id: req.params.id }
+    });
+
+    if (!delivery) {
+      throw new AppError('Entrega no encontrada', 404);
+    }
+
+    if (delivery.status !== DeliveryStatus.CANCELLED) {
+      throw new AppError('Solo se pueden reactivar entregas canceladas', 400);
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      return tx.delivery.update({
+        where: { id: req.params.id },
+        data: {
+          status: DeliveryStatus.PENDING_AUTHORIZATION,
+          history: {
+            create: {
+              fromStatus: delivery.status,
+              toStatus: DeliveryStatus.PENDING_AUTHORIZATION,
+              userId: req.user!.id,
+              notes: notes || 'Entrega reactivada por administrador'
+            }
+          }
+        },
+        include: {
+          request: { include: { beneficiary: true } },
+          deliveryDetails: { include: { product: true, kit: true } },
+          history: { include: { user: { select: { firstName: true, lastName: true } } }, orderBy: { createdAt: 'desc' } }
+        }
+      });
+    });
+
+    await auditService.log('Delivery', delivery.id, 'UPDATE', req.user!.id, { status: delivery.status }, { status: updated.status });
+
+    res.json({ success: true, data: updated, message: 'Entrega reactivada. Retorna a estado pendiente de autorización.' });
   } catch (error) {
     next(error);
   }

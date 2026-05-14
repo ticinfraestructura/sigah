@@ -104,8 +104,8 @@ export default function NewDelivery() {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Nueva Entrega</h1>
-          <p className="text-gray-500">Crear entrega para solicitud {request.code}</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Nueva Entrega</h1>
+          <p className="text-gray-500 dark:text-gray-400">Crear entrega para solicitud {request.code}</p>
         </div>
       </div>
 
@@ -141,10 +141,10 @@ export default function NewDelivery() {
             </div>
 
             {/* Selección de Receptor */}
-            <div className="border rounded-lg p-4 space-y-4">
+            <div className="border dark:border-gray-600 rounded-lg p-4 space-y-4">
               <div className="flex items-center gap-2 mb-2">
                 <Users className="w-5 h-5 text-primary-600" />
-                <h3 className="font-bold">Persona que Recibirá la Entrega</h3>
+                <h3 className="font-bold dark:text-white">Persona que Recibirá la Entrega</h3>
               </div>
 
               {/* Opciones de tipo de receptor */}
@@ -274,22 +274,22 @@ export default function NewDelivery() {
             </div>
 
             {/* Items a Entregar */}
-            <div className="border rounded-lg p-4 space-y-4">
+            <div className="border dark:border-gray-600 rounded-lg p-4 space-y-4">
               <div className="flex items-center gap-2 mb-2">
                 <Package className="w-5 h-5 text-primary-600" />
-                <h3 className="font-bold">Items a Entregar</h3>
+                <h3 className="font-bold dark:text-white">Items a Entregar</h3>
               </div>
 
               {form.kits.length > 0 && (
                 <div>
-                  <label className="label text-sm font-medium text-gray-600">Kits</label>
+                  <label className="label text-sm font-medium text-gray-600 dark:text-gray-300">Kits</label>
                   {form.kits.map((k, i) => {
                     const kit = request.requestKits?.find(rk => rk.kitId === k.kitId);
                     const pending = (kit?.quantityRequested || 0) - (kit?.quantityDelivered || 0);
                     return (
-                      <div key={i} className="flex items-center gap-4 mb-2 p-3 bg-gray-50 rounded-lg">
-                        <span className="flex-1 font-medium">{kit?.kit?.name}</span>
-                        <span className="text-sm text-gray-500">Pendiente: {pending}</span>
+                      <div key={i} className="flex items-center gap-4 mb-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="flex-1 font-medium text-gray-900 dark:text-white">{kit?.kit?.name}</span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Pendiente: {pending}</span>
                         <input 
                           type="number" 
                           value={k.quantity} 
@@ -310,14 +310,14 @@ export default function NewDelivery() {
 
               {form.products.length > 0 && (
                 <div>
-                  <label className="label text-sm font-medium text-gray-600">Productos</label>
+                  <label className="label text-sm font-medium text-gray-600 dark:text-gray-300">Productos</label>
                   {form.products.map((p, i) => {
                     const prod = request.requestProducts?.find(rp => rp.productId === p.productId);
                     const pending = (prod?.quantityRequested || 0) - (prod?.quantityDelivered || 0);
                     return (
-                      <div key={i} className="flex items-center gap-4 mb-2 p-3 bg-gray-50 rounded-lg">
-                        <span className="flex-1 font-medium">{prod?.product?.name}</span>
-                        <span className="text-sm text-gray-500">Pendiente: {pending}</span>
+                      <div key={i} className="flex items-center gap-4 mb-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="flex-1 font-medium text-gray-900 dark:text-white">{prod?.product?.name}</span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Pendiente: {pending}</span>
                         <input 
                           type="number" 
                           value={p.quantity} 
@@ -360,7 +360,7 @@ export default function NewDelivery() {
             </div>
 
             {/* Entrega parcial */}
-            <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+            <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
               <input 
                 type="checkbox" 
                 id="isPartial" 
@@ -368,7 +368,7 @@ export default function NewDelivery() {
                 onChange={(e) => setForm({...form, isPartial: e.target.checked})} 
                 className="w-4 h-4 text-primary-600" 
               />
-              <label htmlFor="isPartial" className="text-sm">
+              <label htmlFor="isPartial" className="text-sm dark:text-gray-300">
                 Marcar como entrega parcial (se entregarán más items después)
               </label>
             </div>
@@ -392,22 +392,22 @@ export default function NewDelivery() {
         {/* Panel Lateral - Resumen */}
         <div className="lg:col-span-1">
           <div className="card p-6 sticky top-6 space-y-4">
-            <h3 className="font-bold text-lg">Resumen de Solicitud</h3>
+            <h3 className="font-bold text-lg dark:text-white">Resumen de Solicitud</h3>
             
             <div className="space-y-3">
               <div>
-                <p className="text-sm text-gray-500">Código</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Código</p>
                 <p className="font-mono font-bold text-primary-600">{request.code}</p>
               </div>
               
               <div>
-                <p className="text-sm text-gray-500">Fecha de Solicitud</p>
-                <p className="font-medium">{new Date(request.requestDate).toLocaleDateString()}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Fecha de Solicitud</p>
+                <p className="font-medium dark:text-white">{new Date(request.requestDate).toLocaleDateString()}</p>
               </div>
               
               <div>
-                <p className="text-sm text-gray-500">Prioridad</p>
-                <p className="font-medium">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Prioridad</p>
+                <p className="font-medium dark:text-white">
                   {request.priority === 0 ? 'Normal' : request.priority === 1 ? 'Alta' : 'Urgente'}
                 </p>
               </div>
@@ -421,11 +421,11 @@ export default function NewDelivery() {
             </div>
 
             <div className="pt-4 border-t">
-              <p className="text-sm text-gray-500 mb-2">Receptor seleccionado</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Receptor seleccionado</p>
               {selectedReceiver ? (
-                <div className="p-3 bg-gray-50 rounded-lg">
-                  <p className="font-medium">{selectedReceiver.firstName} {selectedReceiver.lastName}</p>
-                  <p className="text-sm text-gray-500">{selectedReceiver.documentType}: {selectedReceiver.documentNumber}</p>
+                <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                  <p className="font-medium dark:text-white">{selectedReceiver.firstName} {selectedReceiver.lastName}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{selectedReceiver.documentType}: {selectedReceiver.documentNumber}</p>
                 </div>
               ) : (
                 <p className="text-sm text-amber-600">Seleccione un receptor</p>

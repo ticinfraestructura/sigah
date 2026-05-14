@@ -20,7 +20,7 @@ const STATUS_CONFIG: Record<DeliveryStatus, { label: string; color: string; icon
 };
 
 export default function DeliveriesManagement() {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const toast = useToast();
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [loading, setLoading] = useState(true);
@@ -158,18 +158,14 @@ export default function DeliveriesManagement() {
   };
 
   const getNextAction = (delivery: Delivery) => {
-    const roleName = user?.roleName?.toLowerCase() || '';
-    const isAdmin = roleName.includes('admin');
-    const isAuthorizer = roleName.includes('autoriz') || isAdmin;
-    const isWarehouse = roleName.includes('bodeg') || isAdmin;
-    const isDispatcher = roleName.includes('despach') || isAdmin;
-
-    // Validar segregación: no puede hacer la acción si ya participó en un paso anterior
     const userId = user?.id;
-    const canAuthorize = isAuthorizer && delivery.createdById !== userId;
-    const canReceive = isWarehouse && delivery.authorizedById !== userId;
-    const canPrepare = isWarehouse && delivery.authorizedById !== userId;
-    const canDeliver = isDispatcher && delivery.authorizedById !== userId && delivery.preparedById !== userId;
+
+    // Verificar permisos usando el sistema de permisos del AuthContext
+    const canAuthorize = hasPermission('deliveries', 'authorize') && delivery.createdById !== userId;
+    const canReceive = hasPermission('deliveries', 'receive') && delivery.authorizedById !== userId;
+    const canPrepare = hasPermission('deliveries', 'prepare') && delivery.authorizedById !== userId;
+    const canMarkReady = hasPermission('deliveries', 'prepare');
+    const canDeliver = hasPermission('deliveries', 'deliver') && delivery.authorizedById !== userId && delivery.preparedById !== userId;
 
     switch (delivery.status) {
       case 'PENDING_AUTHORIZATION':
@@ -179,7 +175,7 @@ export default function DeliveriesManagement() {
       case 'RECEIVED_WAREHOUSE':
         return canPrepare ? { label: 'Iniciar Preparación', action: 'prepare', color: 'btn-blue' } : null;
       case 'IN_PREPARATION':
-        return isWarehouse ? { label: 'Marcar Lista', action: 'ready', color: 'btn-purple' } : null;
+        return canMarkReady ? { label: 'Marcar Lista', action: 'ready', color: 'btn-purple' } : null;
       case 'READY':
         return canDeliver ? { label: 'Confirmar Entrega', action: 'deliver', color: 'btn-green' } : null;
       default:
@@ -202,38 +198,38 @@ export default function DeliveriesManagement() {
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
           <div className="card p-3 text-center cursor-pointer hover:ring-2 ring-yellow-300" onClick={() => setStatusFilter('PENDING_AUTHORIZATION')}>
             <Clock className="w-5 h-5 mx-auto text-yellow-500 mb-1" />
-            <p className="text-xl font-bold">{stats.pendingAuthorization}</p>
-            <p className="text-xs text-gray-500">Pend. Autoriz.</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-white">{stats.pendingAuthorization}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Pend. Autoriz.</p>
           </div>
           <div className="card p-3 text-center cursor-pointer hover:ring-2 ring-blue-300" onClick={() => setStatusFilter('AUTHORIZED')}>
             <CheckCircle className="w-5 h-5 mx-auto text-blue-500 mb-1" />
-            <p className="text-xl font-bold">{stats.authorized}</p>
-            <p className="text-xs text-gray-500">Autorizadas</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-white">{stats.authorized}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Autorizadas</p>
           </div>
           <div className="card p-3 text-center cursor-pointer hover:ring-2 ring-indigo-300" onClick={() => setStatusFilter('RECEIVED_WAREHOUSE')}>
             <Inbox className="w-5 h-5 mx-auto text-indigo-500 mb-1" />
-            <p className="text-xl font-bold">{stats.receivedWarehouse || 0}</p>
-            <p className="text-xs text-gray-500">En Bodega</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-white">{stats.receivedWarehouse || 0}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">En Bodega</p>
           </div>
           <div className="card p-3 text-center cursor-pointer hover:ring-2 ring-purple-300" onClick={() => setStatusFilter('IN_PREPARATION')}>
             <Package className="w-5 h-5 mx-auto text-purple-500 mb-1" />
-            <p className="text-xl font-bold">{stats.inPreparation}</p>
-            <p className="text-xs text-gray-500">Preparando</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-white">{stats.inPreparation}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Preparando</p>
           </div>
           <div className="card p-3 text-center cursor-pointer hover:ring-2 ring-cyan-300" onClick={() => setStatusFilter('READY')}>
             <Truck className="w-5 h-5 mx-auto text-cyan-500 mb-1" />
-            <p className="text-xl font-bold">{stats.ready}</p>
-            <p className="text-xs text-gray-500">Listas</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-white">{stats.ready}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Listas</p>
           </div>
           <div className="card p-3 text-center cursor-pointer hover:ring-2 ring-green-300" onClick={() => setStatusFilter('DELIVERED')}>
             <UserCheck className="w-5 h-5 mx-auto text-green-500 mb-1" />
-            <p className="text-xl font-bold">{stats.delivered}</p>
-            <p className="text-xs text-gray-500">Entregadas</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-white">{stats.delivered}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Entregadas</p>
           </div>
           <div className="card p-3 text-center cursor-pointer hover:ring-2 ring-red-300" onClick={() => setStatusFilter('CANCELLED')}>
             <XCircle className="w-5 h-5 mx-auto text-red-500 mb-1" />
-            <p className="text-xl font-bold">{stats.cancelled}</p>
-            <p className="text-xs text-gray-500">Canceladas</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-white">{stats.cancelled}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Canceladas</p>
           </div>
         </div>
       )}
@@ -327,25 +323,32 @@ export default function DeliveriesManagement() {
                       
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
-                          <p className="text-gray-500">Solicitud</p>
-                          <p className="font-medium">{delivery.request?.code}</p>
+                          <p className="text-gray-500 dark:text-gray-400">Solicitud</p>
+                          <p className="font-medium text-gray-900 dark:text-white">{delivery.request?.code}</p>
                         </div>
                         <div>
-                          <p className="text-gray-500">Beneficiario</p>
-                          <p className="font-medium">
+                          <p className="text-gray-500 dark:text-gray-400">Beneficiario</p>
+                          <p className="font-medium text-gray-900 dark:text-white">
                             {delivery.request?.beneficiary?.firstName} {delivery.request?.beneficiary?.lastName}
                           </p>
                         </div>
                         <div>
-                          <p className="text-gray-500">Responsable Bodega</p>
-                          <p className="font-medium">
+                          <p className="text-gray-500 dark:text-gray-400">Responsable Bodega</p>
+                          <p className="font-medium text-gray-900 dark:text-white">
                             {delivery.warehouseUser ? 
                               `${delivery.warehouseUser.firstName} ${delivery.warehouseUser.lastName}` : '-'}
                           </p>
                         </div>
                         <div>
-                          <p className="text-gray-500">Creada</p>
-                          <p className="font-medium">{new Date(delivery.createdAt).toLocaleDateString()}</p>
+                          <p className="text-gray-500 dark:text-gray-400">Creada</p>
+                          <p className="font-medium text-gray-900 dark:text-white">{new Date(delivery.createdAt).toLocaleDateString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500 dark:text-gray-400">Autorizado por</p>
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {delivery.authorizedBy ?
+                              `${delivery.authorizedBy.firstName} ${delivery.authorizedBy.lastName}` : '-'}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -529,17 +532,17 @@ export default function DeliveriesManagement() {
                       {actionLoading ? 'Procesando...' : getNextAction(selectedDelivery)?.label}
                     </button>
                   ) : (
-                    selectedDelivery.status === 'PENDING_AUTHORIZATION' && selectedDelivery.createdById === user?.id && (
+                    selectedDelivery.status === 'PENDING_AUTHORIZATION' && selectedDelivery.createdById === user?.id && hasPermission('deliveries', 'authorize') && (
                       <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-sm text-yellow-800 dark:text-yellow-200">
                         <p className="font-medium">⚠️ Segregación de funciones</p>
-                        <p className="text-xs mt-1">No puedes autorizar una entrega que tú mismo creaste. Otro usuario con rol Autorizador o Admin debe aprobarla.</p>
+                        <p className="text-xs mt-1">No puedes autorizar una entrega que tú mismo creaste. Otro usuario con permiso de autorización debe aprobarla.</p>
                       </div>
                     )
                   )}
-                  {user?.roleName?.toLowerCase().includes('admin') && (
+                  {hasPermission('deliveries', 'cancel') && (
                     <button
                       onClick={() => setShowCancelModal(true)}
-                      className="btn btn-outline w-full text-red-600 border-red-300 hover:bg-red-50"
+                      className="btn btn-outline w-full text-red-600 border-red-300 hover:bg-red-50 dark:hover:bg-red-900/20"
                     >
                       Cancelar Entrega
                     </button>
@@ -550,16 +553,16 @@ export default function DeliveriesManagement() {
               {/* History */}
               {selectedDelivery.history && selectedDelivery.history.length > 0 && (
                 <div>
-                  <h4 className="font-medium text-sm text-gray-500 mb-2">Historial</h4>
+                  <h4 className="font-medium text-sm text-gray-500 dark:text-gray-400 mb-2">Historial</h4>
                   <div className="space-y-2 max-h-48 overflow-y-auto">
                     {selectedDelivery.history.map((h) => (
-                      <div key={h.id} className="text-xs p-2 bg-gray-50 rounded">
+                      <div key={h.id} className="text-xs p-2 bg-gray-50 dark:bg-gray-700 rounded">
                         <div className="flex justify-between">
-                          <span className="font-medium">{STATUS_CONFIG[h.toStatus]?.label}</span>
-                          <span className="text-gray-400">{new Date(h.createdAt).toLocaleString()}</span>
+                          <span className="font-medium text-gray-900 dark:text-white">{STATUS_CONFIG[h.toStatus]?.label}</span>
+                          <span className="text-gray-400 dark:text-gray-500">{new Date(h.createdAt).toLocaleString()}</span>
                         </div>
-                        <p className="text-gray-500">{h.user.firstName} {h.user.lastName}</p>
-                        {h.notes && <p className="text-gray-600 mt-1">{h.notes}</p>}
+                        <p className="text-gray-500 dark:text-gray-400">{h.user.firstName} {h.user.lastName}</p>
+                        {h.notes && <p className="text-gray-600 dark:text-gray-300 mt-1">{h.notes}</p>}
                       </div>
                     ))}
                   </div>
@@ -593,20 +596,18 @@ export default function DeliveriesManagement() {
       {/* Cancel Modal */}
       {showCancelModal && selectedDelivery && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md">
-            <h3 className="text-lg font-bold mb-4 text-red-600">Cancelar Entrega</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-bold mb-4 text-red-600 dark:text-red-400">Cancelar Entrega</h3>
             
-            <div className="p-4 bg-red-50 rounded-lg mb-4">
-              <p className="text-sm text-red-800">
+            <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg mb-4">
+              <p className="text-sm text-red-800 dark:text-red-200">
                 Esta acción cancelará la entrega <strong>{selectedDelivery.code}</strong>.
-                {selectedDelivery.status === 'READY' && (
-                  <span className="block mt-2">El inventario descontado será devuelto.</span>
-                )}
+                <span className="block mt-2">La entrega volverá al estado pendiente de autorización si es reactivada.</span>
               </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                 Motivo de cancelación *
               </label>
               <textarea

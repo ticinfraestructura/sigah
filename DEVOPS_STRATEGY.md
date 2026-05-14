@@ -49,6 +49,48 @@ sudo /opt/sigah/scripts/start_sigah.sh
 - No levantar `nginx-proxy` del compose subfolder en este escenario.
 - Si hay cambios locales en servidor, usar `git stash` antes de `git pull --ff-only`.
 
+### Incidente crítico documentado: `Error interno del servidor` al iniciar sesión (LOCAL)
+
+**Síntoma visible**
+- Login en `http://localhost:8080/login` falla con mensaje genérico: `Error interno del servidor`.
+
+**Causa raíz (confirmada)**
+- Bloqueo CORS en backend para `Origin: http://localhost:8080`.
+- Desalineación de rutas de frontend/API entre entorno local y subruta productiva.
+
+**Patrón que provoca la falla**
+- Frontend local intentando consumir API por ruta incorrecta (`/sigah-api` en vez de `/api`).
+- Backend sin `ALLOWED_ORIGINS` incluyendo `http://localhost:8080`.
+
+**Configuración correcta por entorno (anti-regresión)**
+
+Local Windows (pruebas funcionales):
+- `APP_BASE_PATH=/`
+- `ALLOWED_ORIGINS=http://localhost:8080,http://localhost,https://saladecrisis.dosquebradas.gov.co`
+- Frontend API base: `VITE_API_URL=/api` (o fallback en código a `/api`)
+
+Linux productivo subruta (`/sigah`):
+- `APP_BASE_PATH=/sigah/`
+- `ALLOWED_ORIGINS=https://saladecrisis.dosquebradas.gov.co`
+- Frontend API base: `VITE_API_URL=/sigah-api`
+
+**Verificación mínima obligatoria (antes de iniciar QA)**
+```bash
+# 1) Estado del stack
+docker compose -f docker-compose.yml ps
+
+# 2) Login API local (debe responder success: true)
+curl -s -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@sigah.com","password":"admin123"}'
+
+# 3) Revisar si hubo bloqueo CORS
+docker logs --tail 120 sigah-backend | grep -i "cors blocked origin\|No permitido por CORS"
+```
+
+**Regla operativa permanente**
+- Si el login UI falla pero el usuario/clave son correctos, validar primero CORS y rutas (`APP_BASE_PATH`, `VITE_API_URL`, `ALLOWED_ORIGINS`) antes de tocar credenciales o base de datos.
+
 ```
 Desarrollo → Staging → Producción
     ↓           ↓          ↓
