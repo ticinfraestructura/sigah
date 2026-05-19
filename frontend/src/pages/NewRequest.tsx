@@ -16,7 +16,12 @@ export default function NewRequest() {
 
   useEffect(() => {
     Promise.all([beneficiaryApi.getAll(), kitApi.getAll(), productApi.getAll()])
-      .then(([b, k, p]) => { setBeneficiaries(b.data.data); setKits(k.data.data); setProducts(p.data.data); });
+      .then(([b, k, p]) => {
+        setBeneficiaries(b.data.data || []);
+        setKits(k.data.data || []);
+        setProducts(p.data.data || []);
+      })
+      .catch(() => toast.error('Error al cargar beneficiarios, kits y productos'));
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {

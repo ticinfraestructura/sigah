@@ -1,7 +1,6 @@
 import axios from 'axios';
 
-// Para dominio.com/sigah, la API debe ser /sigah-api/
-const API_URL = '/sigah-api';
+const API_URL = '/api';
 
 const api = axios.create({
   baseURL: API_URL,

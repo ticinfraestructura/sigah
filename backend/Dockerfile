@@ -49,4 +49,4 @@ COPY --from=builder /app/src/seed.ts ./src/seed.ts
 EXPOSE 3001
 
 # Comando de inicio: migrar BD y arrancar servidor
-CMD ["sh", "-c", "npx prisma migrate deploy && npm run start:prod"]
+CMD ["sh", "-c", "npx prisma migrate deploy && NODE_ENV=development npx tsx src/seed.ts; npm run start:prod"]

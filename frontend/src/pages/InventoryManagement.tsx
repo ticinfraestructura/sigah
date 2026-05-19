@@ -4,8 +4,8 @@ import {
   RotateCcw, AlertTriangle, Clock, X, TrendingUp, TrendingDown, RefreshCw,
   History, Calendar, User
 } from 'lucide-react';
-import { productApi, categoryApi, inventoryApi } from '../services/api';
-import { Product, Category, ProductLot, StockMovement, Unit } from '../types';
+import { productApi, categoryApi, inventoryApi, kitApi } from '../services/api';
+import { Product, Category, ProductLot, StockMovement, Unit, Kit } from '../types';
 import { useToast } from '../components/ui/Toast';
 
 const unitLabels: Record<string, string> = {
@@ -864,7 +864,14 @@ function AdjustmentsTab() {
   const [selectedProduct, setSelectedProduct] = useState<string>('');
   const [lots, setLots] = useState<ProductLot[]>([]);
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState<'entry' | 'adjustment'>('entry');
+  const [mode, setMode] = useState<'entry' | 'adjustment' | 'kit_entry'>('entry');
+  const [kits, setKits] = useState<Kit[]>([]);
+  const [selectedKit, setSelectedKit] = useState<string>('');
+  const [kitHistory, setKitHistory] = useState<Array<{
+    key: string; reason: string; kitQty: number; date: string;
+    user: { firstName: string; lastName: string };
+    products: Array<{ name: string; quantity: number; unit: string }>;
+  }>>([]);
   const [form, setForm] = useState({
     lotId: '',
     lotNumber: '',
@@ -876,7 +883,43 @@ function AdjustmentsTab() {
 
   useEffect(() => {
     fetchProducts();
+    fetchKits();
   }, []);
+
+  useEffect(() => {
+    if (selectedKit) fetchKitHistory(selectedKit);
+    else setKitHistory([]);
+  }, [selectedKit]);
+
+  const fetchKits = async () => {
+    try {
+      const response = await kitApi.getAll();
+      setKits(response.data.data || []);
+    } catch (error) {
+      console.error('Error loading kits:', error);
+    }
+  };
+
+  const fetchKitHistory = async (kitId: string) => {
+    try {
+      const response = await kitApi.getHistory(kitId);
+      const entries: Array<{ id: string; reason: string | null; createdAt: string; quantity: number; product: { name: string; unit: string }; user: { firstName: string; lastName: string } }> = response.data.data.stockEntries || [];
+      const map = new Map<string, typeof kitHistory[0]>();
+      for (const m of entries) {
+        const dateKey = new Date(m.createdAt).toISOString().slice(0, 16);
+        const key = `${m.reason ?? ''}|${dateKey}`;
+        if (!map.has(key)) {
+          const match = m.reason?.match(/x(\d+)$/);
+          const kitQty = match ? parseInt(match[1]) : 1;
+          map.set(key, { key, reason: m.reason ?? '', kitQty, date: m.createdAt, user: m.user, products: [] });
+        }
+        map.get(key)!.products.push({ name: m.product.name, quantity: m.quantity, unit: m.product.unit });
+      }
+      setKitHistory(Array.from(map.values()).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+    } catch (error) {
+      console.error('Error loading kit history:', error);
+    }
+  };
 
   useEffect(() => {
     if (selectedProduct && mode === 'adjustment') {
@@ -921,6 +964,36 @@ function AdjustmentsTab() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (mode === 'kit_entry') {
+      if (!selectedKit) { toast.warning('Seleccione un kit'); return; }
+      const qty = Number(form.quantity);
+      if (!Number.isInteger(qty) || qty <= 0) { toast.warning('La cantidad debe ser un entero mayor que 0'); return; }
+      const kit = kits.find(k => k.id === selectedKit);
+      if (!kit || !kit.kitProducts?.length) { toast.warning('El kit no tiene productos asociados'); return; }
+      setSaving(true);
+      try {
+        for (const kp of kit.kitProducts) {
+          await inventoryApi.createEntry({
+            productId: kp.productId,
+            quantity: kp.quantity * qty,
+            lotNumber: form.lotNumber || undefined,
+            expiryDate: form.expiryDate || undefined,
+            reason: form.reason || `Entrada kit ${kit.code} x${qty}`
+          });
+        }
+        toast.success(`Entrada registrada: ${qty} kit(s) de ${kit.name}`);
+        setForm({ lotId: '', lotNumber: '', quantity: '', expiryDate: '', reason: '' });
+        fetchProducts();
+        fetchKitHistory(selectedKit);
+      } catch (error: any) {
+        toast.error(error.response?.data?.error || 'Error al registrar entrada de kit');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     if (!selectedProduct) {
       toast.warning('Seleccione un producto');
       return;
@@ -997,9 +1070,9 @@ function AdjustmentsTab() {
     <div className="space-y-4">
       {/* Mode Toggle */}
       <div className="card">
-        <div className="flex gap-4">
+        <div className="flex gap-3 flex-wrap">
           <button
-            onClick={() => setMode('entry')}
+            onClick={() => { setMode('entry'); setSelectedKit(''); }}
             className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors ${
               mode === 'entry'
                 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
@@ -1007,10 +1080,21 @@ function AdjustmentsTab() {
             }`}
           >
             <TrendingUp className="w-5 h-5 inline mr-2" />
-            Nueva Entrada de Stock
+            Entrada por Producto
           </button>
           <button
-            onClick={() => setMode('adjustment')}
+            onClick={() => { setMode('kit_entry'); setSelectedProduct(''); }}
+            className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors ${
+              mode === 'kit_entry'
+                ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+            }`}
+          >
+            <Boxes className="w-5 h-5 inline mr-2" />
+            Entrada por Kit
+          </button>
+          <button
+            onClick={() => { setMode('adjustment'); setSelectedKit(''); }}
             className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors ${
               mode === 'adjustment'
                 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
@@ -1026,9 +1110,111 @@ function AdjustmentsTab() {
       {/* Form */}
       <div className="card">
         <h3 className="text-lg font-semibold mb-4">
-          {mode === 'entry' ? 'Registrar Entrada de Stock' : 'Registrar Ajuste de Inventario'}
+          {mode === 'entry' ? 'Registrar Entrada por Producto' : mode === 'kit_entry' ? 'Registrar Entrada por Kit' : 'Registrar Ajuste de Inventario'}
         </h3>
         <form onSubmit={handleSubmit} className="space-y-4">
+
+          {/* KIT ENTRY MODE */}
+          {mode === 'kit_entry' && (
+            <>
+              <div>
+                <label className="label">Kit *</label>
+                <select
+                  value={selectedKit}
+                  onChange={(e) => setSelectedKit(e.target.value)}
+                  className="input"
+                  disabled={kits.length === 0}
+                  required
+                >
+                  <option value="">{kits.length === 0 ? '-- No hay kits disponibles --' : '-- Seleccione un kit --'}</option>
+                  {kits.map((kit) => (
+                    <option key={kit.id} value={kit.id}>{kit.code} - {kit.name}</option>
+                  ))}
+                </select>
+              </div>
+              {selectedKit && (() => {
+                const kit = kits.find(k => k.id === selectedKit);
+                return kit?.kitProducts?.length ? (
+                  <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-700">
+                    <p className="text-sm font-semibold text-purple-700 dark:text-purple-300 mb-2">Composición del kit (por unidad):</p>
+                    <div className="space-y-1">
+                      {kit.kitProducts.map(kp => (
+                        <div key={kp.id} className="flex justify-between text-sm">
+                          <span className="text-gray-700 dark:text-gray-300">{kp.product?.name}</span>
+                          <span className="font-bold text-purple-600">{kp.quantity} uds × {form.quantity || '?'} = {form.quantity ? kp.quantity * Number(form.quantity) : '?'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Cantidad de kits *</label>
+                  <input type="number" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} className="input" min="1" required />
+                </div>
+                <div>
+                  <label className="label">Número de Lote</label>
+                  <input type="text" value={form.lotNumber} onChange={(e) => setForm({ ...form, lotNumber: e.target.value })} className="input" placeholder="Ej: LOT-2024-001" />
+                </div>
+              </div>
+              <div>
+                <label className="label">Fecha de Vencimiento</label>
+                <input type="date" value={form.expiryDate} onChange={(e) => setForm({ ...form, expiryDate: e.target.value })} className="input" />
+              </div>
+              <div>
+                <label className="label">Motivo</label>
+                <textarea value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} className="input" rows={2} placeholder="Ej: Compra, Donación, etc." />
+              </div>
+              <div className="flex justify-end gap-3 pt-4">
+                <button type="button" onClick={() => { setForm({ lotId: '', lotNumber: '', quantity: '', expiryDate: '', reason: '' }); setSelectedKit(''); }} className="btn-secondary" disabled={saving}>Limpiar</button>
+                <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Procesando...' : 'Registrar Entrada de Kit'}</button>
+              </div>
+            </>
+          )}
+
+          {/* KIT ENTRY HISTORY */}
+          {mode === 'kit_entry' && selectedKit && (
+            <div className="mt-2 border-t border-gray-200 dark:border-gray-700 pt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <History className="w-4 h-4 text-purple-500" />
+                <h4 className="font-semibold text-sm text-gray-700 dark:text-gray-300">
+                  Ingresos registrados para este kit
+                </h4>
+                <span className="ml-auto text-xs text-gray-400">{kitHistory.length} evento(s)</span>
+              </div>
+              {kitHistory.length === 0 ? (
+                <p className="text-sm text-gray-400 italic text-center py-4">
+                  No hay ingresos registrados para este kit todavía.
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {kitHistory.map((ev) => (
+                    <div key={ev.key} className="p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                          <strong>{ev.kitQty}</strong> kit(s) — {new Date(ev.date).toLocaleString()}
+                        </span>
+                        <span className="text-xs text-gray-500">{ev.user.firstName} {ev.user.lastName}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {ev.products.map((p, i) => (
+                          <span key={i} className="text-xs bg-white dark:bg-gray-700 border border-purple-200 dark:border-purple-700 rounded px-2 py-0.5 text-gray-700 dark:text-gray-300">
+                            {p.name}: <strong>{p.quantity}</strong> {p.unit}
+                          </span>
+                        ))}
+                      </div>
+                      {ev.reason && <p className="text-xs text-gray-400 mt-1">{ev.reason}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* PRODUCT / ADJUSTMENT MODE */}
+          {mode !== 'kit_entry' && (
+          <>
           <div>
             <label className="label">Producto *</label>
             <select
@@ -1167,6 +1353,8 @@ function AdjustmentsTab() {
               {saving ? 'Procesando...' : mode === 'entry' ? 'Registrar Entrada' : 'Registrar Ajuste'}
             </button>
           </div>
+          </>
+          )}
         </form>
       </div>
     </div>

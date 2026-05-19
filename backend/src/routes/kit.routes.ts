@@ -297,18 +297,46 @@ router.get('/:id/history', authenticate, validateZodRequest({ params: kitZodSche
       orderBy: { createdAt: 'desc' }
     });
 
+    // Get stock entries for this kit (movements where reason contains kit code)
+    const stockEntries = await prisma.stockMovement.findMany({
+      where: {
+        type: 'ENTRY',
+        reason: { contains: kit.code }
+      },
+      include: {
+        product: { select: { id: true, name: true, code: true, unit: true } },
+        user: { select: { id: true, firstName: true, lastName: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
     // Calculate stats
     const totalKitsDelivered = deliveries.reduce((sum: number, d: any) => 
       sum + (d.deliveryDetails?.reduce((s: number, dd: any) => s + dd.quantity, 0) || 0), 0);
+
+    // Parse total kits entered from reason strings (format: "Entrada kit CODE xN")
+    const kitQtyFromReason = (reason: string | null): number => {
+      if (!reason) return 0;
+      const m = reason.match(/x(\d+)$/);
+      return m ? parseInt(m[1]) : 0;
+    };
+    const uniqueReasons = new Set(stockEntries.map((e: any) => `${e.reason}|${new Date(e.createdAt).toISOString().slice(0, 16)}`));
+    const totalKitsEntered = Array.from(uniqueReasons).reduce((sum: number, key: any) => {
+      const reason = (key as string).split('|')[0];
+      return sum + kitQtyFromReason(reason);
+    }, 0);
     
     const stats = {
       totalDeliveries: deliveries.length,
       totalKitsDelivered,
+      totalEntries: uniqueReasons.size,
+      totalKitsEntered,
       byStatus: deliveries.reduce((acc: any, d: any) => {
         acc[d.status] = (acc[d.status] || 0) + 1;
         return acc;
       }, {}),
-      lastDelivery: deliveries[0]?.createdAt || null
+      lastDelivery: deliveries[0]?.createdAt || null,
+      lastEntry: stockEntries[0]?.createdAt || null
     };
 
     res.json({ 
@@ -316,6 +344,7 @@ router.get('/:id/history', authenticate, validateZodRequest({ params: kitZodSche
       data: {
         kit,
         deliveries,
+        stockEntries,
         stats
       }
     });

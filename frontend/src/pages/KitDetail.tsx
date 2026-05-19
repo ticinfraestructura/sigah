@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Boxes, Package, Users, Truck, CheckCircle, Clock, XCircle, Filter, Download, History } from 'lucide-react';
+import { ArrowLeft, Boxes, Package, Users, Truck, CheckCircle, Clock, XCircle, Filter, Download, History, TrendingUp } from 'lucide-react';
 import { kitApi } from '../services/api';
 
 interface KitProduct {
@@ -51,11 +51,33 @@ interface Delivery {
   deliveredBy?: { firstName: string; lastName: string };
 }
 
+interface StockMovementEntry {
+  id: string;
+  productId: string;
+  quantity: number;
+  reason: string | null;
+  createdAt: string;
+  product: { id: string; name: string; code: string; unit: string };
+  user: { id: string; firstName: string; lastName: string };
+}
+
+interface KitEntryEvent {
+  key: string;
+  reason: string;
+  kitQty: number;
+  date: string;
+  user: { firstName: string; lastName: string };
+  products: Array<{ name: string; quantity: number; unit: string }>;
+}
+
 interface Stats {
   totalDeliveries: number;
   totalKitsDelivered: number;
+  totalEntries: number;
+  totalKitsEntered: number;
   byStatus: Record<string, number>;
   lastDelivery: string | null;
+  lastEntry: string | null;
 }
 
 const statusLabels: Record<string, { label: string; color: string; icon: any }> = {
@@ -68,13 +90,31 @@ const statusLabels: Record<string, { label: string; color: string; icon: any }> 
   CANCELLED: { label: 'Cancelada', color: 'text-red-600 bg-red-100', icon: XCircle },
 };
 
+function groupEntries(movements: StockMovementEntry[]): KitEntryEvent[] {
+  const map = new Map<string, KitEntryEvent>();
+  for (const m of movements) {
+    const dateKey = new Date(m.createdAt).toISOString().slice(0, 16);
+    const key = `${m.reason ?? ''}|${dateKey}`;
+    if (!map.has(key)) {
+      const match = m.reason?.match(/x(\d+)$/);
+      const kitQty = match ? parseInt(match[1]) : 1;
+      map.set(key, { key, reason: m.reason ?? '', kitQty, date: m.createdAt, user: m.user, products: [] });
+    }
+    map.get(key)!.products.push({ name: m.product.name, quantity: m.quantity, unit: m.product.unit });
+  }
+  return Array.from(map.values()).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+}
+
 export default function KitDetail() {
   const { id } = useParams<{ id: string }>();
   const [kit, setKit] = useState<Kit | null>(null);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [filteredDeliveries, setFilteredDeliveries] = useState<Delivery[]>([]);
+  const [entryEvents, setEntryEvents] = useState<KitEntryEvent[]>([]);
+  const [filteredEntryEvents, setFilteredEntryEvents] = useState<KitEntryEvent[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'deliveries' | 'entries'>('deliveries');
   
   // Filters
   const [dateFrom, setDateFrom] = useState('');
@@ -95,6 +135,10 @@ export default function KitDetail() {
       const response = await kitApi.getHistory(id!);
       setKit(response.data.data.kit);
       setDeliveries(response.data.data.deliveries || []);
+      const entries: StockMovementEntry[] = response.data.data.stockEntries || [];
+      const events = groupEntries(entries);
+      setEntryEvents(events);
+      setFilteredEntryEvents(events);
       setStats(response.data.data.stats);
     } catch (error) {
       console.error('Error:', error);
@@ -105,18 +149,15 @@ export default function KitDetail() {
 
   const applyFilters = () => {
     let filtered = [...deliveries];
-    
-    if (dateFrom) {
-      filtered = filtered.filter(d => new Date(d.createdAt) >= new Date(dateFrom));
-    }
-    if (dateTo) {
-      filtered = filtered.filter(d => new Date(d.createdAt) <= new Date(dateTo + 'T23:59:59'));
-    }
-    if (statusFilter) {
-      filtered = filtered.filter(d => d.status === statusFilter);
-    }
-    
+    if (dateFrom) filtered = filtered.filter(d => new Date(d.createdAt) >= new Date(dateFrom));
+    if (dateTo) filtered = filtered.filter(d => new Date(d.createdAt) <= new Date(dateTo + 'T23:59:59'));
+    if (statusFilter) filtered = filtered.filter(d => d.status === statusFilter);
     setFilteredDeliveries(filtered);
+
+    let filteredEv = [...entryEvents];
+    if (dateFrom) filteredEv = filteredEv.filter(e => new Date(e.date) >= new Date(dateFrom));
+    if (dateTo) filteredEv = filteredEv.filter(e => new Date(e.date) <= new Date(dateTo + 'T23:59:59'));
+    setFilteredEntryEvents(filteredEv);
   };
 
   const clearFilters = () => {
@@ -127,25 +168,45 @@ export default function KitDetail() {
 
   const exportHistory = () => {
     if (!kit) return;
-    const csv = [
-      ['Código Entrega', 'Fecha', 'Estado', 'Cantidad Kits', 'Beneficiario', 'Documento', 'Creado por', 'Entregado por'].join(','),
-      ...filteredDeliveries.map(d => [
-        d.code,
-        new Date(d.createdAt).toLocaleDateString(),
-        statusLabels[d.status]?.label || d.status,
-        d.deliveryDetails?.reduce((sum, dd) => sum + dd.quantity, 0) || 0,
-        d.request?.beneficiary ? `${d.request.beneficiary.firstName} ${d.request.beneficiary.lastName}` : '-',
-        d.request?.beneficiary?.documentNumber || '-',
-        d.createdBy ? `${d.createdBy.firstName} ${d.createdBy.lastName}` : '-',
-        d.deliveredBy ? `${d.deliveredBy.firstName} ${d.deliveredBy.lastName}` : '-',
-      ].join(','))
-    ].join('\n');
-    
+    let csv: string;
+    let filename: string;
+    if (activeTab === 'entries') {
+      csv = [
+        ['Fecha', 'Cant. Kits', 'Motivo', 'Producto', 'Cantidad Producto', 'Unidad', 'Registrado por'].join(','),
+        ...filteredEntryEvents.flatMap(ev =>
+          ev.products.map(p => [
+            new Date(ev.date).toLocaleDateString(),
+            ev.kitQty,
+            `"${ev.reason}"`,
+            `"${p.name}"`,
+            p.quantity,
+            p.unit,
+            `${ev.user.firstName} ${ev.user.lastName}`,
+          ].join(','))
+        )
+      ].join('\n');
+      filename = `ingresos-kit-${kit.code}-${new Date().toISOString().split('T')[0]}.csv`;
+    } else {
+      csv = [
+        ['Código Entrega', 'Fecha', 'Estado', 'Cantidad Kits', 'Beneficiario', 'Documento', 'Creado por', 'Entregado por'].join(','),
+        ...filteredDeliveries.map(d => [
+          d.code,
+          new Date(d.createdAt).toLocaleDateString(),
+          statusLabels[d.status]?.label || d.status,
+          d.deliveryDetails?.reduce((sum, dd) => sum + dd.quantity, 0) || 0,
+          d.request?.beneficiary ? `${d.request.beneficiary.firstName} ${d.request.beneficiary.lastName}` : '-',
+          d.request?.beneficiary?.documentNumber || '-',
+          d.createdBy ? `${d.createdBy.firstName} ${d.createdBy.lastName}` : '-',
+          d.deliveredBy ? `${d.deliveredBy.firstName} ${d.deliveredBy.lastName}` : '-',
+        ].join(','))
+      ].join('\n');
+      filename = `entregas-kit-${kit.code}-${new Date().toISOString().split('T')[0]}.csv`;
+    }
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `historico-kit-${kit.code}-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = filename;
     a.click();
   };
 
@@ -206,7 +267,7 @@ export default function KitDetail() {
             )}
 
             {/* Stats */}
-            <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-2 gap-3 mb-4">
               <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 text-center">
                 <p className="text-2xl font-bold text-blue-600">{stats?.totalDeliveries || 0}</p>
                 <p className="text-xs text-blue-600">Entregas</p>
@@ -215,11 +276,24 @@ export default function KitDetail() {
                 <p className="text-2xl font-bold text-green-600">{stats?.totalKitsDelivered || 0}</p>
                 <p className="text-xs text-green-600">Kits Entregados</p>
               </div>
+              <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 text-center">
+                <p className="text-2xl font-bold text-purple-600">{stats?.totalEntries || 0}</p>
+                <p className="text-xs text-purple-600">Ingresos</p>
+              </div>
+              <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-3 text-center">
+                <p className="text-2xl font-bold text-orange-600">{stats?.totalKitsEntered || 0}</p>
+                <p className="text-xs text-orange-600">Kits Ingresados</p>
+              </div>
             </div>
 
             {stats?.lastDelivery && (
               <p className="text-xs text-gray-500 text-center">
                 Última entrega: {new Date(stats.lastDelivery).toLocaleDateString()}
+              </p>
+            )}
+            {stats?.lastEntry && (
+              <p className="text-xs text-gray-500 text-center">
+                Último ingreso: {new Date(stats.lastEntry).toLocaleDateString()}
               </p>
             )}
           </div>
@@ -292,15 +366,43 @@ export default function KitDetail() {
           )}
         </div>
 
-        {/* RIGHT PANEL: Delivery History */}
+        {/* RIGHT PANEL: History */}
         <div className="xl:col-span-7">
           <div className="card h-full">
+            {/* Tab Switcher */}
+            <div className="flex gap-2 mb-4 border-b border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setActiveTab('deliveries')}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'deliveries'
+                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                <Truck className="w-4 h-4" />
+                Entregas
+                <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">{filteredDeliveries.length}</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('entries')}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'entries'
+                    ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                <TrendingUp className="w-4 h-4" />
+                Ingresos de Stock
+                <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">{filteredEntryEvents.length}</span>
+              </button>
+            </div>
+
             {/* History Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
               <div className="flex items-center gap-2">
-                <History className="w-5 h-5 text-gray-400" />
-                <h3 className="font-semibold text-gray-900 dark:text-white">Histórico de Entregas</h3>
-                <span className="text-sm text-gray-500">({filteredDeliveries.length} registros)</span>
+                {activeTab === 'deliveries' ? <History className="w-5 h-5 text-gray-400" /> : <TrendingUp className="w-5 h-5 text-gray-400" />}
+                <h3 className="font-semibold text-gray-900 dark:text-white">{activeTab === 'deliveries' ? 'Histórico de Entregas' : 'Histórico de Ingresos'}</h3>
+                <span className="text-sm text-gray-500">({activeTab === 'deliveries' ? filteredDeliveries.length : filteredEntryEvents.length} registros)</span>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -321,45 +423,81 @@ export default function KitDetail() {
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <div>
                     <label className="label text-xs">Desde</label>
-                    <input
-                      type="date"
-                      value={dateFrom}
-                      onChange={(e) => setDateFrom(e.target.value)}
-                      className="input text-sm"
-                    />
+                    <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="input text-sm" />
                   </div>
                   <div>
                     <label className="label text-xs">Hasta</label>
-                    <input
-                      type="date"
-                      value={dateTo}
-                      onChange={(e) => setDateTo(e.target.value)}
-                      className="input text-sm"
-                    />
+                    <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="input text-sm" />
                   </div>
-                  <div>
-                    <label className="label text-xs">Estado</label>
-                    <select
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                      className="input text-sm"
-                    >
-                      <option value="">Todos</option>
-                      {Object.entries(statusLabels).map(([key, val]) => (
-                        <option key={key} value={key}>{val.label}</option>
-                      ))}
-                    </select>
-                  </div>
+                  {activeTab === 'deliveries' && (
+                    <div>
+                      <label className="label text-xs">Estado</label>
+                      <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="input text-sm">
+                        <option value="">Todos</option>
+                        {Object.entries(statusLabels).map(([key, val]) => (
+                          <option key={key} value={key}>{val.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div className="flex items-end">
-                    <button onClick={clearFilters} className="btn-secondary text-sm w-full">
-                      Limpiar
-                    </button>
+                    <button onClick={clearFilters} className="btn-secondary text-sm w-full">Limpiar</button>
                   </div>
                 </div>
               </div>
             )}
 
+            {/* Entries Tab */}
+            {activeTab === 'entries' && (
+              <div className="overflow-y-auto max-h-[600px] space-y-3">
+                {filteredEntryEvents.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <TrendingUp className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                    <p>No hay ingresos de stock registrados para este kit</p>
+                  </div>
+                ) : (
+                  filteredEntryEvents.map((event) => (
+                    <div key={event.key} className="p-4 border border-purple-200 dark:border-purple-800 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/10 transition-colors">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                          <TrendingUp className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-gray-900 dark:text-white">
+                                <strong>{event.kitQty}</strong> kit(s) ingresado(s)
+                              </span>
+                              <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                                Ingreso
+                              </span>
+                            </div>
+                            <span className="text-xs text-gray-500">{new Date(event.date).toLocaleString()}</span>
+                          </div>
+                          {event.reason && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{event.reason}</p>
+                          )}
+                          <div className="space-y-1">
+                            {event.products.map((p, i) => (
+                              <div key={i} className="flex justify-between text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded px-2 py-1">
+                                <span>{p.name}</span>
+                                <span className="font-medium text-purple-600">{p.quantity} {p.unit}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-xs text-gray-400 mt-2">
+                            Registrado por: {event.user.firstName} {event.user.lastName}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
             {/* Deliveries Timeline */}
+            {activeTab === 'deliveries' && (
             <div className="overflow-y-auto max-h-[600px] space-y-3">
               {filteredDeliveries.length === 0 ? (
                 <div className="text-center py-12 text-gray-500">
@@ -428,6 +566,7 @@ export default function KitDetail() {
                 })
               )}
             </div>
+            )}
           </div>
         </div>
       </div>
