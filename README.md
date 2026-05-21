@@ -136,6 +136,8 @@ El sistema implementa un flujo de entregas con segregación de funciones para ga
 - Configuración de kits de ayuda
 - Composición flexible de productos
 - Verificación de disponibilidad
+- Registro de entradas de stock por kit desde Inventario
+- Historial de ingresos de kits agrupado por evento, usuario y productos afectados
 
 ### Solicitudes y Entregas
 - Registro de beneficiarios
@@ -147,6 +149,30 @@ El sistema implementa un flujo de entregas con segregación de funciones para ga
 - Dashboard con KPIs en tiempo real
 - Exportación a Excel y PDF
 - Gráficos de tendencias
+- Reporte de movimientos de kits con entregas e ingresos de stock
+
+## Entradas y reportes de kits
+
+El sistema permite registrar ingresos de inventario por kit desde el módulo **Inventario**:
+
+1. Ir a **Inventario**.
+2. Abrir la pestaña **Entradas/Ajustes**.
+3. Seleccionar **Entrada por Kit**.
+4. Elegir el kit y registrar la cantidad de kits ingresados.
+5. El sistema crea movimientos de entrada para cada producto que compone el kit.
+
+Después de registrar una entrada, el usuario puede consultar los ingresos desde:
+
+- **Inventario → Entradas/Ajustes → Entrada por Kit**: muestra los ingresos registrados para el kit seleccionado.
+- **Kits → Detalle del kit → Ingresos de Stock**: muestra el historial de ingresos del kit, junto con entregas, filtros y exportación.
+
+Los ingresos de kits se identifican en los movimientos de stock por el motivo generado automáticamente con el formato:
+
+```text
+Entrada kit <CODIGO_KIT> x<CANTIDAD>
+```
+
+Si se usa un motivo personalizado, debe incluir el código del kit para que el movimiento pueda aparecer en el reporte histórico del kit.
 
 ## API Endpoints
 
