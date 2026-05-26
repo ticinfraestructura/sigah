@@ -55,6 +55,7 @@ interface StockMovementEntry {
   id: string;
   productId: string;
   quantity: number;
+  reference?: string | null;
   reason: string | null;
   createdAt: string;
   product: { id: string; name: string; code: string; unit: string };
@@ -94,9 +95,9 @@ function groupEntries(movements: StockMovementEntry[]): KitEntryEvent[] {
   const map = new Map<string, KitEntryEvent>();
   for (const m of movements) {
     const dateKey = new Date(m.createdAt).toISOString().slice(0, 16);
-    const key = `${m.reason ?? ''}|${dateKey}`;
+    const key = m.reference || `${m.reason ?? ''}|${dateKey}`;
     if (!map.has(key)) {
-      const match = m.reason?.match(/x(\d+)$/);
+      const match = m.reason?.match(/x(\d+)/);
       const kitQty = match ? parseInt(match[1]) : 1;
       map.set(key, { key, reason: m.reason ?? '', kitQty, date: m.createdAt, user: m.user, products: [] });
     }

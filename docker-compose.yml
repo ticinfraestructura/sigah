@@ -72,9 +72,9 @@ services:
         condition: service_healthy
     networks:
       - sigah-network
-    # Para debug, puedes exponer el puerto directamente:
-    # ports:
-    #   - "3001:3001"
+    # Puerto expuesto para acceso en red local
+    ports:
+      - "3001:3001"
 
   # ============================================
   # Frontend (React + Nginx)

@@ -87,10 +87,20 @@ router.get('/movements', authenticate, validateZodRequest({ query: inventoryZodS
       where.type = type;
     }
 
-    if (startDate && endDate) {
+    if (startDate || endDate) {
+      const createdAt: any = {};
+      if (startDate) {
+        const start = new Date(startDate as string);
+        start.setHours(0, 0, 0, 0);
+        createdAt.gte = start;
+      }
+      if (endDate) {
+        const end = new Date(endDate as string);
+        end.setHours(23, 59, 59, 999);
+        createdAt.lte = end;
+      }
       where.createdAt = {
-        gte: new Date(startDate as string),
-        lte: new Date(endDate as string)
+        ...createdAt
       };
     }
 
@@ -264,6 +274,96 @@ router.post('/entry', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZod
   }
 });
 
+// Kit stock entry
+router.post('/kit-entry', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZodRequest({ body: inventoryZodSchemas.kitEntry }), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const prisma: PrismaClient = req.app.get('prisma');
+    const { kitId, quantity, lotNumber, expiryDate, reason } = req.body;
+
+    const kit = await prisma.kit.findUnique({
+      where: { id: kitId },
+      include: {
+        kitProducts: {
+          include: { product: true }
+        },
+        inventory: true
+      }
+    });
+
+    if (!kit || !kit.isActive) {
+      throw new AppError('Kit no encontrado o inactivo', 404);
+    }
+
+    if (!kit.kitProducts.length) {
+      throw new AppError('El kit no tiene productos asociados', 400);
+    }
+
+    const reference = `KIT_ENTRY:${kit.code}:${Date.now()}`;
+    const entryReason = reason
+      ? `Entrada kit ${kit.code} x${quantity} - ${reason}`
+      : `Entrada kit ${kit.code} x${quantity}`;
+
+    // SISTEMA DE INTEGRIDAD DE KITS: Registrar movimiento en inventario de kits
+    await prisma.$transaction(async (tx) => {
+      // Crear o actualizar inventario del kit
+      const kitInventory = await tx.kitInventory.upsert({
+        where: { kitId: kit.id },
+        update: {
+          quantity: { increment: quantity }
+        },
+        create: {
+          kitId: kit.id,
+          quantity: quantity
+        }
+      });
+
+      // Registrar movimiento de inventario de kits
+      await tx.kitInventoryMovement.create({
+        data: {
+          kitInventoryId: kitInventory.id,
+          type: 'ENTRY',
+          quantity: quantity,
+          lotNumber: lotNumber,
+          expiryDate: expiryDate ? new Date(expiryDate) : null,
+          reason: entryReason,
+          reference: reference,
+          userId: req.user!.id
+        }
+      });
+    });
+
+    await logAuditAction(
+      'KIT_INVENTORY_ENTRY',
+      kit.id,
+      'CREATE',
+      req.user!.id,
+      null,
+      {
+        kitId: kit.id,
+        kitCode: kit.code,
+        kitName: kit.name,
+        kitQuantity: quantity,
+        reason: entryReason,
+        reference,
+        enteredBy: `${req.user!.firstName} ${req.user!.lastName}`
+      }
+    );
+
+    res.json({
+      success: true,
+      data: {
+        kit,
+        quantity,
+        reason: entryReason,
+        reference,
+        message: 'Kit ingresado como unidad completa - Sistema de integridad activo'
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get stock summary stats
 router.get('/stats', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -297,6 +397,46 @@ router.get('/stats', authenticate, async (req: Request, res: Response, next: Nex
         stockByCategory
       }
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get kit inventory movements
+router.get('/kit-inventory/movements/:kitId', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const prisma: PrismaClient = req.app.get('prisma');
+    const { kitId } = req.params;
+
+    const kitInventory = await prisma.kitInventory.findUnique({
+      where: { kitId }
+    });
+
+    if (!kitInventory) {
+      return res.json({ success: true, data: [], debug: 'No kitInventory found for kitId: ' + kitId });
+    }
+
+    const movements = await prisma.kitInventoryMovement.findMany({
+      where: { kitInventoryId: kitInventory.id },
+      include: {
+        user: { select: { firstName: true, lastName: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const formattedMovements = movements.map(m => ({
+      id: m.id,
+      date: m.createdAt,
+      type: m.type === 'ENTRY' ? 'IN' : m.type === 'EXIT' ? 'OUT' : m.type,
+      quantity: m.quantity,
+      lotNumber: m.lotNumber,
+      expiryDate: m.expiryDate,
+      user: m.user ? `${m.user.firstName} ${m.user.lastName}` : null,
+      notes: m.reason,
+      reference: m.reference
+    }));
+
+    res.json({ success: true, data: formattedMovements, debug: `Found ${movements.length} movements for kitInventoryId: ${kitInventory.id}` });
   } catch (error) {
     next(error);
   }

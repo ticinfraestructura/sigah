@@ -22,7 +22,7 @@ const router = Router();
  *     tags: [Audit]
  *     summary: Get entity history
  */
-router.get('/entity/:entity/:entityId', authenticate, authorize('ADMIN'), validateZodRequest({ params: auditZodSchemas.entityParams }), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/entity/:entity/:entityId', authenticate, validateZodRequest({ params: auditZodSchemas.entityParams }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { entity, entityId } = req.params;
     const history = await getEntityHistory(entity, entityId);

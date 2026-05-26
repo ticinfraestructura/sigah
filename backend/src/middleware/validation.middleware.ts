@@ -913,6 +913,13 @@ export const inventoryZodSchemas = {
     lotNumber: z.string().trim().max(50).optional(),
     expiryDate: z.string().optional(),
     reason: z.string().trim().max(255).optional()
+  }),
+  kitEntry: z.object({
+    kitId: z.string().uuid('Kit inválido'),
+    quantity: z.number().int().positive('Cantidad inválida'),
+    lotNumber: z.string().trim().max(50).optional(),
+    expiryDate: z.string().optional(),
+    reason: z.string().trim().max(255).optional()
   })
 };
 

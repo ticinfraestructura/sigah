@@ -120,6 +120,12 @@ export const kitApi = {
     isActive: boolean;
   }>) => api.put(`/kits/${id}`, data),
   delete: (id: string) => api.delete(`/kits/${id}`),
+  getEntries: (params?: { startDate?: string; endDate?: string; kitCode?: string }) =>
+    api.post('/reports/generate', { 
+      reportType: 'kits', 
+      subtype: 'ingresos', 
+      ...params 
+    }),
 };
 
 // Beneficiaries
@@ -292,6 +298,8 @@ export const inventoryApi = {
     api.post('/inventory/adjustment', data),
   createEntry: (data: { productId: string; quantity: number; lotNumber?: string; expiryDate?: string; reason?: string }) =>
     api.post('/inventory/entry', data),
+  createKitEntry: (data: { kitId: string; quantity: number; lotNumber?: string; expiryDate?: string; reason?: string }) =>
+    api.post('/inventory/kit-entry', data),
 };
 
 // Dashboard
@@ -338,8 +346,10 @@ export const reportApi = {
     api.get('/reports/requests', { params }),
   getDeliveries: (params?: { startDate?: string; endDate?: string; deliveredById?: string }) =>
     api.get('/reports/deliveries', { params }),
-  getInventory: (params?: { startDate?: string; endDate?: string; type?: string; categoryId?: string }) =>
+  getInventory: (params?: { startDate?: string; endDate?: string; subtype?: string; type?: string; categoryId?: string }) =>
     api.get('/reports/inventory', { params }),
+  getKits: (params?: { startDate?: string; endDate?: string; subtype?: string }) =>
+    api.get('/reports/kits', { params }),
   exportExcel: (reportType: string, params?: Record<string, string>) =>
     api.get(`/reports/export/excel/${reportType}`, { params, responseType: 'blob' }),
   exportPdf: (reportType: string, params?: Record<string, string>) =>

@@ -44,6 +44,7 @@ model User {
   requestsCreated         Request[]         @relation("RequestCreatedBy")
   requestHistories        RequestHistory[]
   auditLogs               AuditLog[]
+  kitInventoryMovements KitInventoryMovement[]
   notificationsReceived   Notification[]    @relation("NotificationReceiver")
   notificationsSent       Notification[]    @relation("NotificationSender")
 
@@ -192,17 +193,53 @@ model Kit {
   id          String   @id @default(uuid()) @db.Uuid
   code        String   @unique
   name        String
+  type        String   @default("GENERAL") // ALIMENTOS, EMERGENCIA, HIGIENE, GENERAL
   description String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   // Relations
-  kitProducts     KitProduct[]
-  requestKits     RequestKit[]
-  deliveryDetails DeliveryDetail[]
+  kitProducts       KitProduct[]
+  requestKits       RequestKit[]
+  deliveryDetails   DeliveryDetail[]
+  inventory         KitInventory[]
 
   @@map("kits")
+}
+
+model KitInventory {
+  id          String   @id @default(uuid()) @db.Uuid
+  kitId       String   @db.Uuid
+  quantity    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  kit         Kit                    @relation(fields: [kitId], references: [id], onDelete: Cascade)
+  movements   KitInventoryMovement[]
+
+  @@unique([kitId])
+  @@map("kit_inventory")
+}
+
+model KitInventoryMovement {
+  id          String   @id @default(uuid()) @db.Uuid
+  kitInventoryId String @db.Uuid
+  type        String   // ENTRY, EXIT
+  quantity    Int
+  lotNumber   String?
+  expiryDate  DateTime?
+  reason      String?
+  reference   String?
+  userId      String   @db.Uuid
+  createdAt   DateTime @default(now())
+
+  // Relations
+  kitInventory KitInventory @relation(fields: [kitInventoryId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@map("kit_inventory_movements")
 }
 
 model KitProduct {

@@ -55,53 +55,17 @@ router.post('/login', validateZodRequest({ body: authZodSchemas.login }), async 
     });
     
     if (!user || !user.isActive) {
-      const failResult = recordFailedLogin(loginIdentifier);
       logLoginAttempt(false, email, req, 'Usuario no encontrado o inactivo');
-      
-      // Registrar en auditoría DB (solo si el usuario existe en BD)
-      if (user?.id) {
-        await prisma.auditLog.create({
-          data: {
-            userId: user.id,
-            action: 'LOGIN_FAILED',
-            entity: 'Auth',
-            entityId: 'login',
-            newValues: JSON.stringify({ email, reason: 'Usuario inactivo', ip: req.ip })
-          }
-        });
-      }
-      
-      if (failResult.locked) {
-        throw new AppError('Cuenta bloqueada temporalmente por múltiples intentos fallidos.', 429);
-      }
-      throw new AppError(`Credenciales inválidas. Intentos restantes: ${failResult.remainingAttempts}`, 401);
+      throw new AppError('Credenciales inválidas', 401);
     }
 
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
-      const failResult = recordFailedLogin(loginIdentifier);
       logLoginAttempt(false, email, req, 'Contraseña incorrecta');
-      
-      // Registrar en auditoría DB
-      await prisma.auditLog.create({
-        data: {
-          userId: user.id,
-          action: 'LOGIN_FAILED',
-          entity: 'Auth',
-          entityId: 'login',
-          newValues: JSON.stringify({ email, reason: 'Contraseña incorrecta', ip: req.ip })
-        }
-      });
-      
-      if (failResult.locked) {
-        throw new AppError('Cuenta bloqueada temporalmente por múltiples intentos fallidos.', 429);
-      }
-      throw new AppError(`Credenciales inválidas. Intentos restantes: ${failResult.remainingAttempts}`, 401);
+      throw new AppError('Credenciales inválidas', 401);
     }
 
-    // Login exitoso - limpiar intentos fallidos
-    clearFailedLogins(loginIdentifier);
-    logLoginAttempt(true, email, req, `Rol: ${user.role?.name || 'Sin rol'}`);
+        logLoginAttempt(true, email, req, `Rol: ${user.role?.name || 'Sin rol'}`);
 
     // Registrar login exitoso en auditoría DB
     await prisma.auditLog.create({

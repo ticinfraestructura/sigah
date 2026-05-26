@@ -4,6 +4,7 @@ import { AppError } from '../middleware/error.middleware';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth.middleware';
 import { AuditService } from '../services/audit.service';
 import { InventoryService } from '../services/inventory.service';
+import { CodeGenerator } from '../services/codeGenerator';
 import { kitZodSchemas, validateZodRequest } from '../middleware/validation.middleware';
 
 const router = Router();
@@ -23,7 +24,8 @@ router.get('/', authenticate, validateZodRequest({ query: kitZodSchemas.listQuer
               include: { category: true }
             }
           }
-        }
+        },
+        inventory: true
       },
       orderBy: { name: 'asc' }
     });
@@ -126,11 +128,19 @@ router.post('/', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZodReque
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const auditService = new AuditService(prisma);
-    const { code, name, description, products } = req.body;
+    const codeGenerator = new CodeGenerator(prisma);
+    const { code, name, type, description, products } = req.body;
 
-    const existing = await prisma.kit.findUnique({ where: { code } });
-    if (existing) {
-      throw new AppError('Ya existe un kit con ese código', 400);
+    // Si no se proporciona código, generarlo automáticamente
+    let kitCode = code;
+    if (!kitCode) {
+      kitCode = await codeGenerator.generateKitCode(type || 'GENERAL');
+    } else {
+      // Si se proporciona código, verificar unicidad
+      const existing = await prisma.kit.findUnique({ where: { code: kitCode } });
+      if (existing) {
+        throw new AppError('Ya existe un kit con ese código', 400);
+      }
     }
 
     // Validate all products exist
@@ -141,23 +151,44 @@ router.post('/', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZodReque
       }
     }
 
-    const kit = await prisma.kit.create({
-      data: {
-        code,
-        name,
-        description,
-        kitProducts: {
-          create: products.map((p: { productId: string; quantity: number }) => ({
-            productId: p.productId,
-            quantity: p.quantity
-          }))
+    // Create kit and stock movements in a transaction
+    const kit = await prisma.$transaction(async (tx) => {
+      const newKit = await tx.kit.create({
+        data: {
+          code: kitCode,
+          name,
+          type: type || 'GENERAL',
+          description,
+          kitProducts: {
+            create: products.map((p: { productId: string; quantity: number }) => ({
+              productId: p.productId,
+              quantity: p.quantity
+            }))
+          }
+        },
+        include: {
+          kitProducts: {
+            include: { product: true }
+          }
         }
-      },
-      include: {
-        kitProducts: {
-          include: { product: true }
-        }
+      });
+
+      // Generate stock movements for each product in the kit
+      for (const kitProduct of newKit.kitProducts) {
+        await tx.stockMovement.create({
+          data: {
+            productId: kitProduct.productId,
+            lotId: null, // Initial kit creation doesn't assign to specific lot
+            type: 'ENTRY',
+            quantity: kitProduct.quantity,
+            reason: `Entrada kit ${code} x${kitProduct.quantity}`,
+            reference: `KIT_ENTRY:${code}`,
+            userId: req.user!.id
+          }
+        });
       }
+
+      return newKit;
     });
 
     await auditService.log('Kit', kit.id, 'CREATE', req.user!.id, null, kit);
@@ -199,16 +230,35 @@ router.put('/:id', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZodReq
         data: { code, name, description, isActive }
       });
 
-      // If products are provided, replace all
+      // If products are provided, replace all and generate movements
       if (products && Array.isArray(products)) {
         await tx.kitProduct.deleteMany({ where: { kitId: req.params.id } });
         
+        const newKitProducts = [];
         for (const p of products) {
-          await tx.kitProduct.create({
+          const newKitProduct = await tx.kitProduct.create({
             data: {
               kitId: req.params.id,
               productId: p.productId,
               quantity: p.quantity
+            },
+            include: { product: true }
+          });
+          newKitProducts.push(newKitProduct);
+        }
+
+        // Generate stock movements for updated kit products
+        const finalCode = code || existing.code;
+        for (const kitProduct of newKitProducts) {
+          await tx.stockMovement.create({
+            data: {
+              productId: kitProduct.productId,
+              lotId: null,
+              type: 'ENTRY',
+              quantity: kitProduct.quantity,
+              reason: `Entrada kit ${finalCode} x${kitProduct.quantity}`,
+              reference: `KIT_ENTRY:${finalCode}`,
+              userId: req.user!.id
             }
           });
         }
@@ -297,11 +347,14 @@ router.get('/:id/history', authenticate, validateZodRequest({ params: kitZodSche
       orderBy: { createdAt: 'desc' }
     });
 
-    // Get stock entries for this kit (movements where reason contains kit code)
+    // Get stock entries for this kit
     const stockEntries = await prisma.stockMovement.findMany({
       where: {
         type: 'ENTRY',
-        reason: { contains: kit.code }
+        OR: [
+          { reference: { startsWith: `KIT_ENTRY:${kit.code}:` } },
+          { reason: { contains: kit.code } }
+        ]
       },
       include: {
         product: { select: { id: true, name: true, code: true, unit: true } },
@@ -317,19 +370,22 @@ router.get('/:id/history', authenticate, validateZodRequest({ params: kitZodSche
     // Parse total kits entered from reason strings (format: "Entrada kit CODE xN")
     const kitQtyFromReason = (reason: string | null): number => {
       if (!reason) return 0;
-      const m = reason.match(/x(\d+)$/);
+      const m = reason.match(/x(\d+)/);
       return m ? parseInt(m[1]) : 0;
     };
-    const uniqueReasons = new Set(stockEntries.map((e: any) => `${e.reason}|${new Date(e.createdAt).toISOString().slice(0, 16)}`));
-    const totalKitsEntered = Array.from(uniqueReasons).reduce((sum: number, key: any) => {
-      const reason = (key as string).split('|')[0];
+    const uniqueEntryEvents = new Map<string, string | null>();
+    stockEntries.forEach((e: any) => {
+      const key = e.reference || `${e.reason}|${new Date(e.createdAt).toISOString().slice(0, 16)}`;
+      if (!uniqueEntryEvents.has(key)) uniqueEntryEvents.set(key, e.reason);
+    });
+    const totalKitsEntered = Array.from(uniqueEntryEvents.values()).reduce((sum: number, reason: string | null) => {
       return sum + kitQtyFromReason(reason);
     }, 0);
     
     const stats = {
       totalDeliveries: deliveries.length,
       totalKitsDelivered,
-      totalEntries: uniqueReasons.size,
+      totalEntries: uniqueEntryEvents.size,
       totalKitsEntered,
       byStatus: deliveries.reduce((acc: any, d: any) => {
         acc[d.status] = (acc[d.status] || 0) + 1;

@@ -5,6 +5,7 @@ import { useToast } from '../components/ui/Toast';
 
 export default function Reports() {
   const [reportType, setReportType] = useState('requests');
+  const [subtype, setSubtype] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [data, setData] = useState<any[]>([]);
@@ -14,12 +15,13 @@ export default function Reports() {
   const generateReport = async () => {
     setLoading(true);
     try {
-      const params = { startDate, endDate };
+      const params = { startDate, endDate, subtype };
       let response;
       switch (reportType) {
         case 'requests': response = await reportApi.getRequests(params); break;
         case 'deliveries': response = await reportApi.getDeliveries(params); break;
         case 'inventory': response = await reportApi.getInventory(params); break;
+        case 'kits': response = await reportApi.getKits(params); break;
       }
       setData(response?.data.data || []);
     } catch (error) { console.error('Error:', error); }
@@ -28,9 +30,10 @@ export default function Reports() {
 
   const exportReport = async (format: 'excel' | 'pdf') => {
     try {
+      const params = { startDate, endDate, subtype };
       const response = format === 'excel' 
-        ? await reportApi.exportExcel(reportType, { startDate, endDate })
-        : await reportApi.exportPdf(reportType, { startDate, endDate });
+        ? await reportApi.exportExcel(reportType, params)
+        : await reportApi.exportPdf(reportType, params);
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -47,15 +50,43 @@ export default function Reports() {
       </div>
 
       <div className="card">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
             <label className="label">Tipo de Reporte</label>
-            <select value={reportType} onChange={(e) => setReportType(e.target.value)} className="input">
+            <select value={reportType} onChange={(e) => { setReportType(e.target.value); setSubtype(''); }} className="input">
               <option value="requests">Solicitudes</option>
               <option value="deliveries">Entregas</option>
-              <option value="inventory">Movimientos Inventario</option>
+              <option value="inventory">Inventario</option>
+              <option value="kits">Kits</option>
             </select>
           </div>
+          {reportType === 'inventory' && (
+            <div>
+              <label className="label">Subtipo</label>
+              <select value={subtype} onChange={(e) => setSubtype(e.target.value)} className="input">
+                <option value="">Seleccionar...</option>
+                <option value="stock_actual">Stock Actual</option>
+                <option value="stock_kits">Stock de Kits</option>
+                <option value="kits_desagregados">Kits Desagregados</option>
+                <option value="movimientos">Movimientos</option>
+                <option value="historico_eliminaciones">Histórico Eliminaciones</option>
+                <option value="por_vencer">Por Vencer</option>
+                <option value="bajo_stock">Bajo Stock</option>
+              </select>
+            </div>
+          )}
+          {reportType === 'kits' && (
+            <div>
+              <label className="label">Subtipo</label>
+              <select value={subtype} onChange={(e) => setSubtype(e.target.value)} className="input">
+                <option value="">Seleccionar...</option>
+                <option value="listado">Listado de Kits</option>
+                <option value="disponibilidad">Disponibilidad</option>
+                <option value="composicion">Composición</option>
+                <option value="ingresos">Ingresos de Kits</option>
+              </select>
+            </div>
+          )}
           <div>
             <label className="label">Fecha Inicio</label>
             <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="input" />

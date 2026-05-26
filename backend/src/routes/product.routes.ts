@@ -4,6 +4,7 @@ import { AppError } from '../middleware/error.middleware';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth.middleware';
 import { AuditService } from '../services/audit.service';
 import { InventoryService } from '../services/inventory.service';
+import { CodeGenerator } from '../services/codeGenerator';
 import { productZodSchemas, validateZodRequest } from '../middleware/validation.middleware';
 
 const router = Router();
@@ -199,21 +200,31 @@ router.post('/', authenticate, authorize('ADMIN', 'WAREHOUSE'), validateZodReque
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const auditService = new AuditService(prisma);
+    const codeGenerator = new CodeGenerator(prisma);
     const { code, name, description, categoryId, unit, isPerishable, minStock } = req.body;
 
-    const existing = await prisma.product.findUnique({ where: { code } });
-    if (existing) {
-      throw new AppError('Ya existe un producto con ese código', 400);
-    }
-
-    const category = await prisma.category.findUnique({ where: { id: categoryId } });
-    if (!category) {
-      throw new AppError('Categoría no encontrada', 404);
+    // Si no se proporciona código, generar uno automáticamente
+    let productCode = code;
+    if (!productCode) {
+      const category = await prisma.category.findUnique({ where: { id: categoryId } });
+      if (!category) {
+        throw new AppError('Categoría no encontrada', 404);
+      }
+      
+      // Generar código basado en el nombre de la categoría
+      const categoryCode = category.name.substring(0, 3).toUpperCase();
+      productCode = await codeGenerator.generateProductCode(categoryCode);
+    } else {
+      // Si se proporciona código, verificar unicidad
+      const existing = await prisma.product.findUnique({ where: { code: productCode } });
+      if (existing) {
+        throw new AppError('Ya existe un producto con ese código', 400);
+      }
     }
 
     const product = await prisma.product.create({
       data: {
-        code,
+        code: productCode,
         name,
         description,
         categoryId,

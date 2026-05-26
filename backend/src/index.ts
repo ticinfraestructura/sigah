@@ -73,6 +73,8 @@ app.use(helmet({
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
   'http://localhost:3000',
   'http://127.0.0.1:3000',
+  'http://localhost:8080',
+  'http://127.0.0.1:8080',
   'http://localhost',
   'https://dominio.com',
   'https://dominio.com/sigah'
@@ -85,11 +87,9 @@ app.use(cors({
       return callback(null, true);
     }
     
-    // En desarrollo, permitir cualquier localhost/127.0.0.1
-    if (process.env.NODE_ENV !== 'production') {
-      if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
-        return callback(null, true);
-      }
+    // Permitir cualquier localhost/127.0.0.1 (desarrollo y producción para pruebas)
+    if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      return callback(null, true);
     }
     
     if (allowedOrigins.includes(origin)) {

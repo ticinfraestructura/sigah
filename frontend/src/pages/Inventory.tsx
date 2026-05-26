@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Package, Plus, Search, AlertTriangle, Clock, Edit2, Trash2 } from 'lucide-react';
-import { productApi, categoryApi, inventoryApi } from '../services/api';
+import { Package, Plus, Search, AlertTriangle, Clock, Edit2, Trash2, Box } from 'lucide-react';
+import { productApi, categoryApi, inventoryApi, kitApi } from '../services/api';
 import { Product, Category, Unit } from '../types';
 import { useToast } from '../components/ui/Toast';
 
@@ -16,7 +15,11 @@ const unitLabels: Record<string, string> = {
 };
 
 export default function Inventory() {
+  console.log('🚀 Componente Inventory montado');
+
+  const [activeTab, setActiveTab] = useState<'all' | 'products' | 'kits'>('all');
   const [products, setProducts] = useState<Product[]>([]);
+  const [kits, setKits] = useState<any[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -24,7 +27,14 @@ export default function Inventory() {
   const [perishableFilter, setPerishableFilter] = useState<string>('');
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedItemHistory, setSelectedItemHistory] = useState<any>(null);
   const toast = useToast();
+
+  useEffect(() => {
+    console.log('🎨 showHistoryModal cambió a:', showHistoryModal);
+    console.log('🎨 selectedItemHistory:', selectedItemHistory);
+  }, [showHistoryModal, selectedItemHistory]);
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
@@ -34,6 +44,58 @@ export default function Inventory() {
   const handleCloseModal = () => {
     setShowModal(false);
     setEditingProduct(null);
+  };
+
+  const handleViewHistory = async (item: any) => {
+    console.log('🔍 handleViewHistory llamado con:', item);
+    setSelectedItemHistory(item);
+    setShowHistoryModal(true);
+    console.log('✅ showHistoryModal establecido en true');
+    try {
+      const token = localStorage.getItem('auth_token');
+      const isKit = item.__type === 'kit' || item.kitProducts;
+      const entity = isKit ? 'kit' : 'product';
+
+      // Cargar datos en paralelo
+      const [movementsRes, auditRes] = await Promise.all([
+        fetch(`http://localhost:3001/api/inventory/movements?${isKit ? '' : `productId=${item.id}`}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        fetch(`http://localhost:3001/api/audit/entity/${entity}/${item.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }).catch(() => ({ ok: false, json: async () => ({ data: [] }) }))
+      ]);
+
+      const movementsData = await movementsRes.json();
+      const auditData = await auditRes.json();
+
+      // Si es kit, también cargar movimientos de kit
+      let kitMovementsData = [];
+      if (isKit) {
+        const kitMovRes = await fetch(`http://localhost:3001/api/inventory/kit-inventory/movements/${item.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        kitMovementsData = await kitMovRes.json();
+      }
+
+      // Guardar datos de depuración
+      (window as any).debugData = {
+        movements: movementsData,
+        audit: auditData,
+        kitMovements: kitMovementsData,
+        isKit,
+        movementsCount: (movementsData.data || []).length,
+        auditCount: (auditData.data || []).length,
+        kitMovementsCount: (kitMovementsData.data || []).length,
+        kitMovementsDebug: kitMovementsData.debug
+      };
+
+      // TODO: Historial no se muestra en el modal de prueba
+    } catch (error) {
+      console.error('Error loading history:', error);
+      toast.error('Error al cargar historial');
+    } finally {
+    }
   };
 
   const handleDelete = async (product: Product) => {
@@ -72,10 +134,14 @@ export default function Inventory() {
       if (categoryFilter) params.categoryId = categoryFilter;
       if (perishableFilter) params.isPerishable = perishableFilter === 'true';
       
-      const response = await productApi.getAll(params);
-      setProducts(response.data.data);
+      const [productsRes, kitsRes] = await Promise.all([
+        productApi.getAll(params),
+        kitApi.getAll(false).catch(() => ({ data: { data: [] } }))
+      ]);
+      setProducts(productsRes.data.data);
+      setKits(kitsRes.data.data || []);
     } catch (error) {
-      console.error('Error loading products:', error);
+      console.error('Error loading inventory:', error);
     } finally {
       setLoading(false);
     }
@@ -86,12 +152,53 @@ export default function Inventory() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Inventario</h1>
-          <p className="text-gray-500 dark:text-gray-400">Gestión de productos y stock</p>
+          <p className="text-gray-500 dark:text-gray-400">Gestión de productos y kits</p>
         </div>
-        <button onClick={() => setShowModal(true)} className="btn-primary">
-          <Plus className="w-4 h-4 mr-2" />
-          Nuevo Producto
-        </button>
+        {activeTab === 'products' && (
+          <button onClick={() => setShowModal(true)} className="btn-primary">
+            <Plus className="w-4 h-4 mr-2" />
+            Nuevo Producto
+          </button>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className="border-b border-gray-200 dark:border-gray-700">
+        <nav className="-mb-px flex gap-6">
+          <button
+            onClick={() => setActiveTab('all')}
+            className={`py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
+              activeTab === 'all'
+                ? 'border-primary-600 text-primary-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Package className="w-4 h-4" />
+            Todo ({products.length + kits.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('products')}
+            className={`py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
+              activeTab === 'products'
+                ? 'border-primary-600 text-primary-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Package className="w-4 h-4" />
+            Productos ({products.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('kits')}
+            className={`py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
+              activeTab === 'kits'
+                ? 'border-primary-600 text-primary-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Box className="w-4 h-4" />
+            Kits ({kits.length})
+          </button>
+        </nav>
       </div>
 
       {/* Filters */}
@@ -129,10 +236,214 @@ export default function Inventory() {
         </div>
       </div>
 
-      {/* Products table */}
+      {/* Products / Kits table */}
       {loading ? (
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        </div>
+      ) : activeTab === 'all' ? (
+        <div className="table-container">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Tipo</th>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Categoría / Tipo</th>
+                <th>Stock</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                ...products.map((p: any) => ({
+                  __type: 'product',
+                  id: p.id,
+                  code: p.code,
+                  name: p.name,
+                  category: p.category?.name || '-',
+                  stock: p.totalStock || 0,
+                  minStock: p.minStock,
+                  isActive: p.isActive,
+                  unit: p.unit,
+                  isPerishable: p.isPerishable,
+                })),
+                ...kits.map((k: any) => ({
+                  __type: 'kit',
+                  id: k.id,
+                  code: k.code,
+                  name: k.name,
+                  category: k.type || 'GENERAL',
+                  stock: k.inventory?.[0]?.quantity ?? k.totalStock ?? 0,
+                  minStock: 0,
+                  isActive: k.isActive,
+                  productsCount: k.kitProducts?.length || 0,
+                })),
+              ]
+                .filter((item: any) =>
+                  !search ||
+                  item.code?.toLowerCase().includes(search.toLowerCase()) ||
+                  item.name?.toLowerCase().includes(search.toLowerCase())
+                )
+                .sort((a: any, b: any) => (a.code || '').localeCompare(b.code || ''))
+                .map((item: any) => {
+                  const isProduct = item.__type === 'product';
+                  const isLowStock = isProduct
+                    ? item.stock < item.minStock
+                    : item.stock > 0 && item.stock < 5;
+                  const isOutOfStock = item.stock === 0;
+                  return (
+                    <tr key={`${item.__type}-${item.id}`} className={!item.isActive ? 'opacity-50' : ''}>
+                      <td>
+                        {isProduct ? (
+                          <span className="badge-gray flex items-center gap-1 w-fit">
+                            <Package className="w-3 h-3" /> Producto
+                          </span>
+                        ) : (
+                          <span className="badge-blue flex items-center gap-1 w-fit">
+                            <Box className="w-3 h-3" /> Kit
+                          </span>
+                        )}
+                      </td>
+                      <td className="font-mono text-sm">{item.code}</td>
+                      <td>
+                        <p className="font-medium text-gray-900 dark:text-white">{item.name}</p>
+                        {!isProduct && (
+                          <p className="text-xs text-gray-500">{item.productsCount} productos en kit</p>
+                        )}
+                      </td>
+                      <td>{item.category}</td>
+                      <td>
+                        <span className={`font-semibold ${isOutOfStock ? 'text-red-600' : isLowStock ? 'text-orange-600' : 'text-gray-900 dark:text-white'}`}>
+                          {item.stock?.toLocaleString() || 0}
+                        </span>
+                      </td>
+                      <td>
+                        {!item.isActive ? (
+                          <span className="badge-gray">Inactivo</span>
+                        ) : isOutOfStock ? (
+                          <span className="badge-red flex items-center gap-1 w-fit">
+                            <AlertTriangle className="w-3 h-3" /> Sin stock
+                          </span>
+                        ) : isLowStock ? (
+                          <span className="badge-red flex items-center gap-1 w-fit">
+                            <AlertTriangle className="w-3 h-3" /> Stock bajo
+                          </span>
+                        ) : (
+                          <span className="badge-green">Normal</span>
+                        )}
+                      </td>
+                      <td>
+                        <button
+                          onClick={() => handleViewHistory(item)}
+                          className="text-primary-600 hover:text-primary-700 text-sm font-medium"
+                        >
+                          Historial
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              {products.length === 0 && kits.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="text-center py-8 text-gray-500">
+                    No se encontraron items en el inventario
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      ) : activeTab === 'kits' ? (
+        <div className="table-container">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Kit</th>
+                <th>Tipo</th>
+                <th>Productos</th>
+                <th>Stock</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {kits
+                .filter((k: any) =>
+                  !search ||
+                  k.code?.toLowerCase().includes(search.toLowerCase()) ||
+                  k.name?.toLowerCase().includes(search.toLowerCase())
+                )
+                .map((kit: any) => {
+                  const stock = kit.inventory?.[0]?.quantity ?? kit.totalStock ?? 0;
+                  const isOutOfStock = stock === 0;
+                  const isLowStock = stock > 0 && stock < 5;
+                  return (
+                    <tr key={kit.id} className={!kit.isActive ? 'opacity-50' : ''}>
+                      <td className="font-mono text-sm">{kit.code}</td>
+                      <td>
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+                            <Box className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-white">{kit.name}</p>
+                            {kit.description && (
+                              <p className="text-xs text-gray-500">{kit.description}</p>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="badge-gray">{kit.type || 'GENERAL'}</span>
+                      </td>
+                      <td className="text-gray-500">
+                        {kit.kitProducts?.length || 0} productos
+                      </td>
+                      <td>
+                        <span className={`font-semibold ${isOutOfStock ? 'text-red-600' : isLowStock ? 'text-orange-600' : 'text-gray-900 dark:text-white'}`}>
+                          {stock.toLocaleString()}
+                        </span>
+                      </td>
+                      <td>
+                        {!kit.isActive ? (
+                          <span className="badge-gray">Inactivo</span>
+                        ) : isOutOfStock ? (
+                          <span className="badge-red flex items-center gap-1 w-fit">
+                            <AlertTriangle className="w-3 h-3" /> Sin stock
+                          </span>
+                        ) : isLowStock ? (
+                          <span className="badge-yellow flex items-center gap-1 w-fit">
+                            <AlertTriangle className="w-3 h-3" /> Stock bajo
+                          </span>
+                        ) : (
+                          <span className="badge-green">Normal</span>
+                        )}
+                      </td>
+                      <td>
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => handleViewHistory({ ...kit, __type: 'kit' })}
+                            className="text-primary-600 hover:text-primary-700 text-sm font-medium"
+                          >
+                            Historial
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              {kits.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="text-center py-8 text-gray-500">
+                    No se encontraron kits
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       ) : (
         <div className="table-container">
@@ -205,12 +516,12 @@ export default function Inventory() {
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
-                        <Link
-                          to={`/inventory/${product.id}`}
+                        <button
+                          onClick={() => handleViewHistory({ ...product, __type: 'product' })}
                           className="text-primary-600 hover:text-primary-700 text-sm font-medium ml-2"
                         >
-                          Detalles
-                        </Link>
+                          Historial
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -235,6 +546,124 @@ export default function Inventory() {
           onClose={handleCloseModal}
           onSave={fetchData}
         />
+      )}
+
+      {showHistoryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4" style={{zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.8)'}}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Clock className="w-6 h-6 text-primary-600" />
+                  Historial
+                </h2>
+                <p className="text-gray-600 dark:text-gray-400 mt-1">
+                  {selectedItemHistory?.__type === 'kit' ? 'Kit' : 'Producto'}: <span className="font-semibold">{selectedItemHistory?.name}</span>
+                </p>
+              </div>
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[60vh]">
+              {(window as any).debugData?.movements?.data?.length > 0 ? (
+                <div className="space-y-3">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Movimientos de Inventario</h3>
+                  {(window as any).debugData.movements.data.map((movement: any, index: number) => (
+                    <div key={index} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {movement.type === 'ENTRY' ? 'Ingreso' : movement.type === 'EXIT' ? 'Salida' : 'Ajuste'}
+                          </p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                            Cantidad: {movement.quantity}
+                          </p>
+                          {movement.lot && (
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              Lote: {movement.lot.lotNumber}
+                            </p>
+                          )}
+                          {movement.reason && (
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              Razón: {movement.reason}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {new Date(movement.createdAt).toLocaleString()}
+                          </p>
+                          {movement.user && (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                              {movement.user.firstName} {movement.user.lastName}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    No hay movimientos de inventario registrados
+                  </p>
+                </div>
+              )}
+              
+              {(window as any).debugData?.audit?.data?.length > 0 && (
+                <div className="mt-6 space-y-3">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Auditoría de Cambios</h3>
+                  {(window as any).debugData.audit.data.map((audit: any, index: number) => (
+                    <div key={index} className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {audit.action} - {audit.entityType}
+                          </p>
+                          {audit.before && (
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                              Antes: {JSON.stringify(audit.before)}
+                            </p>
+                          )}
+                          {audit.after && (
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              Después: {JSON.stringify(audit.after)}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {new Date(audit.createdAt).toLocaleString()}
+                          </p>
+                          {audit.user && (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                              {audit.user.firstName} {audit.user.lastName}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg font-medium transition-colors"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -83,7 +83,8 @@ export class InventoryService {
     userId: string,
     lotNumber?: string,
     expiryDate?: Date,
-    reason?: string
+    reason?: string,
+    reference?: string
   ) {
     const product = await this.prisma.product.findUnique({ where: { id: productId } });
     if (!product) {
@@ -118,6 +119,7 @@ export class InventoryService {
         type: MovementType.ENTRY,
         quantity,
         reason: reason || 'Entrada de inventario',
+        reference,
         userId
       }
     });
