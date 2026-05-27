@@ -29,6 +29,7 @@ export default function Inventory() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedItemHistory, setSelectedItemHistory] = useState<any>(null);
+  const [historyDataLoaded, setHistoryDataLoaded] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
@@ -49,12 +50,23 @@ export default function Inventory() {
   const handleViewHistory = async (item: any) => {
     console.log('🔍 handleViewHistory llamado con:', item);
     setSelectedItemHistory(item);
+    setHistoryDataLoaded(false);
     setShowHistoryModal(true);
     console.log('✅ showHistoryModal establecido en true');
     try {
       const token = localStorage.getItem('auth_token');
       const isKit = item.__type === 'kit' || item.kitProducts;
       const entity = isKit ? 'kit' : 'product';
+
+      // Si es kit, cargar detalles completos primero
+      let kitWithProducts = item;
+      if (isKit && !item.kitProducts) {
+        const kitRes = await fetch(`http://localhost:3001/api/kits/${item.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const kitData = await kitRes.json();
+        kitWithProducts = kitData.data;
+      }
 
       // Cargar datos en paralelo
       const [movementsRes, auditRes] = await Promise.all([
@@ -70,12 +82,118 @@ export default function Inventory() {
       const auditData = await auditRes.json();
 
       // Si es kit, también cargar movimientos de kit
-      let kitMovementsData = [];
+      let kitMovementsData: any = { data: [] };
+      let kitEvents: any[] = [];
+      let productsHistory: any[] = [];
       if (isKit) {
+        // 1) Movimientos formales de KitInventoryMovement (si existen)
         const kitMovRes = await fetch(`http://localhost:3001/api/inventory/kit-inventory/movements/${item.id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         kitMovementsData = await kitMovRes.json();
+
+        // 2) Fallback: reconstruir eventos del kit desde StockMovements (vía /api/kits/:id/history)
+        try {
+          const kitHistRes = await fetch(`http://localhost:3001/api/kits/${item.id}/history`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const kitHistJson = await kitHistRes.json();
+          const stockEntries: any[] = kitHistJson?.data?.stockEntries || [];
+          const map = new Map<string, any>();
+          for (const m of stockEntries) {
+            const dateKey = new Date(m.createdAt).toISOString().slice(0, 16);
+            const key = m.reference || `${m.reason ?? ''}|${dateKey}`;
+            if (!map.has(key)) {
+              const qtyMatch = (m.reason || '').match(/x(\d+)/);
+              map.set(key, {
+                key,
+                reason: m.reason,
+                reference: m.reference,
+                kitQty: qtyMatch ? parseInt(qtyMatch[1]) : null,
+                date: m.createdAt,
+                type: m.type,
+                user: m.user,
+                products: []
+              });
+            }
+            map.get(key).products.push({
+              name: m.product?.name,
+              code: m.product?.code,
+              quantity: m.quantity,
+              unit: m.product?.unit
+            });
+          }
+          kitEvents = Array.from(map.values()).sort(
+            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+          );
+        } catch (e) {
+          console.warn('No se pudo cargar /api/kits/:id/history', e);
+        }
+
+        // Cargar historial de cada producto del kit
+        if (kitWithProducts.kitProducts && kitWithProducts.kitProducts.length > 0) {
+          productsHistory = await Promise.all(
+            kitWithProducts.kitProducts.map(async (kitProduct: any) => {
+              const [prodMovRes, prodAuditRes] = await Promise.all([
+                fetch(`http://localhost:3001/api/inventory/movements?productId=${kitProduct.product.id}`, {
+                  headers: { Authorization: `Bearer ${token}` }
+                }),
+                fetch(`http://localhost:3001/api/audit/entity/product/${kitProduct.product.id}`, {
+                  headers: { Authorization: `Bearer ${token}` }
+                }).catch(() => ({ ok: false, json: async () => ({ data: [] }) }))
+              ]);
+              
+              const prodMovData = await prodMovRes.json();
+              const prodAuditData = await prodAuditRes.json();
+              
+              return {
+                product: kitProduct.product,
+                quantity: kitProduct.quantity,
+                movements: prodMovData.data || [],
+                audit: prodAuditData.data || []
+              };
+            })
+          );
+        }
+
+        // Fallback 2: si kitEvents sigue vacío, reconstruirlo desde productsHistory
+        // agrupando los movimientos de los productos por reference o (reason+minuto)
+        if (kitEvents.length === 0 && productsHistory.length > 0) {
+          console.log('🔧 Fallback 2: reconstruyendo kitEvents desde productsHistory', productsHistory);
+          const map = new Map<string, any>();
+          for (const ph of productsHistory) {
+            console.log(`📦 Producto ${ph.product?.name}:`, ph.movements?.length || 0, 'movimientos');
+            for (const m of (ph.movements || [])) {
+              console.log('  ➤ Movimiento:', m);
+              const dateKey = new Date(m.createdAt).toISOString().slice(0, 16);
+              const key = m.reference || `${m.reason ?? 'sin-razon'}|${dateKey}|${m.type}`;
+              if (!map.has(key)) {
+                const qtyMatch = (m.reason || '').match(/x(\d+)/);
+                map.set(key, {
+                  key,
+                  reason: m.reason,
+                  reference: m.reference,
+                  kitQty: qtyMatch ? parseInt(qtyMatch[1]) : null,
+                  date: m.createdAt,
+                  type: m.type,
+                  user: m.user,
+                  products: []
+                });
+              }
+              map.get(key).products.push({
+                name: ph.product?.name,
+                code: ph.product?.code,
+                quantity: m.quantity,
+                unit: ph.product?.unit,
+                lot: m.lot?.lotNumber
+              });
+            }
+          }
+          kitEvents = Array.from(map.values()).sort(
+            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+          );
+          console.log('✅ kitEvents reconstruidos:', kitEvents);
+        }
       }
 
       // Guardar datos de depuración
@@ -83,17 +201,23 @@ export default function Inventory() {
         movements: movementsData,
         audit: auditData,
         kitMovements: kitMovementsData,
+        kitEvents,
+        productsHistory,
         isKit,
         movementsCount: (movementsData.data || []).length,
         auditCount: (auditData.data || []).length,
         kitMovementsCount: (kitMovementsData.data || []).length,
+        kitEventsCount: kitEvents.length,
         kitMovementsDebug: kitMovementsData.debug
       };
-
-      // TODO: Historial no se muestra en el modal de prueba
+      console.log('📊 debugData guardado:', (window as any).debugData);
+      console.log('📦 productsHistory:', productsHistory);
+      console.log('📦 productsHistory.length:', productsHistory.length);
+      setHistoryDataLoaded(true);
     } catch (error) {
       console.error('Error loading history:', error);
       toast.error('Error al cargar historial');
+      setHistoryDataLoaded(true);
     } finally {
     }
   };
@@ -571,9 +695,118 @@ export default function Inventory() {
               </button>
             </div>
             <div className="p-6 overflow-y-auto max-h-[60vh]">
-              {(window as any).debugData?.movements?.data?.length > 0 ? (
+              {!historyDataLoaded && (
+                <div className="text-center py-8">
+                  <p className="text-gray-600 dark:text-gray-400">Cargando historial...</p>
+                </div>
+              )}
+
+              {historyDataLoaded && (
+                <>
+                  {/* Debug info */}
+                  <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800">
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      Debug: isKit={String((window as any).debugData?.isKit)}, movementsCount={(window as any).debugData?.movementsCount}, kitMovementsCount={(window as any).debugData?.kitMovementsCount}, kitEventsCount={(window as any).debugData?.kitEventsCount}, productsHistoryLength={(window as any).debugData?.productsHistory?.length}
+                    </p>
+                  </div>
+
+                  {/* Eventos de kit reconstruidos desde stockEntries (fallback principal para kits) */}
+                  {(window as any).debugData?.isKit && (window as any).debugData?.kitEvents?.length > 0 && (
+                    <div className="space-y-3 mb-6">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Historial del Kit</h3>
+                      {(window as any).debugData.kitEvents.map((ev: any) => (
+                        <div key={ev.key} className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <p className="font-medium text-purple-700 dark:text-purple-300">
+                                {ev.type === 'ENTRY' ? 'Ingreso de Kit' : ev.type === 'EXIT' ? 'Salida de Kit' : ev.type}
+                                {ev.kitQty ? ` · ${ev.kitQty} kit(s)` : ''}
+                              </p>
+                              {ev.reason && (
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{ev.reason}</p>
+                              )}
+                              {ev.reference && (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Ref: {ev.reference}</p>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                {new Date(ev.date).toLocaleString()}
+                              </p>
+                              {ev.user && (
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                  {ev.user.firstName} {ev.user.lastName}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="mt-2 border-t border-purple-200 dark:border-purple-800 pt-2">
+                            <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Productos consumidos en este evento:</p>
+                            <ul className="text-sm space-y-0.5">
+                              {ev.products.map((p: any, idx: number) => (
+                                <li key={idx} className="text-gray-700 dark:text-gray-300">
+                                  • {p.name} {p.code ? `(${p.code})` : ''} — {p.quantity} {p.unit || ''}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Mostrar movimientos del kit si es kit, o movimientos del producto si es producto */}
+                  {(window as any).debugData?.isKit && (window as any).debugData?.kitMovements?.data?.length > 0 ? (
                 <div className="space-y-3">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Movimientos de Inventario</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Movimientos del Kit</h3>
+                  {(window as any).debugData.kitMovements.data.map((movement: any, index: number) => (
+                    <div key={index} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {movement.type === 'IN' || movement.type === 'ENTRY' ? 'Ingreso' : movement.type === 'OUT' || movement.type === 'EXIT' ? 'Salida' : movement.type === 'ADJUSTMENT' ? 'Ajuste' : movement.type}
+                          </p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                            Cantidad: {movement.quantity}
+                          </p>
+                          {movement.lotNumber && (
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              Lote: {movement.lotNumber}
+                            </p>
+                          )}
+                          {movement.expiryDate && (
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              Vence: {new Date(movement.expiryDate).toLocaleDateString()}
+                            </p>
+                          )}
+                          {movement.notes && (
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              Razón: {movement.notes}
+                            </p>
+                          )}
+                          {movement.reference && (
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              Referencia: {movement.reference}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {new Date(movement.date || movement.createdAt).toLocaleString()}
+                          </p>
+                          {movement.user && (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                              {typeof movement.user === 'string' ? movement.user : `${movement.user.firstName} ${movement.user.lastName}`}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : !(window as any).debugData?.isKit && (window as any).debugData?.movements?.data?.length > 0 ? (
+                <div className="space-y-3">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Movimientos del Producto</h3>
                   {(window as any).debugData.movements.data.map((movement: any, index: number) => (
                     <div key={index} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
                       <div className="flex justify-between items-start">
@@ -652,6 +885,60 @@ export default function Inventory() {
                     </div>
                   ))}
                 </div>
+              )}
+
+              {(window as any).debugData?.productsHistory && (window as any).debugData.productsHistory.length > 0 && (
+                <div className="mt-6 space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Historial de Productos del Kit</h3>
+                  {(window as any).debugData.productsHistory.map((productHistory: any, index: number) => (
+                    <div key={index} className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
+                      <div className="bg-purple-50 dark:bg-purple-900/20 p-3 border-b border-purple-200 dark:border-purple-800">
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {productHistory.product.name} ({productHistory.product.code})
+                        </p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          Cantidad en kit: {productHistory.quantity}
+                        </p>
+                      </div>
+                      <div className="p-3 space-y-2">
+                        {productHistory.movements.length > 0 ? (
+                          <div>
+                            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">Movimientos:</p>
+                            {productHistory.movements.map((movement: any, mIndex: number) => (
+                              <div key={mIndex} className="bg-gray-50 dark:bg-gray-700/30 rounded p-2 mb-2">
+                                <p className="text-sm text-gray-900 dark:text-white">
+                                  {movement.type === 'ENTRY' ? 'Ingreso' : movement.type === 'EXIT' ? 'Salida' : 'Ajuste'}: {movement.quantity}
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                  {new Date(movement.createdAt).toLocaleString()}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Sin movimientos</p>
+                        )}
+                        {productHistory.audit.length > 0 && (
+                          <div>
+                            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 mt-3">Auditoría:</p>
+                            {productHistory.audit.map((audit: any, aIndex: number) => (
+                              <div key={aIndex} className="bg-blue-50 dark:bg-blue-900/20 rounded p-2 mb-2">
+                                <p className="text-sm text-gray-900 dark:text-white">
+                                  {audit.action}
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                  {new Date(audit.createdAt).toLocaleString()}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+                </>
               )}
             </div>
             <div className="p-6 border-t border-gray-200 dark:border-gray-700">
