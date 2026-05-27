@@ -85,20 +85,61 @@ export default function Inventory() {
       let kitMovementsData: any = { data: [] };
       let kitEvents: any[] = [];
       let productsHistory: any[] = [];
+      let kitReportEntries: any[] = [];
       if (isKit) {
+        // 0) Llamar endpoint de reportes de ingresos de kits (traer TODOS y filtrar client-side)
+        try {
+          const kitCode = item.code || kitWithProducts?.code;
+          console.log('📡 Buscando ingresos para kit con code:', kitCode);
+          const reportRes = await fetch('http://localhost:3001/api/reports/generate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              reportType: 'kits',
+              subtype: 'ingresos'
+            })
+          });
+          const reportJson = await reportRes.json();
+          const allEntries = reportJson?.data || [];
+          console.log('📊 Total ingresos de kits:', allEntries.length, 'registros');
+          // Filtrar client-side por código del kit
+          if (kitCode) {
+            kitReportEntries = allEntries.filter((e: any) =>
+              (e.reference && e.reference.includes(kitCode)) ||
+              (e.productCode && e.productCode === kitCode)
+            );
+          } else {
+            kitReportEntries = allEntries;
+          }
+          console.log('📊 Ingresos filtrados para', kitCode, ':', kitReportEntries.length, 'registros', kitReportEntries);
+        } catch (e) {
+          console.warn('No se pudo cargar reporte de ingresos de kits', e);
+        }
         // 1) Movimientos formales de KitInventoryMovement (si existen)
-        const kitMovRes = await fetch(`http://localhost:3001/api/inventory/kit-inventory/movements/${item.id}`, {
+        const kitMovUrl = `http://localhost:3001/api/inventory/kit-inventory/movements/${item.id}`;
+        console.log('📡 Llamando kit-inventory endpoint:', kitMovUrl);
+        const kitMovRes = await fetch(kitMovUrl, {
           headers: { Authorization: `Bearer ${token}` }
         });
         kitMovementsData = await kitMovRes.json();
+        console.log('📦 kitMovementsData respuesta:', kitMovementsData);
+        console.log('📦 kitMovementsData.data.length:', kitMovementsData?.data?.length || 0);
+        console.log('📦 kitMovementsData.debug:', kitMovementsData?.debug);
 
         // 2) Fallback: reconstruir eventos del kit desde StockMovements (vía /api/kits/:id/history)
         try {
-          const kitHistRes = await fetch(`http://localhost:3001/api/kits/${item.id}/history`, {
+          const kitHistUrl = `http://localhost:3001/api/kits/${item.id}/history`;
+          console.log('📡 Llamando kits/history endpoint:', kitHistUrl);
+          const kitHistRes = await fetch(kitHistUrl, {
             headers: { Authorization: `Bearer ${token}` }
           });
           const kitHistJson = await kitHistRes.json();
+          console.log('📦 kits/:id/history respuesta:', kitHistJson);
           const stockEntries: any[] = kitHistJson?.data?.stockEntries || [];
+          console.log('📦 stockEntries encontrados:', stockEntries.length);
           const map = new Map<string, any>();
           for (const m of stockEntries) {
             const dateKey = new Date(m.createdAt).toISOString().slice(0, 16);
@@ -203,6 +244,7 @@ export default function Inventory() {
         kitMovements: kitMovementsData,
         kitEvents,
         productsHistory,
+        kitReportEntries,
         isKit,
         movementsCount: (movementsData.data || []).length,
         auditCount: (auditData.data || []).length,
@@ -752,6 +794,41 @@ export default function Inventory() {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {/* Mostrar ingresos de kits desde reporte (fuente más confiable) */}
+                  {(window as any).debugData?.isKit && (window as any).debugData?.kitReportEntries?.length > 0 && (
+                    <div className="space-y-3 mb-6">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Ingresos de Kits</h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-gray-200 dark:border-gray-600">
+                              <th className="text-left py-2 px-2">Fecha</th>
+                              <th className="text-left py-2 px-2">Hora</th>
+                              <th className="text-left py-2 px-2">Cantidad</th>
+                              <th className="text-left py-2 px-2">Usuario</th>
+                              <th className="text-left py-2 px-2">Referencia</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(window as any).debugData.kitReportEntries.map((entry: any, index: number) => (
+                              <tr key={index} className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                <td className="py-2 px-2">{entry.fecha}</td>
+                                <td className="py-2 px-2">{entry.hora}</td>
+                                <td className="py-2 px-2">
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    +{entry.quantity}
+                                  </span>
+                                </td>
+                                <td className="py-2 px-2">{entry.user}</td>
+                                <td className="py-2 px-2 text-gray-500 text-xs">{entry.reference}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   )}
 

@@ -172,6 +172,7 @@ model StockMovement {
   id          String   @id @default(uuid()) @db.Uuid
   productId   String   @db.Uuid
   lotId       String?  @db.Uuid
+  kitBatchId  String?  @db.Uuid // Vincula este movimiento con un lote de kit específico
   type        String
   quantity    Int
   reason      String?
@@ -211,6 +212,7 @@ model Kit {
 model KitInventory {
   id          String   @id @default(uuid()) @db.Uuid
   kitId       String   @db.Uuid
+  kitBatchId  String?  @db.Uuid // Identificador único de lote para trazabilidad
   quantity    Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -226,6 +228,7 @@ model KitInventory {
 model KitInventoryMovement {
   id          String   @id @default(uuid()) @db.Uuid
   kitInventoryId String @db.Uuid
+  kitBatchId  String?  @db.Uuid // Identificador único de lote del kit para trazabilidad
   type        String   // ENTRY, EXIT
   quantity    Int
   lotNumber   String?

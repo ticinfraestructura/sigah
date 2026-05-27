@@ -304,6 +304,7 @@ router.post('/kit-entry', authenticate, authorize('ADMIN', 'WAREHOUSE'), validat
       : `Entrada kit ${kit.code} x${quantity}`;
 
     // SISTEMA DE INTEGRIDAD DE KITS: Registrar movimiento en inventario de kits
+    // y tambien crear StockMovement para cada producto del kit para mantener historial trazable
     await prisma.$transaction(async (tx) => {
       // Crear o actualizar inventario del kit
       const kitInventory = await tx.kitInventory.upsert({
@@ -330,6 +331,20 @@ router.post('/kit-entry', authenticate, authorize('ADMIN', 'WAREHOUSE'), validat
           userId: req.user!.id
         }
       });
+
+      // Crear StockMovement para cada producto del kit (permite trazabilidad en historial)
+      for (const kitProduct of kit.kitProducts) {
+        await tx.stockMovement.create({
+          data: {
+            productId: kitProduct.product.id,
+            type: 'ENTRY',
+            quantity: kitProduct.quantity * quantity,
+            reason: entryReason,
+            reference: reference,
+            userId: req.user!.id
+          }
+        });
+      }
     });
 
     await logAuditAction(
