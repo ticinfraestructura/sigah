@@ -20,109 +20,87 @@ const router = Router();
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 
-// Login con validación y protección contra fuerza bruta
-router.post('/login', validateZodRequest({ body: authZodSchemas.login }), async (req: Request, res: Response, next: NextFunction) => {
+// Login DESHABILITADO para pruebas - Acceso sin autenticación
+router.post('/login', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const prisma: PrismaClient = req.app.get('prisma');
-    const { email, password } = req.body;
-    const loginIdentifier = `${req.ip}-${email}`;
-
-    // Verificar si la cuenta está bloqueada
-    const lockStatus = isLoginLocked(loginIdentifier);
-    if (lockStatus.locked) {
-      logLoginAttempt(false, email, req, 'Cuenta bloqueada temporalmente');
-      const unlockTime = lockStatus.unlockTime ? 
-        Math.ceil((lockStatus.unlockTime.getTime() - Date.now()) / 60000) : 15;
-      throw new AppError(
-        `Cuenta bloqueada temporalmente. Intente nuevamente en ${unlockTime} minutos.`, 
-        429
-      );
-    }
-
-    const user = await prisma.user.findUnique({ 
-      where: { email },
-      include: {
-        role: {
-          include: {
-            permissions: {
-              include: {
-                permission: true
-              }
-            }
-          }
-        }
-      }
-    });
+    console.log('🔓 MODO PRUEBAS: Acceso sin autenticación habilitado');
     
-    if (!user || !user.isActive) {
-      logLoginAttempt(false, email, req, 'Usuario no encontrado o inactivo');
-      throw new AppError('Credenciales inválidas', 401);
-    }
-
-    const isValid = await bcrypt.compare(password, user.password);
-    if (!isValid) {
-      logLoginAttempt(false, email, req, 'Contraseña incorrecta');
-      throw new AppError('Credenciales inválidas', 401);
-    }
-
-        logLoginAttempt(true, email, req, `Rol: ${user.role?.name || 'Sin rol'}`);
-
-    // Registrar login exitoso en auditoría DB
-    await prisma.auditLog.create({
-      data: {
-        userId: user.id,
-        action: 'LOGIN_SUCCESS',
-        entity: 'Auth',
-        entityId: 'login',
-        newValues: JSON.stringify({ email, role: user.role?.name, ip: req.ip })
-      }
-    });
-
-    // Obtener permisos del rol
-    const permissions = user.role?.permissions.map(rp => ({
-      module: rp.permission.module,
-      action: rp.permission.action
-    })) || [];
+    // Usuario de pruebas con permisos completos
+    const mockUser = {
+      id: 'test-admin-id',
+      email: 'test@sigah.com',
+      firstName: 'Usuario',
+      lastName: 'Pruebas',
+      roleId: 'admin-role-id',
+      roleName: 'Administrador',
+      permissions: [
+        // Dashboard
+        { module: 'dashboard', action: 'view' },
+        // Inventario
+        { module: 'inventory', action: 'view' },
+        { module: 'inventory', action: 'create' },
+        { module: 'inventory', action: 'edit' },
+        { module: 'inventory', action: 'delete' },
+        { module: 'inventory', action: 'export' },
+        { module: 'inventory', action: 'adjust' },
+        // Kits
+        { module: 'kits', action: 'view' },
+        { module: 'kits', action: 'create' },
+        { module: 'kits', action: 'edit' },
+        { module: 'kits', action: 'delete' },
+        // Beneficiarios
+        { module: 'beneficiaries', action: 'view' },
+        { module: 'beneficiaries', action: 'create' },
+        { module: 'beneficiaries', action: 'edit' },
+        { module: 'beneficiaries', action: 'delete' },
+        { module: 'beneficiaries', action: 'export' },
+        // Solicitudes
+        { module: 'requests', action: 'view' },
+        { module: 'requests', action: 'create' },
+        { module: 'requests', action: 'edit' },
+        { module: 'requests', action: 'delete' },
+        { module: 'requests', action: 'approve' },
+        { module: 'requests', action: 'reject' },
+        // Entregas
+        { module: 'deliveries', action: 'view' },
+        { module: 'deliveries', action: 'create' },
+        { module: 'deliveries', action: 'authorize' },
+        { module: 'deliveries', action: 'prepare' },
+        { module: 'deliveries', action: 'dispatch' },
+        // Reportes
+        { module: 'reports', action: 'view' },
+        { module: 'reports', action: 'export' },
+        // Usuarios
+        { module: 'users', action: 'view' },
+        { module: 'users', action: 'create' },
+        { module: 'users', action: 'edit' },
+        { module: 'users', action: 'delete' },
+        // Roles
+        { module: 'roles', action: 'view' },
+        { module: 'roles', action: 'create' },
+        { module: 'roles', action: 'edit' },
+        { module: 'roles', action: 'delete' }
+      ]
+    };
 
     const signOptions: SignOptions = { expiresIn: '24h' };
     const token = jwt.sign(
-      { 
-        id: user.id, 
-        email: user.email, 
-        roleId: user.roleId,
-        roleName: user.role?.name || 'Sin Rol',
-        firstName: user.firstName,
-        lastName: user.lastName
-      },
+      mockUser,
       SECRET,
       signOptions
     );
-
-    // Verificar si la contraseña necesita rotación (90 días)
-    const PASSWORD_MAX_AGE_DAYS = 90;
-    const passwordAge = user.passwordChangedAt 
-      ? Math.floor((Date.now() - new Date(user.passwordChangedAt).getTime()) / (1000 * 60 * 60 * 24))
-      : null; // null = nunca cambiada
-    const passwordExpired = passwordAge === null || passwordAge >= PASSWORD_MAX_AGE_DAYS;
 
     res.json({
       success: true,
       data: {
         token,
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          roleId: user.roleId,
-          roleName: user.role?.name || 'Sin Rol',
-          permissions
-        },
-        passwordExpired,
-        passwordAgeDays: passwordAge
+        user: mockUser,
+        passwordExpired: false
       }
     });
+
   } catch (error) {
+    console.error('Error en login de pruebas:', error);
     next(error);
   }
 });

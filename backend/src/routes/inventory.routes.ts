@@ -9,7 +9,7 @@ import { inventoryZodSchemas, validateZodRequest } from '../middleware/validatio
 const router = Router();
 
 // Get current stock summary
-router.get('/stock', authenticate, validateZodRequest({ query: inventoryZodSchemas.stockQuery }), async (req: Request, res: Response, next: NextFunction) => {
+router.get('/stock', authenticate, validateZodRequest({ query: inventoryZodSchemas.stockQuery }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { categoryId, isPerishable, lowStock } = req.query;

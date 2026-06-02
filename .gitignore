@@ -18,6 +18,7 @@ npm-debug.log*
 # Database local
 *.db
 *.db-journal
+backups/
 
 # IDE
 .idea/

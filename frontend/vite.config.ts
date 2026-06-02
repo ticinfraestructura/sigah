@@ -5,7 +5,7 @@ import path from 'path';
 export default defineConfig({
   plugins: [react()],
   // Base path para dominio.com/sigah
-  base: process.env.VITE_BASE_PATH || '/sigah/',
+  base: process.env.VITE_BASE_PATH || '/',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

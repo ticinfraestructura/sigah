@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { SocketProvider } from './contexts/SocketContext';
 import { ToastProvider } from './components/ui/Toast';
@@ -8,6 +9,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Inventory from './pages/Inventory';
+import InventoryDebug from './pages/InventoryDebug';
 import ProductDetail from './pages/ProductDetail';
 import Kits from './pages/Kits';
 import KitDetail from './pages/KitDetail';
@@ -44,120 +46,128 @@ function App() {
   return (
     <ThemeProvider>
       <ToastProvider>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors">
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          
-          <Route
-            path="/*"
-            element={
-              <PrivateRoute>
-                <SocketProvider>
-                  <Layout>
-                  <Routes>
-                <Route path="/" element={
-                  <ProtectedRoute module="dashboard">
-                    <Dashboard />
-                  </ProtectedRoute>
-                } />
-                <Route path="/inventory" element={
-                  <ProtectedRoute module="inventory">
-                    <Inventory />
-                  </ProtectedRoute>
-                } />
-                <Route path="/inventory/:id" element={
-                  <ProtectedRoute module="inventory">
-                    <ProductDetail />
-                  </ProtectedRoute>
-                } />
-                <Route path="/inventory-admin" element={
-                  <ProtectedRoute module="inventory" action="edit">
-                    <InventoryManagement />
-                  </ProtectedRoute>
-                } />
-                <Route path="/inventory-audit" element={
-                  <ProtectedRoute module="roles" action="view">
-                    <InventoryAudit />
-                  </ProtectedRoute>
-                } />
-                <Route path="/send-notifications" element={
-                  <ProtectedRoute module="users" action="view">
-                    <SendNotifications />
-                  </ProtectedRoute>
-                } />
-                <Route path="/kits" element={
-                  <ProtectedRoute module="kits">
-                    <Kits />
-                  </ProtectedRoute>
-                } />
-                <Route path="/kits/:id" element={
-                  <ProtectedRoute module="kits">
-                    <KitDetail />
-                  </ProtectedRoute>
-                } />
-                <Route path="/beneficiaries" element={
-                  <ProtectedRoute module="beneficiaries">
-                    <Beneficiaries />
-                  </ProtectedRoute>
-                } />
-                <Route path="/requests" element={
-                  <ProtectedRoute module="requests">
-                    <Requests />
-                  </ProtectedRoute>
-                } />
-                <Route path="/requests/new" element={
-                  <ProtectedRoute module="requests" action="create">
-                    <NewRequest />
-                  </ProtectedRoute>
-                } />
-                <Route path="/requests/:id" element={
-                  <ProtectedRoute module="requests">
-                    <RequestDetail />
-                  </ProtectedRoute>
-                } />
-                <Route path="/deliveries" element={
-                  <ProtectedRoute module="deliveries">
-                    <DeliveriesManagement />
-                  </ProtectedRoute>
-                } />
-                <Route path="/deliveries/new/:requestId" element={
-                  <ProtectedRoute module="deliveries" action="create">
-                    <NewDelivery />
-                  </ProtectedRoute>
-                } />
-                <Route path="/returns" element={
-                  <ProtectedRoute module="returns">
-                    <Returns />
-                  </ProtectedRoute>
-                } />
-                <Route path="/reports" element={
-                  <ProtectedRoute module="reports">
-                    <ReportsAdvanced />
-                  </ProtectedRoute>
-                } />
-                <Route path="/roles" element={
-                  <ProtectedRoute module="roles">
-                    <RolesManagement />
-                  </ProtectedRoute>
-                } />
-                <Route path="/users" element={
-                  <ProtectedRoute module="users">
-                    <UsersManagement />
-                  </ProtectedRoute>
-                } />
-                <Route path="/notifications" element={
-                  <ProtectedRoute module="users">
-                    <NotificationsManagement />
-                  </ProtectedRoute>
-                } />
-                  </Routes>
-                </Layout>
-              </SocketProvider>
-            </PrivateRoute>
-          }
-        />
-        </Routes>
-      </div>
+        <AuthProvider>
+          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors">
+            <Routes>
+              <Route path="/login" element={<Login />} />
+
+              <Route
+                path="/*"
+                element={
+                  <PrivateRoute>
+                    <SocketProvider>
+                      <Layout>
+                      <Routes>
+                    <Route path="/" element={
+                      <InventoryDebug />
+                    } />
+                    <Route path="/dashboard" element={
+                      <ProtectedRoute module="dashboard">
+                        <Dashboard />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/inventory" element={
+                      <ProtectedRoute module="inventory">
+                        <Inventory />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/inventory-debug" element={
+                      <InventoryDebug />
+                    } />
+                    <Route path="/inventory/:id" element={
+                      <ProtectedRoute module="inventory">
+                        <ProductDetail />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/inventory-admin" element={
+                      <ProtectedRoute module="inventory" action="edit">
+                        <InventoryManagement />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/inventory-audit" element={
+                      <ProtectedRoute module="roles" action="view">
+                        <InventoryAudit />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/send-notifications" element={
+                      <ProtectedRoute module="users" action="view">
+                        <SendNotifications />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/kits" element={
+                      <ProtectedRoute module="kits">
+                        <Kits />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/kits/:id" element={
+                      <ProtectedRoute module="kits">
+                        <KitDetail />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/beneficiaries" element={
+                      <ProtectedRoute module="beneficiaries">
+                        <Beneficiaries />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/requests" element={
+                      <ProtectedRoute module="requests">
+                        <Requests />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/requests/new" element={
+                      <ProtectedRoute module="requests" action="create">
+                        <NewRequest />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/requests/:id" element={
+                      <ProtectedRoute module="requests">
+                        <RequestDetail />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/deliveries" element={
+                      <ProtectedRoute module="deliveries">
+                        <DeliveriesManagement />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/deliveries/new/:requestId" element={
+                      <ProtectedRoute module="deliveries" action="create">
+                        <NewDelivery />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/returns" element={
+                      <ProtectedRoute module="returns">
+                        <Returns />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/reports" element={
+                      <ProtectedRoute module="reports">
+                        <ReportsAdvanced />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/roles" element={
+                      <ProtectedRoute module="roles">
+                        <RolesManagement />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/users" element={
+                      <ProtectedRoute module="users">
+                        <UsersManagement />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/notifications" element={
+                      <ProtectedRoute module="users">
+                        <NotificationsManagement />
+                      </ProtectedRoute>
+                    } />
+                      </Routes>
+                    </Layout>
+                  </SocketProvider>
+                </PrivateRoute>
+              }
+            />
+            </Routes>
+          </div>
+        </AuthProvider>
       </ToastProvider>
     </ThemeProvider>
   );

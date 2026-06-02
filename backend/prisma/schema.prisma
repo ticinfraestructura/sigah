@@ -3,108 +3,39 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
 // ============ USERS & AUTH ============
+// Role values: ADMIN, WAREHOUSE, VIEWER
 
 model User {
-  id        String   @id @default(uuid()) @db.Uuid
+  id        String   @id @default(uuid())
   email     String   @unique
   password  String
   firstName String
   lastName  String
-  phone     String?  // Número de teléfono para WhatsApp (formato: +573001234567)
-  whatsappApiKey String?  // API Key de CallMeBot para enviar WhatsApp reales
-  telegramChatId String?  // Chat ID de Telegram para notificaciones
-  roleId    String?  @db.Uuid
-  passwordChangedAt DateTime? // Fecha del último cambio de contraseña (para rotación)
+  role      String   @default("WAREHOUSE")
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Delegaciones (un usuario puede delegar a otro)
-  delegatedToId     String?  @db.Uuid
-  delegatedTo       User?    @relation("UserDelegation", fields: [delegatedToId], references: [id])
-  delegatedFrom     User[]   @relation("UserDelegation")
-  delegationStartDate DateTime?
-  delegationEndDate   DateTime?
-
   // Relations
-  role                    Role?             @relation(fields: [roleId], references: [id])
-  stockMovements          StockMovement[]
-  deliveriesCreated       Delivery[]        @relation("DeliveryCreator")
-  deliveriesWarehouse     Delivery[]        @relation("DeliveryWarehouse")
-  deliveriesAuthorized    Delivery[]        @relation("DeliveryAuthorizer")
-  deliveriesPrepared      Delivery[]        @relation("DeliveryPreparer")
-  deliveriesDelivered     Delivery[]        @relation("DeliveryDeliverer")
-  deliveryHistories       DeliveryHistory[]
-  returns                 Return[]
-  requestsCreated         Request[]         @relation("RequestCreatedBy")
-  requestHistories        RequestHistory[]
-  auditLogs               AuditLog[]
-  kitInventoryMovements KitInventoryMovement[]
-  notificationsReceived   Notification[]    @relation("NotificationReceiver")
-  notificationsSent       Notification[]    @relation("NotificationSender")
+  stockMovements    StockMovement[]
+  deliveries        Delivery[]
+  returns           Return[]
+  requestsCreated   Request[]         @relation("RequestCreatedBy")
+  requestHistories  RequestHistory[]
+  auditLogs         AuditLog[]
 
   @@map("users")
-}
-
-// ============ ROLES & PERMISSIONS ============
-// Sistema de control de acceso basado en roles (RBAC)
-
-model Role {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @unique
-  description String?
-  isSystem    Boolean  @default(false) // Roles del sistema no se pueden eliminar
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  users       User[]
-  permissions RolePermission[]
-
-  @@map("roles")
-}
-
-// Módulos del sistema
-// Modules: dashboard, inventory, kits, beneficiaries, requests, deliveries, returns, reports, users, roles, settings
-
-model Permission {
-  id          String   @id @default(uuid()) @db.Uuid
-  module      String   // Módulo: inventory, kits, beneficiaries, requests, deliveries, etc.
-  action      String   // Acción: view, create, edit, delete, export, authorize, etc.
-  description String?
-  createdAt   DateTime @default(now())
-
-  // Relations
-  rolePermissions RolePermission[]
-
-  @@unique([module, action])
-  @@map("permissions")
-}
-
-model RolePermission {
-  id           String   @id @default(uuid()) @db.Uuid
-  roleId       String   @db.Uuid
-  permissionId String   @db.Uuid
-  createdAt    DateTime @default(now())
-
-  // Relations
-  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-
-  @@unique([roleId, permissionId])
-  @@map("role_permissions")
 }
 
 // ============ PRODUCTS & INVENTORY ============
 
 model Category {
-  id          String    @id @default(uuid()) @db.Uuid
+  id          String    @id @default(uuid())
   name        String    @unique
   description String?
   isActive    Boolean   @default(true)
@@ -120,11 +51,11 @@ model Category {
 // Unit values: UNIT, KG, LB, LITER, ML, PACK, BOX
 
 model Product {
-  id           String   @id @default(uuid()) @db.Uuid
+  id           String   @id @default(uuid())
   code         String   @unique
   name         String
   description  String?
-  categoryId   String   @db.Uuid
+  categoryId   String
   unit         String   @default("UNIT")
   isPerishable Boolean  @default(false)
   minStock     Int      @default(0)
@@ -145,8 +76,8 @@ model Product {
 }
 
 model ProductLot {
-  id          String    @id @default(uuid()) @db.Uuid
-  productId   String    @db.Uuid
+  id          String    @id @default(uuid())
+  productId   String
   lotNumber   String
   quantity    Int       @default(0)
   expiryDate  DateTime?
@@ -161,7 +92,7 @@ model ProductLot {
   deliveryDetails  DeliveryDetail[]
   returnDetails    ReturnDetail[]
 
-  @@unique([productId, lotNumber], name: "productId_lotNumber")
+  @@unique([productId, lotNumber])
   @@map("product_lots")
 }
 
@@ -169,15 +100,14 @@ model ProductLot {
 // MovementType values: ENTRY, EXIT, ADJUSTMENT, RETURN
 
 model StockMovement {
-  id          String   @id @default(uuid()) @db.Uuid
-  productId   String   @db.Uuid
-  lotId       String?  @db.Uuid
-  kitBatchId  String?  @db.Uuid // Vincula este movimiento con un lote de kit específico
+  id          String   @id @default(uuid())
+  productId   String
+  lotId       String?
   type        String
   quantity    Int
   reason      String?
   reference   String?
-  userId      String   @db.Uuid
+  userId      String
   createdAt   DateTime @default(now())
 
   // Relations
@@ -191,64 +121,26 @@ model StockMovement {
 // ============ KITS ============
 
 model Kit {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @default(uuid())
   code        String   @unique
   name        String
-  type        String   @default("GENERAL") // ALIMENTOS, EMERGENCIA, HIGIENE, GENERAL
   description String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   // Relations
-  kitProducts       KitProduct[]
-  requestKits       RequestKit[]
-  deliveryDetails   DeliveryDetail[]
-  inventory         KitInventory[]
+  kitProducts     KitProduct[]
+  requestKits     RequestKit[]
+  deliveryDetails DeliveryDetail[]
 
   @@map("kits")
 }
 
-model KitInventory {
-  id          String   @id @default(uuid()) @db.Uuid
-  kitId       String   @db.Uuid
-  kitBatchId  String?  @db.Uuid // Identificador único de lote para trazabilidad
-  quantity    Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  kit         Kit                    @relation(fields: [kitId], references: [id], onDelete: Cascade)
-  movements   KitInventoryMovement[]
-
-  @@unique([kitId])
-  @@map("kit_inventory")
-}
-
-model KitInventoryMovement {
-  id          String   @id @default(uuid()) @db.Uuid
-  kitInventoryId String @db.Uuid
-  kitBatchId  String?  @db.Uuid // Identificador único de lote del kit para trazabilidad
-  type        String   // ENTRY, EXIT
-  quantity    Int
-  lotNumber   String?
-  expiryDate  DateTime?
-  reason      String?
-  reference   String?
-  userId      String   @db.Uuid
-  createdAt   DateTime @default(now())
-
-  // Relations
-  kitInventory KitInventory @relation(fields: [kitInventoryId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id])
-
-  @@map("kit_inventory_movements")
-}
-
 model KitProduct {
-  id        String @id @default(uuid()) @db.Uuid
-  kitId     String @db.Uuid
-  productId String @db.Uuid
+  id        String @id @default(uuid())
+  kitId     String
+  productId String
   quantity  Int
 
   // Relations
@@ -264,7 +156,7 @@ model KitProduct {
 // PopulationType values: DISPLACED, REFUGEE, VULNERABLE, ELDERLY, DISABLED, INDIGENOUS, AFRO, OTHER
 
 model Beneficiary {
-  id             String   @id @default(uuid()) @db.Uuid
+  id             String   @id @default(uuid())
   documentType   String
   documentNumber String
   firstName      String
@@ -291,14 +183,14 @@ model Beneficiary {
 // RequestStatus values: REGISTERED, IN_REVIEW, APPROVED, REJECTED, DELIVERED, PARTIALLY_DELIVERED, CANCELLED
 
 model Request {
-  id            String   @id @default(uuid()) @db.Uuid
+  id            String   @id @default(uuid())
   code          String   @unique
-  beneficiaryId String   @db.Uuid
+  beneficiaryId String
   requestDate   DateTime @default(now())
   status        String   @default("REGISTERED")
   priority      Int      @default(0)
   notes         String?
-  createdById   String   @db.Uuid
+  createdById   String
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -314,9 +206,9 @@ model Request {
 }
 
 model RequestProduct {
-  id               String  @id @default(uuid()) @db.Uuid
-  requestId        String  @db.Uuid
-  productId        String  @db.Uuid
+  id               String  @id @default(uuid())
+  requestId        String
+  productId        String
   quantityRequested Int
   quantityDelivered Int    @default(0)
 
@@ -329,9 +221,9 @@ model RequestProduct {
 }
 
 model RequestKit {
-  id               String @id @default(uuid()) @db.Uuid
-  requestId        String @db.Uuid
-  kitId            String @db.Uuid
+  id               String @id @default(uuid())
+  requestId        String
+  kitId            String
   quantityRequested Int
   quantityDelivered Int   @default(0)
 
@@ -344,12 +236,12 @@ model RequestKit {
 }
 
 model RequestHistory {
-  id         String   @id @default(uuid()) @db.Uuid
-  requestId  String   @db.Uuid
+  id         String   @id @default(uuid())
+  requestId  String
   fromStatus String?
   toStatus   String
   notes      String?
-  userId     String   @db.Uuid
+  userId     String
   createdAt  DateTime @default(now())
 
   // Relations
@@ -360,90 +252,33 @@ model RequestHistory {
 }
 
 // ============ DELIVERIES ============
-// DeliveryStatus values: PENDING_AUTHORIZATION, AUTHORIZED, RECEIVED_WAREHOUSE, IN_PREPARATION, READY, DELIVERED, CANCELLED
-// Flujo: Solicitud Aprobada -> PENDING_AUTHORIZATION -> AUTHORIZED -> RECEIVED_WAREHOUSE -> IN_PREPARATION -> READY -> DELIVERED
 
 model Delivery {
-  id                  String    @id @default(uuid()) @db.Uuid
-  code                String    @unique
-  requestId           String    @db.Uuid
-  status              String    @default("PENDING_AUTHORIZATION")
-  
-  // Quien crea la solicitud de entrega (desde solicitud aprobada)
-  createdById         String?   @db.Uuid
-  
-  // PASO 1: Autorización (AUTHORIZER o ADMIN)
-  authorizedById      String?   @db.Uuid
-  authorizationDate   DateTime?
-  authorizationNotes  String?
-  authorizedQuantity  String?   // JSON con cantidades autorizadas por item
-  isPartialAuth       Boolean   @default(false) // Si es autorización parcial
-  
-  // PASO 2: Recepción en Bodega (WAREHOUSE)
-  warehouseUserId     String?   @db.Uuid
-  warehouseReceivedDate DateTime?
-  warehouseNotes      String?
-  
-  // PASO 3: Preparación (WAREHOUSE - puede ser diferente persona)
-  preparedById        String?   @db.Uuid
-  preparationDate     DateTime?
-  preparationNotes    String?
-  
-  // PASO 4: Entrega al beneficiario (DISPATCHER)
-  deliveredById       String?   @db.Uuid
-  deliveryDate        DateTime?
-  deliveryNotes       String?
-  
-  // Recepción del beneficiario
-  receivedBy          String?   // Nombre de quien recibe
-  receiverDocument    String?   // Documento de quien recibe
-  receiverSignature   String?   @db.Text // Firma digital (base64)
-  receptionDate       DateTime?
-  receptionNotes      String?
-  
-  notes               String?
-  isPartial           Boolean   @default(false)
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id           String   @id @default(uuid())
+  requestId    String
+  deliveryDate DateTime @default(now())
+  deliveredById String
+  receivedBy   String?
+  notes        String?
+  isPartial    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Relations
   request         Request          @relation(fields: [requestId], references: [id])
-  createdBy       User?            @relation("DeliveryCreator", fields: [createdById], references: [id])
-  authorizedBy    User?            @relation("DeliveryAuthorizer", fields: [authorizedById], references: [id])
-  warehouseUser   User?            @relation("DeliveryWarehouse", fields: [warehouseUserId], references: [id])
-  preparedBy      User?            @relation("DeliveryPreparer", fields: [preparedById], references: [id])
-  deliveredBy     User?            @relation("DeliveryDeliverer", fields: [deliveredById], references: [id])
+  deliveredBy     User             @relation(fields: [deliveredById], references: [id])
   deliveryDetails DeliveryDetail[]
   returns         Return[]
-  history         DeliveryHistory[]
-  notifications   Notification[]
 
   @@map("deliveries")
 }
 
-// Historial de cambios de estado de la entrega
-model DeliveryHistory {
-  id          String   @id @default(uuid()) @db.Uuid
-  deliveryId  String   @db.Uuid
-  fromStatus  String?
-  toStatus    String
-  notes       String?
-  userId      String   @db.Uuid
-  createdAt   DateTime @default(now())
-
-  // Relations
-  delivery    Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
-  user        User     @relation(fields: [userId], references: [id])
-
-  @@map("delivery_histories")
-}
-
 model DeliveryDetail {
-  id         String  @id @default(uuid()) @db.Uuid
-  deliveryId String  @db.Uuid
-  productId  String? @db.Uuid
-  kitId      String? @db.Uuid
-  lotId      String? @db.Uuid
+  id         String  @id @default(uuid())
+  deliveryId String
+  productId  String?
+  kitId      String?
+  lotId      String?
   quantity   Int
 
   // Relations
@@ -460,11 +295,11 @@ model DeliveryDetail {
 // ProductCondition values: GOOD, DAMAGED, EXPIRED, PARTIAL
 
 model Return {
-  id           String   @id @default(uuid()) @db.Uuid
-  deliveryId   String   @db.Uuid
+  id           String   @id @default(uuid())
+  deliveryId   String
   returnDate   DateTime @default(now())
   reason       String
-  processedById String  @db.Uuid
+  processedById String
   notes        String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -478,10 +313,10 @@ model Return {
 }
 
 model ReturnDetail {
-  id        String  @id @default(uuid()) @db.Uuid
-  returnId  String  @db.Uuid
-  productId String  @db.Uuid
-  lotId     String? @db.Uuid
+  id        String  @id @default(uuid())
+  returnId  String
+  productId String
+  lotId     String?
   quantity  Int
   condition String
 
@@ -493,93 +328,21 @@ model ReturnDetail {
   @@map("return_details")
 }
 
-// ============ NOTIFICATIONS ============
-// NotificationType values: INFO, ALERT, DELIVERY, REQUEST, SYSTEM, REMINDER
-// CriticalityLevel values: INFORMATIVE, LOW, NORMAL, MEDIUM, HIGH, CRITICAL
-// Channel values: INTERNAL, WHATSAPP, EMAIL, SMS
-
-model Notification {
-  id          String    @id @default(uuid()) @db.Uuid
-  code        String    @unique @default(uuid())
-  type        String
-  title       String
-  message     String    @db.Text
-  criticality String    @default("NORMAL")
-  
-  // Destinatario
-  receiverId  String    @db.Uuid
-  receiver    User      @relation("NotificationReceiver", fields: [receiverId], references: [id])
-  
-  // Remitente (quien generó la acción)
-  senderId    String?   @db.Uuid
-  sender      User?     @relation("NotificationSender", fields: [senderId], references: [id])
-  
-  // Referencia opcional a entidades
-  deliveryId  String?   @db.Uuid
-  delivery    Delivery? @relation(fields: [deliveryId], references: [id])
-  referenceType String?   // REQUEST, DELIVERY, INVENTORY, USER, etc.
-  referenceId   String?   // ID de la entidad relacionada
-  
-  // Canales de envío
-  channel       String    @default("INTERNAL")  // INTERNAL, WHATSAPP, EMAIL, SMS
-  whatsappSent  Boolean   @default(false)
-  whatsappSentAt DateTime?
-  whatsappMessageId String?  // ID del mensaje de WhatsApp para trazabilidad
-  whatsappError    String?   // Error si falló el envío
-  
-  // Estado
-  isRead      Boolean   @default(false)
-  readAt      DateTime?
-  
-  // Acción requerida
-  actionRequired Boolean  @default(false)
-  actionUrl      String?
-  
-  // Metadatos adicionales (JSON)
-  metadata    String?   @db.Text
-  
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  @@index([receiverId, isRead])
-  @@index([createdAt])
-  @@map("notifications")
-}
-
-// Plantillas de mensajes para WhatsApp
-model MessageTemplate {
-  id          String    @id @default(uuid()) @db.Uuid
-  name        String    @unique
-  type        String
-  criticality String    @default("NORMAL")
-  subject     String
-  body        String    @db.Text
-  icon        String?   // Emoji o ícono para el mensaje
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  @@map("message_templates")
-}
-
 // ============ AUDIT ============
 // AuditAction values: CREATE, UPDATE, DELETE
 
 model AuditLog {
-  id        String   @id @default(uuid()) @db.Uuid
+  id        String   @id @default(uuid())
   entity    String
   entityId  String
   action    String
-  oldValues String?  @db.Text
-  newValues String?  @db.Text
-  userId    String   @db.Uuid
+  oldValues String?
+  newValues String?
+  userId    String
   createdAt DateTime @default(now())
 
   // Relations
   user      User     @relation(fields: [userId], references: [id])
 
-  @@index([entity, entityId])
-  @@index([userId])
-  @@index([createdAt])
   @@map("audit_logs")
 }

@@ -16,34 +16,31 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
-  const [loading, setLoading] = useState(() => !!localStorage.getItem('token'));
-  const [initialized, setInitialized] = useState(false);
-
+  const [token, setToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  
   useEffect(() => {
-    // Solo ejecutar una vez al montar
-    if (initialized) return;
+    // Verificar si hay sesión activa al cargar
+    const savedToken = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
     
-    const initAuth = async () => {
-      const storedToken = localStorage.getItem('token');
-      if (storedToken) {
-        try {
-          const response = await authApi.me();
-          setUser(response.data.data);
-        } catch {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          setToken(null);
-          setUser(null);
-        }
+    if (savedToken && savedUser) {
+      try {
+        const userData = JSON.parse(savedUser);
+        setToken(savedToken);
+        setUser(userData);
+      } catch (error) {
+        console.error('Error parsing saved user:', error);
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
       }
-      setLoading(false);
-      setInitialized(true);
-    };
-    initAuth();
-  }, [initialized]);
+    }
+    
+        setLoading(false);
+  }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     const response = await authApi.login(email, password);
@@ -88,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const contextValue = useMemo(() => ({
     user,
     token,
-    isAuthenticated: !!user,
+    isAuthenticated: !!user && !!token,
     loading,
     login,
     logout,

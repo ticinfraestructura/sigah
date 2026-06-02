@@ -1,7 +1,13 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL || 'file:./dev.db'
+    }
+  }
+});
 
 // Protección: no ejecutar seed en producción
 if (process.env.NODE_ENV === 'production') {

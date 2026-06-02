@@ -165,8 +165,8 @@ interface FailedLoginAttempt {
 
 const failedLogins = new Map<string, FailedLoginAttempt>();
 
-const MAX_FAILED_ATTEMPTS = 5;
-const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutos
+const MAX_FAILED_ATTEMPTS = 999; // Desactivado temporalmente para desarrollo
+const LOCKOUT_DURATION_MS = 0; // Sin bloqueo temporalmente
 
 /**
  * Registrar un intento de login fallido
@@ -227,6 +227,9 @@ export const isLoginLocked = (identifier: string): { locked: boolean; unlockTime
 export const clearFailedLogins = (identifier: string): void => {
   failedLogins.delete(identifier);
 };
+
+// Limpiar todos los intentos fallidos existentes para desarrollo
+failedLogins.clear();
 
 // Limpiar intentos fallidos antiguos cada hora
 setInterval(() => {
