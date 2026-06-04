@@ -123,6 +123,11 @@ Para cada caso de prueba, registrar:
 | KIT-05 | Editar kit | 1. Editar KIT-TEST 2. Agregar un producto más 3. Guardar | Kit actualizado |
 | KIT-06 | Kit sin productos | 1. Intentar crear kit sin seleccionar productos | Error: "El kit debe tener al menos un producto" |
 | KIT-07 | Desactivar kit | 1. Eliminar KIT-TEST | Kit desactivado (soft delete) |
+| KIT-08 | **Egresos de Kits** | 1. Ir a Inventario → Egresos de Kits 2. Ver combo de selección | Muestra kits con cantidades disponibles |
+| KIT-09 | **Ver disponibilidad en combo** | 1. Ver opciones del combo | Cada kit muestra "X disponibles" con cantidad real |
+| KIT-10 | **Registrar egreso de kit** | 1. Seleccionar KIT-HIG-001 2. Cantidad=1 3. Motivo="Entrega a beneficiario" 4. Guardar | Stock de kit disminuye en 1, movimiento registrado |
+| KIT-11 | **Validación de stock negativo** | 1. Intentar egresar más de lo disponible | Error: "Stock insuficiente" |
+| KIT-12 | **Historial de egresos** | 1. Ver historial de egresos del kit | Muestra todos los egresos registrados |
 
 **🔍 Oportunidades de mejora:**
 - ¿Se ve claramente cuántos kits se pueden armar con el stock actual?

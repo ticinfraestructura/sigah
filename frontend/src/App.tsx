@@ -59,7 +59,9 @@ function App() {
                       <Layout>
                       <Routes>
                     <Route path="/" element={
-                      <InventoryDebug />
+                      <ProtectedRoute module="dashboard">
+                        <Dashboard />
+                      </ProtectedRoute>
                     } />
                     <Route path="/dashboard" element={
                       <ProtectedRoute module="dashboard">

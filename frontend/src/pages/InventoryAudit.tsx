@@ -33,6 +33,8 @@ const entityLabels: Record<string, string> = {
   'INVENTORY_ADJUSTMENT': 'Ajuste de Inventario',
   'INVENTORY_ENTRY': 'Entrada de Inventario',
   'StockMovement': 'Movimiento de Stock',
+  'Kit': 'Kit',
+  'KitInventoryMovement': 'Movimiento de Kit',
 };
 
 const actionLabels: Record<string, string> = {
@@ -40,6 +42,9 @@ const actionLabels: Record<string, string> = {
   'UPDATE': 'Actualización',
   'DELETE': 'Eliminación',
   'ADJUSTMENT': 'Ajuste',
+  'ENTRY': 'Entrada',
+  'EXIT': 'Salida',
+  'TRANSFER': 'Traslado',
 };
 
 const actionIcons: Record<string, any> = {
@@ -47,6 +52,9 @@ const actionIcons: Record<string, any> = {
   'UPDATE': Edit2,
   'DELETE': Trash2,
   'ADJUSTMENT': RefreshCw,
+  'ENTRY': Plus,
+  'EXIT': RefreshCw,
+  'TRANSFER': RefreshCw,
 };
 
 const actionColors: Record<string, string> = {
@@ -54,7 +62,12 @@ const actionColors: Record<string, string> = {
   'UPDATE': 'text-blue-600 bg-blue-100 dark:bg-blue-900/30',
   'DELETE': 'text-red-600 bg-red-100 dark:bg-red-900/30',
   'ADJUSTMENT': 'text-orange-600 bg-orange-100 dark:bg-orange-900/30',
+  'ENTRY': 'text-green-600 bg-green-100 dark:bg-green-900/30',
+  'EXIT': 'text-red-600 bg-red-100 dark:bg-red-900/30',
+  'TRANSFER': 'text-purple-600 bg-purple-100 dark:bg-purple-900/30',
 };
+
+const inventoryEntities = 'Product,Category,ProductLot,INVENTORY_ADJUSTMENT,INVENTORY_ENTRY,StockMovement,Kit,KitInventoryMovement';
 
 export default function InventoryAudit() {
   const toast = useToast();
@@ -89,11 +102,11 @@ export default function InventoryAudit() {
       
       // Solo incluir entidades relacionadas con inventario
       if (!params.entity) {
-        params.entity = 'Product,Category,ProductLot,INVENTORY_ADJUSTMENT,INVENTORY_ENTRY,StockMovement';
+        params.entity = inventoryEntities;
       }
       
       const response = await auditApi.search(params);
-      setLogs(response.data.data);
+      setLogs(response.data.data || []);
       setTotal(response.data.pagination?.total || 0);
     } catch (error) {
       console.error('Error fetching audit logs:', error);
@@ -145,7 +158,7 @@ export default function InventoryAudit() {
   const formatValue = (value: any): string => {
     if (value === null || value === undefined) return '-';
     if (typeof value === 'boolean') return value ? 'Sí' : 'No';
-    if (typeof value === 'object') return JSON.stringify(value);
+    if (typeof value === 'object') return JSON.stringify(value, null, 2);
     return String(value);
   };
 

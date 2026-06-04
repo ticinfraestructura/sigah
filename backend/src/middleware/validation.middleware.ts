@@ -1029,7 +1029,7 @@ export const auditZodSchemas = {
     entityId: z.string().trim().min(1).max(120)
   }),
   searchQuery: z.object({
-    entity: z.string().trim().max(80).optional(),
+    entity: z.string().trim().max(200).optional(),
     entityId: z.string().trim().max(120).optional(),
     userId: z.string().uuid('userId inválido').optional(),
     action: z.string().trim().max(80).optional(),
@@ -1047,7 +1047,7 @@ export const auditZodSchemas = {
     id2: z.string().trim().min(1)
   }),
   exportQuery: z.object({
-    entity: z.string().trim().max(80).optional(),
+    entity: z.string().trim().max(200).optional(),
     entityId: z.string().trim().max(120).optional(),
     userId: z.string().uuid('userId inválido').optional(),
     action: z.string().trim().max(80).optional(),

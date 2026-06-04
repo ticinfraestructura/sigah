@@ -115,7 +115,10 @@ export const searchAuditLogs = async (
   const { entity, entityId, userId, action, startDate, endDate, page = 1, limit = 50 } = params;
 
   const where: any = {};
-  if (entity) where.entity = entity;
+  if (entity) {
+    const entities = entity.split(',').map(item => item.trim()).filter(Boolean);
+    where.entity = entities.length > 1 ? { in: entities } : entity;
+  }
   if (entityId) where.entityId = entityId;
   if (userId) where.userId = userId;
   if (action) where.action = action;

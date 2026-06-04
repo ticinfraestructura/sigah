@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { 
   Package, FolderTree, Boxes, ArrowUpDown, Plus, Search, Edit2, Trash2, 
   RotateCcw, AlertTriangle, Clock, X, TrendingUp, TrendingDown, RefreshCw,
-  History, Calendar, User
+  History, Calendar, User, Send
 } from 'lucide-react';
 import { productApi, categoryApi, inventoryApi, kitApi } from '../services/api';
 import { Product, Category, ProductLot, StockMovement, Unit, Kit } from '../types';
 import { useToast } from '../components/ui/Toast';
 import KitEntriesTab from '../components/KitEntriesTab';
+import KitExits from './KitExits';
 
 const unitLabels: Record<string, string> = {
   UNIT: 'Unidad',
@@ -33,7 +34,7 @@ const movementTypeColors: Record<string, string> = {
   RETURN: 'text-purple-600 bg-purple-50 dark:bg-purple-900/30'
 };
 
-type TabType = 'products' | 'categories' | 'lots' | 'movements' | 'adjustments' | 'kitEntries';
+type TabType = 'products' | 'categories' | 'lots' | 'movements' | 'adjustments' | 'kitEntries' | 'kitExits';
 
 export default function InventoryManagement() {
   const [activeTab, setActiveTab] = useState<TabType>('products');
@@ -45,6 +46,7 @@ export default function InventoryManagement() {
     { id: 'movements' as TabType, label: 'Movimientos', icon: ArrowUpDown },
     { id: 'adjustments' as TabType, label: 'Ajustes/Entradas', icon: RefreshCw },
     { id: 'kitEntries' as TabType, label: 'Ingresos de Kits', icon: Boxes },
+    { id: 'kitExits' as TabType, label: 'Egresos de Kits', icon: Send },
   ];
 
   return (
@@ -81,6 +83,7 @@ export default function InventoryManagement() {
       {activeTab === 'movements' && <MovementsTab />}
       {activeTab === 'adjustments' && <AdjustmentsTab />}
       {activeTab === 'kitEntries' && <KitEntriesTab />}
+      {activeTab === 'kitExits' && <KitExits />}
     </div>
   );
 }

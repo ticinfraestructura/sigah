@@ -299,6 +299,8 @@ export const inventoryApi = {
     api.post('/inventory/entry', data),
   createKitEntry: (data: { kitId: string; quantity: number; lotNumber?: string; expiryDate?: string; reason?: string }) =>
     api.post('/inventory/kit-entry', data),
+  createKitExit: (data: { kitId: string; quantity: number; reason?: string; reference?: string }) =>
+    api.post('/inventory/kit-exit', data),
 };
 
 // Dashboard

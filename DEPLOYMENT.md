@@ -1,20 +1,70 @@
 # SIGAH - Guía de Despliegue
 
+## Índice
+1. [Requisitos Previos](#requisitos-previos)
+2. [Despliegue Local](#despliegue-local)
+3. [Despliegue en Producción](#despliegue-en-producción)
+4. [Configuración de Entorno](#configuración-de-entorno)
+5. [Monitoreo y Mantenimiento](#monitoreo-y-mantenimiento)
+6. [Solución de Problemas](#solución-de-problemas)
+7. [Arquitectura](#arquitectura)
+
 ## Requisitos Previos
 
 ### En tu máquina local (Windows)
 - Git instalado ([descargar](https://git-scm.com/download/win))
 - Cuenta en GitHub
+- Docker Desktop (para desarrollo local)
 
 ### En el servidor On-Premise
 - Docker instalado ([guía](https://docs.docker.com/engine/install/))
 - Docker Compose instalado
 - Git instalado
-- Mínimo 2GB RAM, 20GB disco
+- Mínimo 4GB RAM, 50GB disco (recomendado 8GB RAM, 100GB disco)
+- Acceso a internet para descargas iniciales
 
 ---
 
-## Paso 1: Subir a GitHub
+## Despliegue Local
+
+### 1.1 Clonar y configurar
+
+```bash
+# Clonar repositorio
+git clone https://github.com/TU_USUARIO/sigah.git
+cd sigah
+
+# Copiar variables de entorno
+cp .env.example .env
+
+# Editar variables (opcional para desarrollo)
+nano .env
+```
+
+### 1.2 Iniciar servicios
+
+```bash
+# Iniciar todos los servicios
+docker-compose up -d
+
+# Esperar 90 segundos para que inicien
+sleep 90
+
+# Cargar datos de prueba
+docker exec sigah-backend npx prisma db seed
+```
+
+### 1.3 Acceder localmente
+
+- Frontend: http://localhost:8080/sigah/
+- Backend API: http://localhost:3001
+- Base de Datos: localhost:5432
+
+---
+
+## Despliegue en Producción
+
+### Paso 1: Subir a GitHub
 
 ### 1.1 Crear repositorio en GitHub
 1. Ir a [github.com](https://github.com) e iniciar sesión
@@ -127,9 +177,126 @@ exit
 
 ---
 
+## Configuración de Entorno
+
+### Variables de Entorno (.env)
+
+```env
+# Base de Datos
+DATABASE_URL="postgresql://sigah:password@postgres:5432/sigah"
+POSTGRES_USER=sigah
+POSTGRES_PASSWORD=TuPasswordSeguro2024!
+POSTGRES_DB=sigah
+
+# JWT
+JWT_SECRET="UnSecretoMuyLargoDeAlMenos64CaracteresParaJWT2024!"
+JWT_EXPIRES_IN="24h"
+
+# Redis
+REDIS_URL="redis://redis:6379"
+
+# Frontend
+VITE_API_URL="http://localhost:3001"
+VITE_BASE_PATH="/sigah/"
+
+# Servidor
+APP_PORT=80
+ALLOWED_ORIGINS="http://tu-servidor.com,http://IP_SERVIDOR"
+
+# Email (opcional)
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT=587
+SMTP_USER="tu-email@gmail.com"
+SMTP_PASS="tu-app-password"
+```
+
+### Configuración de Producción Adicional
+
+```env
+# Producción
+NODE_ENV=production
+LOG_LEVEL=info
+
+# SSL (opcional)
+SSL_CERT_PATH="/path/to/cert.pem"
+SSL_KEY_PATH="/path/to/key.pem"
+
+# Monitoreo
+ENABLE_METRICS=true
+METRICS_PORT=9090
+```
+
+---
+
+## Monitoreo y Mantenimiento
+
+### Health Checks
+
+```bash
+# Verificar salud de servicios
+curl http://localhost:3001/api/health
+curl http://localhost:8080/sigah/
+
+# Verificar contenedores
+docker-compose ps
+docker-compose top
+```
+
+### Logs y Monitoreo
+
+```bash
+# Ver logs en tiempo real
+docker-compose logs -f
+docker-compose logs -f backend
+docker-compose logs -f frontend
+
+# Logs específicos
+docker-compose logs --tail=100 backend
+docker-compose logs --since="1h" postgres
+```
+
+### Backup Automático
+
+```bash
+#!/bin/bash
+# backup.sh - Backup diario automático
+
+DATE=$(date +%Y%m%d_%H%M%S)
+BACKUP_DIR="/backups/sigah"
+
+mkdir -p $BACKUP_DIR
+
+# Backup base de datos
+docker-compose exec -T postgres pg_dump -U sigah sigah > $BACKUP_DIR/sigah_db_$DATE.sql
+
+# Backup configuración
+tar -czf $BACKUP_DIR/sigah_config_$DATE.tar.gz .env docker-compose.yml
+
+# Limpiar backups antiguos (7 días)
+find $BACKUP_DIR -name "*.sql" -mtime +7 -delete
+find $BACKUP_DIR -name "*.tar.gz" -mtime +7 -delete
+
+echo "Backup completado: $DATE"
+```
+
+### Actualizaciones
+
+```bash
+# Actualizar aplicación
+cd /ruta/a/sigah
+git pull origin main
+docker-compose up -d --build
+
+# Verificar después de actualización
+docker-compose ps
+curl http://localhost:3001/api/health
+```
+
+---
+
 ## Comandos Útiles
 
-### Gestión de contenedores
+### Gestión de Contenedores
 ```bash
 # Detener servicios
 docker-compose down
@@ -143,9 +310,12 @@ docker-compose logs -f
 # Actualizar después de cambios
 git pull
 docker-compose up -d --build
+
+# Limpiar recursos no utilizados
+docker system prune -f
 ```
 
-### Base de datos
+### Base de Datos
 ```bash
 # Acceder a PostgreSQL
 docker-compose exec postgres psql -U sigah -d sigah
@@ -155,6 +325,9 @@ docker-compose exec postgres pg_dump -U sigah sigah > backup.sql
 
 # Restaurar backup
 docker-compose exec -T postgres psql -U sigah sigah < backup.sql
+
+# Ver tamaño de BD
+docker-compose exec postgres psql -U sigah -d sigah -c "SELECT pg_size_pretty(pg_database_size('sigah'));"
 ```
 
 ### Prisma
@@ -167,46 +340,155 @@ docker-compose exec backend npx prisma migrate status
 
 # Abrir Prisma Studio (debug)
 docker-compose exec backend npx prisma studio
+
+# Resetear base de datos (cuidado: pierde datos)
+docker-compose exec backend npx prisma db push --force-reset
 ```
 
 ---
 
 ## Solución de Problemas
 
-### Error: "DB_PASSWORD is required"
+### Errores Comunes
+
+#### Error: "DB_PASSWORD is required"
 ```bash
 # Verificar que .env existe y tiene valores
 cat .env
+
+# Recrear archivo .env si falta
+cp .env.example .env
+nano .env
 ```
 
-### Error de conexión a base de datos
+#### Error de conexión a base de datos
 ```bash
 # Verificar que postgres está corriendo
 docker-compose ps
 
 # Ver logs de postgres
 docker-compose logs postgres
+
+# Verificar conexión
+docker-compose exec postgres psql -U sigah -d sigah -c "SELECT 1;"
 ```
 
-### Página en blanco o error 502
+#### Página en blanco o error 502
 ```bash
 # Verificar estado del backend
 docker-compose logs backend
+
+# Verificar estado del frontend
+docker-compose logs frontend
 
 # Reiniciar servicios
 docker-compose restart
 ```
 
-### Actualizar la aplicación
+#### Error de permisos (permission denied)
 ```bash
-cd sigah
+# Verificar permisos de archivos
+ls -la .env docker-compose.yml
+
+# Corregir permisos si es necesario
+chmod 644 .env docker-compose.yml
+```
+
+#### Contenedor no inicia
+```bash
+# Verificar recursos del sistema
+docker system df
+docker system prune -f
+
+# Verificar puerto disponible
+netstat -tulpn | grep :80
+netstat -tulpn | grep :3001
+```
+
+#### Problemas de memoria
+```bash
+# Verificar uso de memoria
+docker stats
+
+# Aumentar límite de memoria si es necesario
+# Editar docker-compose.yml y agregar:
+# mem_limit: 2g
+```
+
+### Diagnóstico Avanzado
+
+#### Verificar configuración de red
+```bash
+# Verificar redes Docker
+docker network ls
+docker network inspect sigah_default
+
+# Verificar conectividad entre contenedores
+docker-compose exec backend ping postgres
+docker-compose exec frontend ping backend
+```
+
+#### Debug de contenedores
+```bash
+# Entrar a contenedor para debug
+docker-compose exec backend sh
+docker-compose exec frontend sh
+
+# Ver variables de entorno
+docker-compose exec backend env | grep -E "(DATABASE|JWT|REDIS)"
+```
+
+#### Logs detallados
+```bash
+# Logs con timestamp
+docker-compose logs -f --tail=100 --timestamps
+
+# Logs de último reinicio
+docker-compose logs --since=$(docker inspect sigah-backend --format='{{.State.StartedAt}}')
+```
+
+### Recuperación de Desastres
+
+#### Restaurar desde backup
+```bash
+# Detener servicios
+docker-compose down
+
+# Restaurar base de datos
+docker-compose up -d postgres
+sleep 30
+docker-compose exec -T postgres psql -U sigah sigah < backup.sql
+
+# Iniciar todos los servicios
+docker-compose up -d
+```
+
+#### Reset completo (último recurso)
+```bash
+# ⚠️ Esto elimina todos los datos
+docker-compose down -v
+docker system prune -f
+docker-compose up -d
+docker exec sigah-backend npx prisma db seed
+```
+
+### Actualización de la Aplicación
+```bash
+# Actualizar aplicación
+cd /ruta/a/sigah
 git pull origin main
 docker-compose up -d --build
+
+# Verificar después de actualización
+docker-compose ps
+curl http://localhost:3001/api/health
 ```
 
 ---
 
 ## Arquitectura
+
+### Diagrama de Componentes
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -229,8 +511,194 @@ docker-compose up -d --build
 └─────────────────────────────────────────────────────────┘
 ```
 
+### Flujo de Datos
+
+```
+Usuario → Nginx → Frontend (React)
+                ↓
+         Backend API (Express)
+                ↓
+         PostgreSQL + Redis
+```
+
+### Volúmenes y Persistencia
+
+```yaml
+volumes:
+  postgres_data:    # Datos de PostgreSQL
+  redis_data:       # Cache de Redis
+  nginx_logs:       # Logs de Nginx
+  app_logs:         # Logs de aplicación
+```
+
+### Redes
+
+```yaml
+networks:
+  sigah-network:    # Red interna de contenedores
+  external-network: # Conexión externa (opcional)
+```
+
 ---
 
-## Contacto
+## Rendimiento y Escalabilidad
 
-Para soporte técnico o preguntas, contactar al administrador del sistema.
+### Recursos Recomendados
+
+| Componente | Mínimo | Recomendado | Producción |
+|------------|--------|-------------|------------|
+| CPU        | 2 cores | 4 cores     | 8 cores    |
+| RAM        | 4 GB    | 8 GB        | 16 GB      |
+| Disco      | 50 GB   | 100 GB      | 500 GB     |
+| Red        | 100 Mbps| 1 Gbps      | 10 Gbps    |
+
+### Optimizaciones
+
+#### Base de Datos
+```sql
+-- Índices recomendados
+CREATE INDEX CONCURRENTLY idx_products_category ON products(categoryId);
+CREATE INDEX CONCURRENTLY idx_stock_movements_product_date ON stock_movements(productId, createdAt);
+CREATE INDEX CONCURRENTLY idx_deliveries_status ON deliveries(status);
+```
+
+#### Nginx
+```nginx
+# Optimización para producción
+worker_processes auto;
+worker_connections 1024;
+
+gzip on;
+gzip_types text/plain text/css application/json application/javascript;
+
+# Cache estático
+location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
+    expires 1y;
+    add_header Cache-Control "public, immutable";
+}
+```
+
+#### Backend
+```javascript
+// Configuración de conexión a BD
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL,
+    },
+  },
+  log: ['query', 'info', 'warn', 'error'],
+});
+
+// Pool de conexiones
+// (Configurado en DATABASE_URL)
+// postgresql://user:pass@host:5432/db?connection_limit=20&pool_timeout=20
+```
+
+### Monitoreo de Rendimiento
+
+```bash
+# Métricas de contenedores
+docker stats --no-stream
+
+# Uso de disco
+df -h
+docker system df
+
+# Conexiones a BD
+docker-compose exec postgres psql -U sigah -d sigah -c "
+SELECT count(*) as active_connections 
+FROM pg_stat_activity 
+WHERE state = 'active';
+"
+```
+
+---
+
+## Seguridad en Producción
+
+### Configuración SSL/TLS
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name tu-servidor.com;
+    
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+    
+    # Configuración SSL segura
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512;
+    ssl_prefer_server_ciphers off;
+    
+    # Headers de seguridad
+    add_header Strict-Transport-Security "max-age=63072000" always;
+    add_header X-Frame-Options DENY;
+    add_header X-Content-Type-Options nosniff;
+}
+```
+
+### Firewall
+
+```bash
+# Reglas de firewall (ufw example)
+sudo ufw allow 22/tcp    # SSH
+sudo ufw allow 80/tcp    # HTTP
+sudo ufw allow 443/tcp   # HTTPS
+sudo ufw deny 3001/tcp   # Backend solo interno
+sudo ufw deny 5432/tcp   # PostgreSQL solo interno
+sudo ufw enable
+```
+
+### Backup y Recuperación
+
+```bash
+#!/bin/bash
+# backup-produccion.sh
+
+BACKUP_DIR="/backups/sigah/produccion"
+DATE=$(date +%Y%m%d_%H%M%S)
+RETENTION_DAYS=30
+
+mkdir -p $BACKUP_DIR
+
+# Backup completo
+docker-compose exec -T postgres pg_dump -U sigah sigah | gzip > $BACKUP_DIR/sigah_full_$DATE.sql.gz
+
+# Backup incremental (logs)
+docker-compose logs --since="24h" > $BACKUP_DIR/logs_$DATE.log
+
+# Limpiar backups antiguos
+find $BACKUP_DIR -name "*.gz" -mtime +$RETENTION_DAYS -delete
+find $BACKUP_DIR -name "*.log" -mtime +7 -delete
+
+echo "Backup completado: $DATE"
+```
+
+---
+
+## Contacto y Soporte
+
+### Soporte Técnico
+- **Email**: soporte@sigah.org
+- **Issues**: [GitHub Issues](https://github.com/your-org/sigah/issues)
+- **Documentación**: [Wiki del Proyecto](https://github.com/your-org/sigah/wiki)
+
+### Canales de Comunicación
+- **Slack**: #sigah-support (invitación requerida)
+- **Teams**: Canal SIGAH (para organizaciones)
+- **Email Urgente**: emergency@sigah.org
+
+### Niveles de Soporte
+
+| Nivel | Descripción | Tiempo de Respuesta |
+|-------|-------------|-------------------|
+| Crítico | Sistema caído, pérdida de datos | 1 hora |
+| Alto | Funcionalidad principal afectada | 4 horas |
+| Medio | Funcionalidad parcial afectada | 24 horas |
+| Bajo | Mejoras, consultas generales | 72 horas |
+
+---
+
+*Última actualización: Junio 2, 2024*

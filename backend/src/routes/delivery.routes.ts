@@ -643,6 +643,41 @@ router.post('/:id/deliver', authenticate, authorize('ADMIN', 'DISPATCHER'), vali
         if (detail.kitId) {
           const requestKit = (delivery.request.requestKits as any[]).find((rk: any) => rk.kitId === detail.kitId);
           if (requestKit?.kit) {
+            const kitInventory = await tx.kitInventory.upsert({
+              where: { kitId: detail.kitId },
+              update: { quantity: { decrement: detail.quantity } },
+              create: { kitId: detail.kitId, quantity: -detail.quantity }
+            });
+
+            await tx.kitInventoryMovement.create({
+              data: {
+                kitInventoryId: kitInventory.id,
+                type: 'EXIT',
+                quantity: -detail.quantity,
+                reason: `Entrega ${delivery.code} - Kit ${requestKit.kit.code}`,
+                reference: delivery.id,
+                userId: req.user!.id
+              }
+            });
+
+            await tx.auditLog.create({
+              data: {
+                entity: 'KitInventoryMovement',
+                entityId: kitInventory.id,
+                action: 'EXIT',
+                userId: req.user!.id,
+                oldValues: null,
+                newValues: JSON.stringify({
+                  kitId: detail.kitId,
+                  kitCode: requestKit.kit.code,
+                  kitName: requestKit.kit.name,
+                  quantity: detail.quantity,
+                  deliveryCode: delivery.code,
+                  reference: delivery.id
+                })
+              }
+            });
+
             for (const kp of requestKit.kit.kitProducts) {
               const totalQty = kp.quantity * detail.quantity;
               const allocations = await inventoryService.allocateStockFEFO(kp.productId, totalQty);

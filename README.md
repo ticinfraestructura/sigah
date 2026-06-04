@@ -137,7 +137,9 @@ El sistema implementa un flujo de entregas con segregación de funciones para ga
 - Composición flexible de productos
 - Verificación de disponibilidad
 - Registro de entradas de stock por kit desde Inventario
-- Historial de ingresos de kits agrupado por evento, usuario y productos afectados
+- **Egresos manuales de kits con control de stock**
+- Historial de ingresos y egresos de kits agrupado por evento, usuario y productos afectados
+- Disponibilidad en tiempo real en el combo de selección
 
 ### Solicitudes y Entregas
 - Registro de beneficiarios
@@ -188,9 +190,10 @@ Si se usa un motivo personalizado, debe incluir el código del kit para que el m
 - `GET /api/inventory/expiring` - Productos por vencer
 
 ### Kits
-- `GET /api/kits` - Listar kits
+- `GET /api/kits` - Listar kits (con inventario)
 - `POST /api/kits` - Crear kit
 - `GET /api/kits/:id/availability` - Verificar disponibilidad
+- `POST /api/inventory/kit-exit` - Registrar egreso manual de kit
 
 ### Solicitudes
 - `GET /api/requests` - Listar solicitudes
