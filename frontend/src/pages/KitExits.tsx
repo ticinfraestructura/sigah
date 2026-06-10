@@ -55,7 +55,7 @@ export default function KitExits() {
           try {
             // Consultar la disponibilidad del kit
             const availabilityResponse = await kitApi.getAvailability(kit.id);
-            const availableQuantity = availabilityResponse.data?.available || 0;
+            const availableQuantity = availabilityResponse.data?.data?.maxAvailable || 0;
             
             return {
               ...kit,

@@ -5,12 +5,18 @@
                                 "percentage":  13.33,
                                 "name":  "Ajustar formato de combobox para mostrar cantidades en paréntesis",
                                 "time":  "07:59:10"
+                            },
+                            {
+                                "tokens":  2,
+                                "percentage":  13.33,
+                                "name":  "Arreglar acceso a maxAvailable en endpoint getAvailability",
+                                "time":  "08:03:06"
                             }
                         ],
     "alerts_triggered":  [
 
                          ],
-    "daily_tokens_used":  2,
+    "daily_tokens_used":  4,
     "date":  "2026-06-10",
     "daily_limit":  15,
     "day":  "Wednesday"
