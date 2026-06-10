@@ -49,19 +49,25 @@ export default function KitExits() {
       const kitsResponse = await kitApi.getAll();
       const allKits = kitsResponse.data.data || [];
       
+      console.log('🔍 Kits encontrados:', allKits.length);
+      
       // Para cada kit, obtener su disponibilidad real desde kitInventory
       const kitsWithAvailability = await Promise.all(
         allKits.map(async (kit: any) => {
           try {
             // Consultar la disponibilidad del kit
             const availabilityResponse = await kitApi.getAvailability(kit.id);
+            console.log(`📊 Kit ${kit.code}:`, availabilityResponse.data);
             const availableQuantity = availabilityResponse.data?.data?.maxAvailable || 0;
+            
+            console.log(`✅ ${kit.code} - Disponibilidad: ${availableQuantity}`);
             
             return {
               ...kit,
               totalAvailable: availableQuantity
             };
           } catch (error) {
+            console.log(`❌ Error en ${kit.code}:`, error);
             // Si no hay inventario, mostrar 0
             return {
               ...kit,
@@ -71,8 +77,10 @@ export default function KitExits() {
         })
       );
       
+      console.log('🎯 Kits con disponibilidad:', kitsWithAvailability);
       setKits(kitsWithAvailability);
     } catch (error: any) {
+      console.error('❌ Error general:', error);
       toast.error(error.response?.data?.error || 'No se pudieron cargar los kits');
     } finally {
       setLoading(false);
