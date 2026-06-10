@@ -230,13 +230,3 @@ export const clearFailedLogins = (identifier: string): void => {
 
 // Limpiar todos los intentos fallidos existentes para desarrollo
 failedLogins.clear();
-
-// Limpiar intentos fallidos antiguos cada hora
-setInterval(() => {
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-  for (const [identifier, attempt] of failedLogins.entries()) {
-    if (attempt.lastAttempt < oneHourAgo && !attempt.lockedUntil) {
-      failedLogins.delete(identifier);
-    }
-  }
-}, 60 * 60 * 1000);
