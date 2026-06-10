@@ -10,8 +10,6 @@ import { useToast } from '../components/ui/Toast';
 import KitEntriesTab from '../components/KitEntriesTab';
 import KitExits from './KitExits';
 
-console.log('📦 KitExits importado correctamente:', KitExits);
-
 const unitLabels: Record<string, string> = {
   UNIT: 'Unidad',
   KG: 'Kilogramo',
@@ -85,60 +83,7 @@ export default function InventoryManagement() {
       {activeTab === 'movements' && <MovementsTab />}
       {activeTab === 'adjustments' && <AdjustmentsTab />}
       {activeTab === 'kitEntries' && <KitEntriesTab />}
-      {activeTab === 'kitExits' && (
-        console.log('🎯 Renderizando KitExits inline, activeTab:', activeTab),
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Egresos de Kits</h2>
-            <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Seleccionar Kit
-                  </label>
-                  <select className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white">
-                    <option value="">-- Seleccione un kit --</option>
-                    <option value="KIT-ALI-001">KIT-ALI-001 - Kit de Alimentos Básico (5)</option>
-                    <option value="KIT-HIG-001">KIT-HIG-001 - Kit de Aseo Personal (12)</option>
-                    <option value="KIT-EME">KIT-EME - Kit de Emergencia (20)</option>
-                    <option value="KIT-ALI">KIT-ALI - Kit Alimentario Familiar (1)</option>
-                    <option value="KIT-ASE">KIT-ASE - Kit de Aseo Personal (0)</option>
-                    <option value="KIT-EME-001">KIT-EME-001 - Kit de Emergencia (0)</option>
-                  </select>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Cantidad
-                    </label>
-                    <input type="number" min="1" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white" placeholder="1" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Motivo
-                    </label>
-                    <input type="text" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white" placeholder="Motivo del egreso" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Referencia
-                  </label>
-                  <input type="text" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white" placeholder="Referencia (opcional)" />
-                </div>
-                <div className="flex justify-end space-x-3">
-                  <button type="button" className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
-                    Cancelar
-                  </button>
-                  <button type="button" className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
-                    Registrar Egreso
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {activeTab === 'kitExits' && <KitExits />}
     </div>
   );
 }

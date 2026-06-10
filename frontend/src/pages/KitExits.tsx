@@ -18,10 +18,7 @@ interface KitOption {
 }
 
 export default function KitExits() {
-  try {
-    console.log('🚀 Componente KitExits MONTADO - Iniciando carga...');
-    
-    const toast = useToast();
+  const toast = useToast();
   const [kits, setKits] = useState<KitOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -52,22 +49,14 @@ export default function KitExits() {
       const kitsResponse = await kitApi.getAll();
       const allKits = kitsResponse.data.data || [];
       
-      console.log('🔍 Kits encontrados:', allKits.length);
-      
-      // Procesar kits para obtener stock real del inventario
       const kitsWithAvailability = allKits.map((kit: any) => {
-        // Usar el stock real del inventario si existe, si no, mostrar 0
         const availableQuantity = kit.inventory?.[0]?.quantity || 0;
-        
-        console.log(`✅ ${kit.code} - Stock real: ${availableQuantity} unidades`);
-        
+
         return {
           ...kit,
           totalAvailable: availableQuantity
         };
       });
-      
-      console.log('🎯 Kits con stock real:', kitsWithAvailability);
       setKits(kitsWithAvailability);
     } catch (error: any) {
       console.error('❌ Error general:', error);
@@ -268,16 +257,4 @@ export default function KitExits() {
       </div>
     </div>
   );
-  } catch (error) {
-    console.error('❌ Error en KitExits:', error);
-    return (
-      <div className="p-6">
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <h3 className="text-red-800 dark:text-red-200 font-semibold mb-2">Error al cargar el componente</h3>
-          <p className="text-red-600 dark:text-red-400 text-sm">Ha ocurrido un error al cargar el módulo de egresos de kits.</p>
-          <p className="text-red-500 dark:text-red-500 text-xs mt-2">Error: {error instanceof Error ? error.message : 'Error desconocido'}</p>
-        </div>
-      </div>
-    );
-  }
 }
