@@ -405,7 +405,7 @@ router.post('/kit-exit', authenticate, authorize('ADMIN', 'WAREHOUSE'), async (r
       throw new AppError('El kit no tiene productos asociados', 400);
     }
 
-    const availableKits = kit.inventory?.quantity || 0;
+    const availableKits = kit.inventory?.[0]?.quantity || 0;
     if (availableKits < exitQuantity) {
       throw new AppError(`Stock insuficiente del kit. Disponibles: ${availableKits}`, 400);
     }
