@@ -157,11 +157,17 @@ export default function KitExits() {
               className="input"
             >
               <option value="">Seleccione un kit</option>
-              {kits.filter(kit => kit.totalAvailable > 0).map(kit => (
-                <option key={kit.id} value={kit.id}>
-                  {kit.code} - {kit.name} ({kit.totalAvailable})
-                </option>
-              ))}
+              {kits.filter(kit => kit.totalAvailable > 0).length > 0
+                ? kits.filter(kit => kit.totalAvailable > 0).map(kit => (
+                    <option key={kit.id} value={kit.id}>
+                      {kit.code} - {kit.name} ({kit.totalAvailable})
+                    </option>
+                  ))
+                : kits.map(kit => (
+                    <option key={kit.id} value={kit.id}>
+                      {kit.code} - {kit.name} ({kit.totalAvailable})
+                    </option>
+                  ))}
             </select>
           </div>
 
