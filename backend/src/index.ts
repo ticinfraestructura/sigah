@@ -9,7 +9,7 @@ import { PrismaClient } from '@prisma/client';
 import swaggerUi from 'swagger-ui-express';
 
 // Routes
-import authRoutes from './routes/auth-simple.routes';
+import authRoutes from './routes/auth.routes';
 import categoryRoutes from './routes/category.routes';
 import productRoutes from './routes/product.routes';
 import kitRoutes from './routes/kit.routes';

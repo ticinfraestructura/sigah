@@ -33,6 +33,7 @@ model User {
   auditLogs         AuditLog[]
   notificationsReceived Notification[] @relation("NotificationReceiver")
   notificationsSent   Notification[]    @relation("NotificationSender")
+  kitInventoryMovements KitInventoryMovement[]
 
   @@map("users")
 }
