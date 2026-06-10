@@ -32,7 +32,7 @@ router.get('/', authenticate, validateZodRequest({ query: kitZodSchemas.listQuer
     // Obtener inventario de kits por separado
     const kitInventory = await prisma.$queryRaw`
       SELECT 
-        ki.kit_id as kitId,
+        ki."kitId" as kitId,
         ki.quantity
       FROM kit_inventory ki
       WHERE ki.quantity > 0
