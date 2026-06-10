@@ -10,6 +10,8 @@ import { useToast } from '../components/ui/Toast';
 import KitEntriesTab from '../components/KitEntriesTab';
 import KitExits from './KitExits';
 
+console.log('📦 KitExits importado correctamente:', KitExits);
+
 const unitLabels: Record<string, string> = {
   UNIT: 'Unidad',
   KG: 'Kilogramo',
