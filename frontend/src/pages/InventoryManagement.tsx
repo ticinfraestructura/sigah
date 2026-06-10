@@ -83,7 +83,10 @@ export default function InventoryManagement() {
       {activeTab === 'movements' && <MovementsTab />}
       {activeTab === 'adjustments' && <AdjustmentsTab />}
       {activeTab === 'kitEntries' && <KitEntriesTab />}
-      {activeTab === 'kitExits' && <KitExits />}
+      {activeTab === 'kitExits' && (
+        console.log('🎯 Intentando renderizar KitExits, activeTab:', activeTab),
+        <KitExits />
+      )}
     </div>
   );
 }
