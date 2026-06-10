@@ -67,20 +67,29 @@ export const authenticate = async (
     };
 
     const prisma: PrismaClient = req.app.get('prisma');
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.id },
-      include: {
-        role: {
-          include: {
-            permissions: {
-              include: {
-                permission: true
+    // Si el schema no tiene relación User.role, omitir include
+    let user;
+    try {
+      user = await prisma.user.findUnique({
+        where: { id: decoded.id },
+        include: {
+          role: {
+            include: {
+              permissions: {
+                include: {
+                  permission: true
+                }
               }
             }
           }
         }
-      }
-    });
+      });
+    } catch {
+      // Fallback para schema donde User.role es string
+      user = await prisma.user.findUnique({
+        where: { id: decoded.id }
+      });
+    }
 
     if (!user || !user.isActive) {
       throw new AppError('Usuario no encontrado o inactivo', 401);
@@ -88,26 +97,33 @@ export const authenticate = async (
 
     // Obtener permisos del rol
     let permissions: UserPermission[] = [];
+    let roleName = 'Sin Rol';
     
-    if (user.role) {
+    // Si user.role es objeto (relación), usarlo; si es string, asignar directamente
+    if (typeof user.role === 'object' && user.role !== null) {
+      roleName = user.role.name || 'Sin Rol';
       // Verificar cache
       const cached = permissionsCache.get(user.role.id);
       if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
         permissions = cached.permissions;
       } else {
-        permissions = user.role.permissions.map(rp => ({
+        permissions = user.role.permissions.map((rp: any) => ({
           module: rp.permission.module,
           action: rp.permission.action
         }));
         permissionsCache.set(user.role.id, { permissions, timestamp: Date.now() });
       }
+    } else if (typeof user.role === 'string') {
+      roleName = user.role;
+      // Para schemas con role como string, no hay permisos granulares
+      permissions = [];
     }
 
     req.user = {
       id: user.id,
       email: user.email,
-      roleId: user.roleId,
-      roleName: user.role?.name || 'Sin Rol',
+      roleId: (user as any).roleId || null,
+      roleName,
       firstName: user.firstName,
       lastName: user.lastName,
       permissions
