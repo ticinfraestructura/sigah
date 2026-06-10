@@ -24,13 +24,30 @@ router.get('/', authenticate, validateZodRequest({ query: kitZodSchemas.listQuer
               include: { category: true }
             }
           }
-        },
-        inventory: true
+        }
       },
       orderBy: { name: 'asc' }
     });
 
-    res.json({ success: true, data: kits });
+    // Obtener inventario de kits por separado
+    const kitInventory = await prisma.$queryRaw`
+      SELECT 
+        ki.kit_id as kitId,
+        ki.quantity
+      FROM kit_inventory ki
+      WHERE ki.quantity > 0
+    `;
+
+    // Combinar kits con su inventario
+    const kitsWithInventory = kits.map(kit => {
+      const inventory = (kitInventory as any[]).find((inv: any) => inv.kitId === kit.id);
+      return {
+        ...kit,
+        inventory: inventory ? [{ quantity: inventory.quantity }] : []
+      };
+    });
+
+    res.json({ success: true, data: kitsWithInventory });
   } catch (error) {
     next(error);
   }
