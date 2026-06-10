@@ -101,6 +101,7 @@ export const productApi = {
 export const kitApi = {
   getAll: (includeInactive = false) => api.get('/kits', { params: { includeInactive } }),
   getById: (id: string) => api.get(`/kits/${id}`),
+  getAvailableForExit: () => api.get('/kits/available-for-exit'),
   getAvailability: (id: string, quantity = 1) => 
     api.get(`/kits/${id}/availability`, { params: { quantity } }),
   getHistory: (id: string, params?: { startDate?: string; endDate?: string; status?: string }) =>

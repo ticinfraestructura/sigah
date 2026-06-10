@@ -36,6 +36,63 @@ router.get('/', authenticate, validateZodRequest({ query: kitZodSchemas.listQuer
   }
 });
 
+// Get kits available for exit (with stock)
+router.get('/available-for-exit', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const prisma: PrismaClient = req.app.get('prisma');
+
+    // Get all kits and check their inventory through inventory service
+    const kits = await prisma.kit.findMany({
+      where: { isActive: true },
+      include: {
+        kitProducts: {
+          include: {
+            product: {
+              include: { category: true }
+            }
+          }
+        }
+      },
+      orderBy: { name: 'asc' }
+    });
+
+    // Check inventory for each kit
+    const kitsWithStock = [];
+    for (const kit of kits) {
+      try {
+        const inventory = await InventoryService.getKitInventory(kit.id);
+        if (inventory && inventory.quantity > 0) {
+          kitsWithStock.push({
+            id: kit.id,
+            code: kit.code,
+            name: kit.name,
+            isActive: kit.isActive,
+            totalAvailable: inventory.quantity,
+            kitProducts: kit.kitProducts
+          });
+        }
+      } catch (error) {
+        // Skip kits without inventory
+        continue;
+      }
+    }
+
+    // Sort by available quantity (descending)
+    kitsWithStock.sort((a, b) => b.totalAvailable - a.totalAvailable);
+
+    res.json({ 
+      success: true, 
+      data: kitsWithStock,
+      meta: {
+        total: kitsWithStock.length,
+        totalStock: kitsWithStock.reduce((sum, kit) => sum + kit.totalAvailable, 0)
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get kit by ID
 router.get('/:id', authenticate, validateZodRequest({ params: kitZodSchemas.idParam }), async (req: Request, res: Response, next: NextFunction) => {
   try {

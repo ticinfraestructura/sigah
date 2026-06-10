@@ -1,35 +1,17 @@
 ﻿{
     "tasks_completed":  [
                             {
-                                "tokens":  3,
-                                "percentage":  15,
-                                "name":  "Prueba del sistema",
-                                "time":  "09:10:42"
-                            },
-                            {
                                 "tokens":  2,
-                                "percentage":  10,
-                                "name":  "Mejorar filtros y búsqueda en reportes de inventario",
-                                "time":  "09:18:38"
-                            },
-                            {
-                                "tokens":  2,
-                                "percentage":  10,
-                                "name":  "Agregar visualización de datos con tarjetas de estadísticas",
-                                "time":  "09:19:05"
-                            },
-                            {
-                                "tokens":  2,
-                                "percentage":  10,
-                                "name":  "Optimizar exportación con datos filtrados y metadata",
-                                "time":  "09:19:46"
+                                "percentage":  13.33,
+                                "name":  "Ajustar formato de combobox para mostrar cantidades en paréntesis",
+                                "time":  "07:59:10"
                             }
                         ],
     "alerts_triggered":  [
 
                          ],
-    "daily_tokens_used":  9,
-    "date":  "2026-06-09",
-    "daily_limit":  20,
-    "day":  "Tuesday"
+    "daily_tokens_used":  2,
+    "date":  "2026-06-10",
+    "daily_limit":  15,
+    "day":  "Wednesday"
 }

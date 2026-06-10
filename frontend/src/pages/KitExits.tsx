@@ -8,6 +8,7 @@ interface KitOption {
   code: string;
   name: string;
   isActive: boolean;
+  totalAvailable: number;
   inventory?: Array<{ quantity: number }> | null;
   kitProducts?: Array<{
     id: string;
@@ -28,7 +29,7 @@ export default function KitExits() {
     [kits, form.kitId]
   );
 
-  const availableQuantity = selectedKit?.inventory?.[0]?.quantity || 0;
+  const availableQuantity = selectedKit?.totalAvailable || 0;
 
   useEffect(() => {
     fetchKits();
@@ -43,8 +44,34 @@ export default function KitExits() {
   const fetchKits = async () => {
     try {
       setLoading(true);
-      const response = await kitApi.getAll();
-      setKits(response.data.data || []);
+      
+      // Obtener todos los kits
+      const kitsResponse = await kitApi.getAll();
+      const allKits = kitsResponse.data.data || [];
+      
+      // Para cada kit, obtener su disponibilidad real desde kitInventory
+      const kitsWithAvailability = await Promise.all(
+        allKits.map(async (kit: any) => {
+          try {
+            // Consultar la disponibilidad del kit
+            const availabilityResponse = await kitApi.getAvailability(kit.id);
+            const availableQuantity = availabilityResponse.data?.available || 0;
+            
+            return {
+              ...kit,
+              totalAvailable: availableQuantity
+            };
+          } catch (error) {
+            // Si no hay inventario, mostrar 0
+            return {
+              ...kit,
+              totalAvailable: 0
+            };
+          }
+        })
+      );
+      
+      setKits(kitsWithAvailability);
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'No se pudieron cargar los kits');
     } finally {
@@ -114,6 +141,25 @@ export default function KitExits() {
         </button>
       </div>
 
+      {/* Información del kit seleccionado */}
+      {selectedKit && (
+        <div className={`card p-4 ${selectedKit.totalAvailable > 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-lg">{selectedKit.code} - {selectedKit.name}</h3>
+              <p className={`text-sm ${selectedKit.totalAvailable > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {selectedKit.totalAvailable > 0 
+                  ? `✅ ${selectedKit.totalAvailable} unidades disponibles para egreso` 
+                  : `❌ Sin stock disponible para egreso`}
+              </p>
+            </div>
+            <div className={`text-2xl font-bold ${selectedKit.totalAvailable > 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {selectedKit.totalAvailable}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <form onSubmit={handleSubmit} className="card lg:col-span-2 space-y-5">
           <div>
@@ -126,7 +172,7 @@ export default function KitExits() {
               <option value="">Seleccione un kit</option>
               {kits.map(kit => (
                 <option key={kit.id} value={kit.id}>
-                  {kit.code} - {kit.name} ({kit.inventory?.[0]?.quantity || 0} disponibles)
+                  {kit.code} - {kit.name} ({kit.totalAvailable})
                 </option>
               ))}
             </select>

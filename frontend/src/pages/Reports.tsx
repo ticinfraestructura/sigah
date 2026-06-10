@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, Download, Package, TrendingUp, AlertTriangle } from 'lucide-react';
+import { FileText, Download, Package, TrendingUp, AlertTriangle, Loader2, Search, Filter } from 'lucide-react';
 import { reportApi } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 
@@ -127,13 +127,24 @@ export default function Reports() {
           {/* Búsqueda mejorada */}
           <div>
             <label className="label">Buscar</label>
-            <input
-              type="text"
-              placeholder="Código o nombre..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="input"
-            />
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Código o nombre..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="input pl-10"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  ×
+                </button>
+              )}
+            </div>
           </div>
           
           {/* Filtro por categoría */}
@@ -184,8 +195,22 @@ export default function Reports() {
             <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="input" />
           </div>
           <div className="flex items-end">
-            <button onClick={generateReport} disabled={loading} className="btn-primary w-full">
-              {loading ? 'Generando...' : 'Generar'}
+            <button 
+              onClick={generateReport} 
+              disabled={loading} 
+              className="btn-primary w-full flex items-center justify-center"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Generando...
+                </>
+              ) : (
+                <>
+                  <Search className="w-4 h-4 mr-2" />
+                  Generar
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -280,10 +305,30 @@ export default function Reports() {
         </>
       )}
 
+      {loading && (
+        <div className="card">
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600 mr-3" />
+            <div>
+              <p className="text-gray-600 font-medium">Generando reporte...</p>
+              <p className="text-gray-500 text-sm">Obteniendo datos del servidor</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {data.length === 0 && !loading && (
-        <div className="text-center py-12">
-          <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">Seleccione los filtros y genere un reporte</p>
+        <div className="card">
+          <div className="text-center py-12">
+            <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-500">Seleccione los filtros y genere un reporte</p>
+            <p className="text-gray-400 text-sm mt-2">
+              {reportType === 'inventory' && 'Pruebe con "Stock Actual" o "Movimientos"'}
+              {reportType === 'requests' && 'Pruebe con un rango de fechas'}
+              {reportType === 'deliveries' && 'Pruebe con "Todas" o un rango de fechas'}
+              {reportType === 'kits' && 'Pruebe con "Listado de Kits" o "Disponibilidad"'}
+            </p>
+          </div>
         </div>
       )}
     </div>
