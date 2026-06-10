@@ -11,12 +11,36 @@
                                 "percentage":  13.33,
                                 "name":  "Arreglar acceso a maxAvailable en endpoint getAvailability",
                                 "time":  "08:03:06"
+                            },
+                            {
+                                "tokens":  2,
+                                "percentage":  13.33,
+                                "name":  "Agregar logs de depuración para identificar problema de disponibilidad",
+                                "time":  "08:05:10"
+                            },
+                            {
+                                "tokens":  3,
+                                "percentage":  20,
+                                "name":  "Crear stock de prueba para 4 kits existentes",
+                                "time":  "08:07:39"
+                            },
+                            {
+                                "tokens":  3,
+                                "percentage":  20,
+                                "name":  "Corregir lógica para usar cálculo real de disponibilidad de kits",
+                                "time":  "08:13:30"
+                            },
+                            {
+                                "tokens":  3,
+                                "percentage":  20,
+                                "name":  "Integrar stock real de kits desde tabla kit_inventory",
+                                "time":  "08:15:55"
                             }
                         ],
     "alerts_triggered":  [
 
                          ],
-    "daily_tokens_used":  4,
+    "daily_tokens_used":  15,
     "date":  "2026-06-10",
     "daily_limit":  15,
     "day":  "Wednesday"
