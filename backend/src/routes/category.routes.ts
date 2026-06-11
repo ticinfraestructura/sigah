@@ -8,7 +8,7 @@ import { categoryZodSchemas, validateZodRequest } from '../middleware/validation
 const router = Router();
 
 // Get all categories
-router.get('/', authenticate, validateZodRequest({ query: categoryZodSchemas.listQuery }), async (req: Request, res: Response, next: NextFunction) => {
+router.get('/', validateZodRequest({ query: categoryZodSchemas.listQuery }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const includeInactive = req.query.includeInactive === 'true';

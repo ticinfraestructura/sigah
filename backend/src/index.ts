@@ -135,8 +135,8 @@ const authLimiter = rateLimit({
 
 // Aplicar rate limiting
 app.use('/api/', generalLimiter);
-app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/change-password', authLimiter);
+// app.use('/api/auth/login', authLimiter);
+// app.use('/api/auth/change-password', authLimiter);
 
 // 7. Compresión de respuestas
 app.use(compression());

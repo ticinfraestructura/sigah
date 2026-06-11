@@ -679,7 +679,7 @@ async function generateKitsReport(prisma: PrismaClient, subtype: string, dateFil
             productCode: kp.product.code,
             productName: kp.product.name,
             quantityPerKit: kp.quantity,
-            stockAvailable: kp.product.lots.reduce((sum, l) => sum + l.quantity, 0)
+            stockAvailable: 0
           });
         });
       });
@@ -715,6 +715,76 @@ async function generateKitsReport(prisma: PrismaClient, subtype: string, dateFil
       });
 
       return kitInventoryMovements.map(m => {
+        const localDate = new Date(m.createdAt);
+        return {
+          fecha: localDate.toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-'),
+          hora: localDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false }),
+          productCode: m.kitInventory.kit.code,
+          productName: m.kitInventory.kit.name,
+          lotNumber: m.lotNumber || '-',
+          quantity: m.quantity,
+          reason: m.reason || '-',
+          reference: m.reference || '-',
+          user: `${m.user.firstName} ${m.user.lastName}`
+        };
+      });
+
+    case 'egresos':
+      // SISTEMA DE INTEGRIDAD DE KITS: Usar KitInventoryMovement
+      const exitWhereClause: any = {
+        type: 'EXIT',
+        createdAt: hasDateFilter ? dateFilter : undefined
+      };
+      
+      // Si hay filtro por kit específico
+      if (filters?.kitId) {
+        exitWhereClause.kitInventory = {
+          kit: {
+            id: filters.kitId
+          }
+        };
+      }
+      
+      // Si hay búsqueda general
+      if (filters?.search) {
+        exitWhereClause.OR = [
+          {
+            kitInventory: {
+              kit: {
+                OR: [
+                  { code: { contains: filters.search, mode: 'insensitive' } },
+                  { name: { contains: filters.search, mode: 'insensitive' } }
+                ]
+              }
+            }
+          },
+          { reason: { contains: filters.search, mode: 'insensitive' } },
+          { reference: { contains: filters.search, mode: 'insensitive' } },
+          {
+            user: {
+              OR: [
+                { firstName: { contains: filters.search, mode: 'insensitive' } },
+                { lastName: { contains: filters.search, mode: 'insensitive' } }
+              ]
+            }
+          }
+        ];
+      }
+      
+      const exitInventoryMovements = await prisma.kitInventoryMovement.findMany({
+        where: exitWhereClause,
+        include: {
+          kitInventory: {
+            include: {
+              kit: true
+            }
+          },
+          user: { select: { firstName: true, lastName: true } }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      return exitInventoryMovements.map(m => {
         const localDate = new Date(m.createdAt);
         return {
           fecha: localDate.toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-'),

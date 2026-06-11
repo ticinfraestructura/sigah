@@ -21,9 +21,12 @@ router.post('/login', async (req: Request, res: Response, next: NextFunction) =>
       });
     }
 
-    // Buscar usuario por email
+    // Buscar usuario por email con relación de rol
     const user = await prisma.user.findUnique({
-      where: { email }
+      where: { email },
+      include: {
+        role: true
+      }
     });
 
     if (!user) {
@@ -53,7 +56,7 @@ router.post('/login', async (req: Request, res: Response, next: NextFunction) =>
     const tokenPayload = {
       id: user.id,
       email: user.email,
-      role: user.role
+      role: user.role?.name || 'Usuario'
     };
 
     const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
@@ -64,9 +67,9 @@ router.post('/login', async (req: Request, res: Response, next: NextFunction) =>
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
-      roleId: user.role === 'ADMIN' ? 'admin-role-id' : 'user-role-id',
-      roleName: user.role || 'Usuario',
-      permissions: user.role === 'ADMIN' ? [
+      roleId: user.roleId,
+      roleName: user.role?.name || 'Usuario',
+      permissions: user.role?.name === 'Administrador' ? [
         // Dashboard
         { module: 'dashboard', action: 'view' },
         // Inventario

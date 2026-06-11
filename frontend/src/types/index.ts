@@ -86,6 +86,7 @@ export interface Kit {
   description: string | null;
   isActive: boolean;
   kitProducts: KitProduct[];
+  inventory?: Array<{ quantity: number }>;
 }
 
 // Beneficiary types

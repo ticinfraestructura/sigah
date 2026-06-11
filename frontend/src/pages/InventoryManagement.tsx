@@ -8,7 +8,7 @@ import { productApi, categoryApi, inventoryApi, kitApi } from '../services/api';
 import { Product, Category, ProductLot, StockMovement, Unit, Kit } from '../types';
 import { useToast } from '../components/ui/Toast';
 import KitEntriesTab from '../components/KitEntriesTab';
-import KitExits from './KitExits';
+import KitExitsTab from '../components/KitExitsTab';
 
 const unitLabels: Record<string, string> = {
   UNIT: 'Unidad',
@@ -83,7 +83,7 @@ export default function InventoryManagement() {
       {activeTab === 'movements' && <MovementsTab />}
       {activeTab === 'adjustments' && <AdjustmentsTab />}
       {activeTab === 'kitEntries' && <KitEntriesTab />}
-      {activeTab === 'kitExits' && <KitExits />}
+      {activeTab === 'kitExits' && <KitExitsTab />}
     </div>
   );
 }
@@ -899,7 +899,7 @@ function AdjustmentsTab() {
 
   const fetchKits = async () => {
     try {
-      const response = await kitApi.getAll();
+      const response = await kitApi.getAll(undefined);
       setKits(response.data.data || []);
     } catch (error) {
       console.error('Error loading kits:', error);
@@ -1133,7 +1133,7 @@ function AdjustmentsTab() {
                 >
                   <option value="">{kits.length === 0 ? '-- No hay kits disponibles --' : '-- Seleccione un kit --'}</option>
                   {kits.map((kit) => (
-                    <option key={kit.id} value={kit.id}>{kit.code} - {kit.name}</option>
+                    <option key={kit.id} value={kit.id}>{kit.code} - {kit.name} (Stock: {kit.inventory?.[0]?.quantity || 0})</option>
                   ))}
                 </select>
               </div>

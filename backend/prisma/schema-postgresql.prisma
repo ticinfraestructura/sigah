@@ -157,6 +157,7 @@ model Kit {
   kitProducts       KitProduct[]
   requestKits       RequestKit[]
   deliveryDetails   DeliveryDetail[]
+  returnDetails     ReturnDetail[]
   inventory         KitInventory[]
   kitInventoryMovements KitInventoryMovement[]
 
@@ -372,6 +373,7 @@ model Return {
   id          String   @id @default(uuid())
   code        String   @unique
   deliveryId  String
+  requestId   String?
   status      String   // PENDING, APPROVED, REJECTED, PROCESSED
   reason      String?
   notes       String?
@@ -380,6 +382,7 @@ model Return {
 
   // Relations
   delivery       Delivery        @relation(fields: [deliveryId], references: [id])
+  request        Request?        @relation(fields: [requestId], references: [id])
   returnDetails  ReturnDetail[]
 
   @@map("returns")

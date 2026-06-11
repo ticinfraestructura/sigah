@@ -14,6 +14,13 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  // Add timestamp to avoid cache for GET requests
+  if (config.method === 'get') {
+    config.params = {
+      ...config.params,
+      _t: Date.now()
+    };
+  }
   return config;
 });
 
@@ -124,6 +131,12 @@ export const kitApi = {
     api.post('/reports/generate', { 
       reportType: 'kits', 
       subtype: 'ingresos', 
+      ...params 
+    }),
+  getExits: (params?: { startDate?: string; endDate?: string; kitId?: string; search?: string }) =>
+    api.post('/reports/generate', { 
+      reportType: 'kits', 
+      subtype: 'egresos', 
       ...params 
     }),
 };

@@ -14,6 +14,9 @@ WORKDIR /app
 COPY package*.json ./
 COPY prisma ./prisma/
 
+# Asegurar que el provider sea PostgreSQL antes de generar Prisma
+RUN sed -i 's/provider = "sqlite"/provider = "postgresql"/g' prisma/schema.prisma
+
 # Instalar dependencias
 RUN npm install --legacy-peer-deps
 
@@ -49,4 +52,4 @@ COPY --from=builder /app/src/seed.ts ./src/seed.ts
 EXPOSE 3001
 
 # Comando de inicio: migrar BD y arrancar servidor
-CMD ["sh", "-c", "npx prisma migrate deploy && NODE_ENV=development npx tsx src/seed.ts; npm run start:prod"]
+CMD ["sh", "-c", "npx prisma migrate deploy && npm run start:prod"]

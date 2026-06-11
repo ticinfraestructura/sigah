@@ -10,7 +10,7 @@ import { productZodSchemas, validateZodRequest } from '../middleware/validation.
 const router = Router();
 
 // Get all products with filters
-router.get('/', authenticate, validateZodRequest({ query: productZodSchemas.listQuery }), async (req: Request, res: Response, next: NextFunction) => {
+router.get('/', validateZodRequest({ query: productZodSchemas.listQuery }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const {

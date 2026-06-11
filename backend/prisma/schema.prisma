@@ -10,19 +10,38 @@ datasource db {
 // ============ USERS & AUTH ============
 // Role values: ADMIN, WAREHOUSE, VIEWER
 
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  isSystem    Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  users           User[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
   password  String
   firstName String
   lastName  String
-  role      String   @default("WAREHOUSE")
+  phone     String?
+  roleId    String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
+  role              Role?            @relation(fields: [roleId], references: [id])
   stockMovements    StockMovement[]
+  kitInventoryMovements KitInventoryMovement[]
   deliveries        Delivery[]
   returns           Return[]
   requestsCreated   Request[]         @relation("RequestCreatedBy")
@@ -30,6 +49,18 @@ model User {
   auditLogs         AuditLog[]
 
   @@map("users")
+}
+
+model RolePermission {
+  id        String @id @default(uuid())
+  roleId    String
+  permission String
+
+  // Relations
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permission])
+  @@map("role_permissions")
 }
 
 // ============ PRODUCTS & INVENTORY ============
@@ -65,9 +96,9 @@ model Product {
 
   // Relations
   category         Category          @relation(fields: [categoryId], references: [id])
+  kitProducts      KitProduct[]
   lots             ProductLot[]
   stockMovements   StockMovement[]
-  kitProducts      KitProduct[]
   requestProducts  RequestProduct[]
   deliveryDetails  DeliveryDetail[]
   returnDetails    ReturnDetail[]
@@ -133,6 +164,7 @@ model Kit {
   kitProducts     KitProduct[]
   requestKits     RequestKit[]
   deliveryDetails DeliveryDetail[]
+  inventory       KitInventory[]
 
   @@map("kits")
 }
@@ -149,6 +181,39 @@ model KitProduct {
 
   @@unique([kitId, productId])
   @@map("kit_products")
+}
+
+model KitInventory {
+  id          String   @id @default(uuid())
+  kitId       String   @unique
+  quantity    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  kit       Kit                    @relation(fields: [kitId], references: [id], onDelete: Cascade)
+  movements KitInventoryMovement[]
+
+  @@map("kit_inventory")
+}
+
+model KitInventoryMovement {
+  id           String   @id @default(uuid())
+  kitInventoryId String
+  type         String
+  quantity     Int
+  lotNumber    String?
+  expiryDate   DateTime?
+  reason       String?
+  reference    String?
+  userId       String
+  createdAt    DateTime @default(now())
+
+  // Relations
+  kitInventory KitInventory @relation(fields: [kitInventoryId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@map("kit_inventory_movements")
 }
 
 // ============ BENEFICIARIES ============

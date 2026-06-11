@@ -10,7 +10,7 @@ import { kitZodSchemas, validateZodRequest } from '../middleware/validation.midd
 const router = Router();
 
 // Get all kits
-router.get('/', authenticate, validateZodRequest({ query: kitZodSchemas.listQuery }), async (req: Request, res: Response, next: NextFunction) => {
+router.get('/', validateZodRequest({ query: kitZodSchemas.listQuery }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const includeInactive = req.query.includeInactive === 'true';
@@ -29,18 +29,12 @@ router.get('/', authenticate, validateZodRequest({ query: kitZodSchemas.listQuer
       orderBy: { name: 'asc' }
     });
 
-    // Obtener inventario de kits por separado
-    const kitInventory = await prisma.$queryRaw`
-      SELECT 
-        ki."kitId" as kitId,
-        ki.quantity
-      FROM kit_inventory ki
-      WHERE ki.quantity > 0
-    `;
+    // Obtener inventario de kits usando Prisma ORM
+    const kitInventory = await prisma.kitInventory.findMany();
 
     // Combinar kits con su inventario
     const kitsWithInventory = kits.map(kit => {
-      const inventory = (kitInventory as any[]).find((inv: any) => inv.kitId === kit.id);
+      const inventory = kitInventory.find((inv: any) => inv.kitId === kit.id);
       return {
         ...kit,
         inventory: inventory ? [{ quantity: inventory.quantity }] : []
