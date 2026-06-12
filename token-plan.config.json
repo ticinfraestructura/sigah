@@ -1,0 +1,71 @@
+{
+  "weeklyDistribution": {
+    "Monday": {
+      "label": "Lunes",
+      "limit": 25,
+      "singleTaskAlert": 30,
+      "focus": "Nuevas funcionalidades y cambios importantes"
+    },
+    "Tuesday": {
+      "label": "Martes",
+      "limit": 20,
+      "singleTaskAlert": 25,
+      "focus": "Mejoras existentes y optimización"
+    },
+    "Wednesday": {
+      "label": "Miércoles",
+      "limit": 15,
+      "singleTaskAlert": 20,
+      "focus": "Bugs, correcciones y testing"
+    },
+    "Thursday": {
+      "label": "Jueves",
+      "limit": 10,
+      "singleTaskAlert": 15,
+      "focus": "Documentación, comentarios y planificación"
+    },
+    "Friday": {
+      "label": "Viernes",
+      "limit": 10,
+      "singleTaskAlert": 12,
+      "focus": "Code review, limpieza y organización"
+    },
+    "Saturday": {
+      "label": "Sábado",
+      "limit": 10,
+      "singleTaskAlert": 25,
+      "focus": "Reserva de fin de semana"
+    },
+    "Sunday": {
+      "label": "Domingo",
+      "limit": 10,
+      "singleTaskAlert": 25,
+      "focus": "Reserva de fin de semana"
+    }
+  },
+  "alerts": {
+    "yellow": {
+      "threshold": 80,
+      "code": "AMARILLA",
+      "message": "⚠️ ALERTA AMARILLA: Acercándote al límite diario",
+      "action": "Reducir complejidad de tareas"
+    },
+    "orange": {
+      "threshold": 90,
+      "code": "NARANJA",
+      "message": "🟠 ALERTA NARANJA: Solo tareas esenciales",
+      "action": "Solo tareas críticas"
+    },
+    "red": {
+      "threshold": 95,
+      "code": "ROJA",
+      "message": "🔴 ALERTA ROJA: Modo emergencia activado",
+      "action": "Detener actividad no esencial"
+    }
+  },
+  "contingency": {
+    "under20": "Modo conservador: solo tareas críticas o de bajo consumo",
+    "under10": "Modo emergencia: solo bugs críticos",
+    "under5": "Modo supervivencia: solo lectura y planificación"
+  }
+}

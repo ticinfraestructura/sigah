@@ -32,6 +32,7 @@ Este sistema te ayuda a optimizar el consumo de tokens para que nunca te quedes 
 |---------|---------|-----|
 | `quick-start-tokens.ps1` | Inicio rápido del día | Todas las mañanas |
 | `token-monitor.ps1` | Monitoreo y alertas | Durante el día |
+| `token-plan.config.json` | Configuración central del plan | Cambios de límites/alertas |
 | `daily-tasks-planner.ps1` | Planificación de tareas | Planificación semanal |
 | `README-TOKENS.md` | Esta guía | Referencia |
 
@@ -45,7 +46,9 @@ Este sistema te ayuda a optimizar el consumo de tokens para que nunca te quedes 
 | **Jueves** | 10% | Documentación | 📚 Baja |
 | **Viernes** | 10% | Revisión | 🧹 Baja |
 | **Sábado** | 10% | Reserva | 🔄 Emergencia |
-| **Domingo** | 10% | Planificación | 🔄 Emergencia |
+| **Domingo** | 10% | Reserva | 🔄 Emergencia |
+
+> La reserva de fin de semana equivale al 20% semanal total, distribuida como 10% sábado y 10% domingo.
 
 ## 🚨 Sistema de Alertas
 
@@ -69,10 +72,13 @@ Este sistema te ayuda a optimizar el consumo de tokens para que nunca te quedes 
 .\token-monitor.ps1
 
 # Registrar tarea completada
-.\token-monitor.ps1 -Task "Nombre de tarea" 10
+.\token-monitor.ps1 -Task "Nombre de tarea" -Tokens 10
 
 # Resetear tracking (nuevo día)
 .\token-monitor.ps1 -Reset
+
+# Ver resumen semanal
+.\token-monitor.ps1 -Weekly
 ```
 
 ### Planificación

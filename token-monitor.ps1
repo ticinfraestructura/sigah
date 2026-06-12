@@ -1,213 +1,281 @@
-# Token Monitor for SIGAH Development
-# Sistema de monitoreo de tokens con alertas
+﻿# Token Monitor for SIGAH Development
+# Sistema de monitoreo de tokens con alertas basado en token-plan.config.json
 
 param(
     [string]$Day = (Get-Date).DayOfWeek.ToString(),
     [int]$TotalTokens = 1000,
-    [switch]$Reset
+    [string]$Task = "",
+    [int]$Tokens = 0,
+    [switch]$Reset,
+    [switch]$Weekly
 )
 
-# Límites diarios según el plan
-$DailyLimits = @{
-    "Monday"    = 25  # Lunes - Nuevas funcionalidades
-    "Tuesday"   = 20  # Martes - Mejoras
-    "Wednesday" = 15  # Miércoles - Mantenimiento
-    "Thursday"  = 10  # Jueves - Documentación
-    "Friday"    = 10  # Viernes - Revisión
-    "Saturday"  = 10  # Sábado - Reserva
-    "Sunday"    = 10  # Domingo - Reserva
+$ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ConfigFile = Join-Path $ProjectRoot "token-plan.config.json"
+$TrackingFile = Join-Path $ProjectRoot "token-usage.json"
+$WeeklyFile = Join-Path $ProjectRoot "token-weekly-usage.json"
+
+function Get-TokenConfig {
+    if (-not (Test-Path $ConfigFile)) {
+        throw "No existe el archivo de configuración: $ConfigFile"
+    }
+
+    return Get-Content $ConfigFile -Raw | ConvertFrom-Json
 }
 
-# Archivo de tracking
-$TrackingFile = "C:\PROYECTOS\sigah\token-usage.json"
+function Get-DayPlan {
+    param($config, [string]$dayName)
+    return $config.weeklyDistribution.$dayName
+}
 
-# Función para inicializar tracking
-function Initialize-Tracking {
-    $tracking = @{
+function Save-Tracking {
+    param($tracking)
+    $tracking | ConvertTo-Json -Depth 6 | Out-File -FilePath $TrackingFile -Encoding UTF8
+}
+
+function New-Tracking {
+    $config = Get-TokenConfig
+    $dayPlan = Get-DayPlan $config $Day
+
+    if (-not $dayPlan) {
+        throw "Dia no soportado: $Day"
+    }
+
+    $tracking = [ordered]@{
         date = (Get-Date).ToString("yyyy-MM-dd")
         day = $Day
-        daily_limit = $DailyLimits[$Day]
+        day_label = $dayPlan.label
+        daily_limit = [int]$dayPlan.limit
+        single_task_alert = [int]$dayPlan.singleTaskAlert
+        focus = $dayPlan.focus
         daily_tokens_used = 0
         total_tokens_available = $TotalTokens
         tasks_completed = @()
         alerts_triggered = @()
         last_reset = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
     }
-    
-    $tracking | ConvertTo-Json -Depth 3 | Out-File -FilePath $TrackingFile -Encoding UTF8
-    Write-Host "📊 Sistema de tracking inicializado para $Day" -ForegroundColor Green
-    Write-Host "📈 Límite diario: $($tracking.daily_limit)% del total" -ForegroundColor Yellow
+
+    Save-Tracking $tracking
+    Write-Host "Sistema de tracking inicializado para $($dayPlan.label)" -ForegroundColor Green
+    Write-Host "Limite diario: $($tracking.daily_limit)% del total semanal" -ForegroundColor Yellow
+    return $tracking
 }
 
-# Función para cargar tracking existente
 function Load-Tracking {
+    $currentDate = (Get-Date).ToString("yyyy-MM-dd")
+
     if (Test-Path $TrackingFile) {
         $content = Get-Content $TrackingFile -Raw | ConvertFrom-Json
-        $currentDate = (Get-Date).ToString("yyyy-MM-dd")
-        
-        # Reset si es nuevo día
-        if ($content.date -ne $currentDate) {
-            Write-Host "🔄 Nuevo día detectado, reseteando tracking..." -ForegroundColor Yellow
-            Initialize-Tracking
-            return Load-Tracking
+
+        if ($content.date -eq $currentDate) {
+            return $content
         }
-        
-        return $content
-    } else {
-        Initialize-Tracking
-        return Load-Tracking
+
+        Write-Host "Nuevo dia detectado, reiniciando tracking diario..." -ForegroundColor Yellow
+    }
+
+    return New-Tracking
+}
+
+function Load-Weekly {
+    $weekKey = "{0}-{1}" -f (Get-Date).Year, (Get-Culture).Calendar.GetWeekOfYear((Get-Date), [System.Globalization.CalendarWeekRule]::FirstFourDayWeek, [DayOfWeek]::Monday)
+
+    if (Test-Path $WeeklyFile) {
+        $weekly = Get-Content $WeeklyFile -Raw | ConvertFrom-Json
+        if ($weekly.week -eq $weekKey) {
+            return $weekly
+        }
+    }
+
+    return [ordered]@{
+        week = $weekKey
+        started_at = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+        days = @()
     }
 }
 
-# Función para verificar alertas
-function Check-Alerts($tracking) {
-    $usage_percentage = ($tracking.daily_tokens_used / $tracking.daily_limit) * 100
-    
-    # Alerta Roja - Crítico
-    if ($usage_percentage -ge 95) {
-        if (-not $tracking.alerts_triggered.Contains("ROJA")) {
-            Write-Host "🔴 ALERTA ROJA: Modo emergencia activado! Consumo: $([math]::Round($usage_percentage, 1))%" -ForegroundColor Red
-            Write-Host "⚠️ Solo realizar tareas críticas absolutamente necesarias" -ForegroundColor Red
-            $tracking.alerts_triggered += "ROJA"
-            Save-Tracking $tracking
-        }
+function Save-WeeklyDay {
+    param($tracking)
+    $weekly = Load-Weekly
+    $days = @($weekly.days | Where-Object { $_.date -ne $tracking.date })
+    $days += [ordered]@{
+        date = $tracking.date
+        day = $tracking.day
+        day_label = $tracking.day_label
+        limit = $tracking.daily_limit
+        used = $tracking.daily_tokens_used
+        tasks = @($tracking.tasks_completed).Count
+        alerts = $tracking.alerts_triggered
     }
-    # Alerta Naranja - Alto Riesgo
-    elseif ($usage_percentage -ge 90) {
-        if (-not $tracking.alerts_triggered.Contains("NARANJA")) {
-            Write-Host "🟠 ALERTA NARANJA: Alto riesgo de agotamiento! Consumo: $([math]::Round($usage_percentage, 1))%" -ForegroundColor Yellow
-            Write-Host "⚠️ Solo tareas esenciales permitidas" -ForegroundColor Yellow
-            $tracking.alerts_triggered += "NARANJA"
-            Save-Tracking $tracking
-        }
-    }
-    # Alerta Amarilla - Precaución
-    elseif ($usage_percentage -ge 80) {
-        if (-not $tracking.alerts_triggered.Contains("AMARILLA")) {
-            Write-Host "⚠️ ALERTA AMARILLA: Acercándote al límite diario! Consumo: $([math]::Round($usage_percentage, 1))%" -ForegroundColor Yellow
-            Write-Host "💡 Reduce la complejidad de las tareas" -ForegroundColor Yellow
-            $tracking.alerts_triggered += "AMARILLA"
-            Save-Tracking $tracking
-        }
-    }
-    
-    return $usage_percentage
+    $weekly.days = $days
+    $weekly | ConvertTo-Json -Depth 6 | Out-File -FilePath $WeeklyFile -Encoding UTF8
 }
 
-# Función para guardar tracking
-function Save-Tracking($tracking) {
-    $tracking | ConvertTo-Json -Depth 3 | Out-File -FilePath $TrackingFile -Encoding UTF8
+function Add-Alert {
+    param($tracking, [string]$code, [string]$message)
+
+    if (-not @($tracking.alerts_triggered).Contains($code)) {
+        $tracking.alerts_triggered += $code
+        Write-Host $message -ForegroundColor $(if ($code -eq "ROJA") { "Red" } else { "Yellow" })
+    }
 }
 
-# Función para registrar tarea
-function Register-Task($taskName, $tokensUsed) {
+function Check-Alerts {
+    param($tracking)
+    $config = Get-TokenConfig
+    $usage = if ($tracking.daily_limit -gt 0) { ($tracking.daily_tokens_used / $tracking.daily_limit) * 100 } else { 0 }
+
+    if ($usage -ge $config.alerts.red.threshold) {
+        Add-Alert $tracking $config.alerts.red.code $config.alerts.red.message
+        Write-Host $config.alerts.red.action -ForegroundColor Red
+    }
+    elseif ($usage -ge $config.alerts.orange.threshold) {
+        Add-Alert $tracking $config.alerts.orange.code $config.alerts.orange.message
+        Write-Host $config.alerts.orange.action -ForegroundColor Yellow
+    }
+    elseif ($usage -ge $config.alerts.yellow.threshold) {
+        Add-Alert $tracking $config.alerts.yellow.code $config.alerts.yellow.message
+        Write-Host $config.alerts.yellow.action -ForegroundColor Yellow
+    }
+
+    Save-Tracking $tracking
+    Save-WeeklyDay $tracking
+    return $usage
+}
+
+function Check-SingleTaskAlert {
+    param($tracking, [int]$tokensUsed)
+
+    if ($tokensUsed -gt $tracking.single_task_alert) {
+        $code = "TAREA_ALTA_$($tracking.date)_$((Get-Date).ToString('HHmmss'))"
+        $tracking.alerts_triggered += $code
+        Write-Host "ALERTA POR TAREA: esta tarea consumio $tokensUsed%, supera el umbral de $($tracking.single_task_alert)% para $($tracking.day_label)." -ForegroundColor Yellow
+    }
+}
+
+function Register-Task {
+    param([string]$taskName, [int]$tokensUsed)
+
+    if ([string]::IsNullOrWhiteSpace($taskName) -or $tokensUsed -le 0) {
+        Write-Host "Uso: .\token-monitor.ps1 -Task 'Nombre de tarea' -Tokens 5" -ForegroundColor Red
+        exit 1
+    }
+
     $tracking = Load-Tracking
-    $tracking.daily_tokens_used += $tokensUsed
-    
-    $task = @{
+    $remaining = $tracking.daily_limit - $tracking.daily_tokens_used
+
+    if ($tokensUsed -gt $remaining) {
+        Write-Host "La tarea excede el limite diario. Disponible: $remaining%, solicitado: $tokensUsed%." -ForegroundColor Red
+        Write-Host "Registra una tarea menor o cambia a modo conservador." -ForegroundColor Yellow
+        exit 1
+    }
+
+    $taskRecord = [ordered]@{
         name = $taskName
         tokens = $tokensUsed
         time = (Get-Date).ToString("HH:mm:ss")
         percentage = [math]::Round(($tokensUsed / $tracking.daily_limit) * 100, 2)
     }
-    
-    $tracking.tasks_completed += $task
+
+    $tracking.daily_tokens_used = [int]$tracking.daily_tokens_used + $tokensUsed
+    $tracking.tasks_completed += $taskRecord
+
+    Check-SingleTaskAlert $tracking $tokensUsed
     Save-Tracking $tracking
-    
-    Check-Alerts $tracking
-    
-    Write-Host "✅ Tarea registrada: $taskName" -ForegroundColor Green
-    Write-Host "📊 Tokens usados: $tokensUsed ($($task.percentage)% del límite)" -ForegroundColor Cyan
+    $usage = Check-Alerts $tracking
+
+    Write-Host "Tarea registrada: $taskName" -ForegroundColor Green
+    Write-Host "Tokens usados: $tokensUsed% ($($taskRecord.percentage)% del limite diario)" -ForegroundColor Cyan
+    Write-Host "Uso diario actual: $([math]::Round($usage, 1))%" -ForegroundColor Cyan
 }
 
-# Función para mostrar estado actual
 function Show-Status {
     $tracking = Load-Tracking
-    $usage_percentage = Check-Alerts $tracking
-    
-    Write-Host "`n📊 ESTADO ACTUAL DE TOKENS" -ForegroundColor White
-    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Gray
-    Write-Host "📅 Día: $($tracking.day)" -ForegroundColor White
-    Write-Host "🎯 Límite diario: $($tracking.daily_limit)%" -ForegroundColor White
-    Write-Host "📈 Usado: $($tracking.daily_tokens_used)% ($([math]::Round($usage_percentage, 1))%)" -ForegroundColor $(if($usage_percentage -ge 90) {"Red"} elseif($usage_percentage -ge 80) {"Yellow"} else {"Green"})
-    Write-Host "🔄 Disponible: $($tracking.daily_limit - $tracking.daily_tokens_used)%" -ForegroundColor White
-    Write-Host "📋 Tareas completadas: $($tracking.tasks_completed.Count)" -ForegroundColor White
-    
-    if ($tracking.alerts_triggered.Count -gt 0) {
-        Write-Host "🚨 Alertas activas: $($tracking.alerts_triggered -join ', ')" -ForegroundColor Red
+    $usage = Check-Alerts $tracking
+    $remaining = $tracking.daily_limit - $tracking.daily_tokens_used
+
+    Write-Host ""
+    Write-Host "ESTADO ACTUAL DE TOKENS" -ForegroundColor White
+    Write-Host "----------------------------------------" -ForegroundColor Gray
+    Write-Host "Dia: $($tracking.day_label) ($($tracking.day))" -ForegroundColor White
+    Write-Host "Enfoque: $($tracking.focus)" -ForegroundColor White
+    Write-Host "Limite diario: $($tracking.daily_limit)%" -ForegroundColor White
+    Write-Host "Usado: $($tracking.daily_tokens_used)% ($([math]::Round($usage, 1))%)" -ForegroundColor $(if ($usage -ge 90) { "Red" } elseif ($usage -ge 80) { "Yellow" } else { "Green" })
+    Write-Host "Disponible: $remaining%" -ForegroundColor White
+    Write-Host "Tareas completadas: $(@($tracking.tasks_completed).Count)" -ForegroundColor White
+
+    if (@($tracking.alerts_triggered).Count -gt 0) {
+        Write-Host "Alertas activas: $($tracking.alerts_triggered -join ', ')" -ForegroundColor Yellow
     }
-    
-    Write-Host "`n📝 Últimas tareas:" -ForegroundColor White
-    $tracking.tasks_completed | Select-Object -Last 3 | ForEach-Object {
-        Write-Host "  • $($_.name) - $($_.tokens)% ($($_.time))" -ForegroundColor Gray
+
+    Write-Host ""
+    Write-Host "Ultimas tareas:" -ForegroundColor White
+    @($tracking.tasks_completed) | Select-Object -Last 5 | ForEach-Object {
+        Write-Host "  - $($_.name): $($_.tokens)% ($($_.time))" -ForegroundColor Gray
     }
 }
 
-# Función para sugerir tareas según nivel de consumo
-function Suggest-Tasks {
+function Show-Suggestions {
     $tracking = Load-Tracking
-    $usage_percentage = ($tracking.daily_tokens_used / $tracking.daily_limit) * 100
-    
-    Write-Host "`n💡 SUGERENCIAS DE TAREAS" -ForegroundColor White
-    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Gray
-    
-    if ($usage_percentage -lt 50) {
-        Write-Host "🚀 Alto consumo disponible:" -ForegroundColor Green
-        Write-Host "  • Nuevas funcionalidades" -ForegroundColor Gray
-        Write-Host "  • Refactoring importante" -ForegroundColor Gray
-        Write-Host "  • Desarrollo de componentes" -ForegroundColor Gray
+    $remaining = $tracking.daily_limit - $tracking.daily_tokens_used
+    $usage = if ($tracking.daily_limit -gt 0) { ($tracking.daily_tokens_used / $tracking.daily_limit) * 100 } else { 0 }
+    $remainingRate = 100 - $usage
+    $config = Get-TokenConfig
+
+    Write-Host ""
+    Write-Host "SUGERENCIAS" -ForegroundColor White
+    Write-Host "----------------------------------------" -ForegroundColor Gray
+
+    if ($remainingRate -lt 5) {
+        Write-Host $config.contingency.under5 -ForegroundColor Red
     }
-    elseif ($usage_percentage -lt 80) {
-        Write-Host "⚡ Consumo moderado:" -ForegroundColor Yellow
-        Write-Host "  • Mejoras específicas" -ForegroundColor Gray
-        Write-Host "  • Optimización de código" -ForegroundColor Gray
-        Write-Host "  • Corrección de bugs" -ForegroundColor Gray
+    elseif ($remainingRate -lt 10) {
+        Write-Host $config.contingency.under10 -ForegroundColor Red
     }
-    elseif ($usage_percentage -lt 95) {
-        Write-Host "🔋 Bajo consumo:" -ForegroundColor Yellow
-        Write-Host "  • Cambios menores" -ForegroundColor Gray
-        Write-Host "  • Documentación" -ForegroundColor Gray
-        Write-Host "  • Testing específico" -ForegroundColor Gray
+    elseif ($remainingRate -lt 20 -or $usage -ge 80) {
+        Write-Host $config.contingency.under20 -ForegroundColor Yellow
+    }
+    elseif ($usage -lt 50) {
+        Write-Host "Puedes hacer desarrollo activo, manteniendo tareas acotadas." -ForegroundColor Green
     }
     else {
-        Write-Host "🆘 Modo emergencia:" -ForegroundColor Red
-        Write-Host "  • Solo bugs críticos" -ForegroundColor Gray
-        Write-Host "  • Revisión sin cambios" -ForegroundColor Gray
-        Write-Host "  • Planificación" -ForegroundColor Gray
+        Write-Host "Prioriza mejoras especificas, bugs y validaciones cortas." -ForegroundColor Yellow
     }
 }
 
-# Reset manual si se solicita
+function Show-Weekly {
+    $config = Get-TokenConfig
+    $weekly = Load-Weekly
+
+    Write-Host ""
+    Write-Host "RESUMEN SEMANAL DE TOKENS" -ForegroundColor Cyan
+    Write-Host "----------------------------------------" -ForegroundColor Gray
+
+    foreach ($dayName in @("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")) {
+        $plan = Get-DayPlan $config $dayName
+        $record = @($weekly.days | Where-Object { $_.day -eq $dayName } | Select-Object -Last 1)
+        $used = if ($record.Count -gt 0) { $record[0].used } else { 0 }
+        Write-Host "$($plan.label): limite $($plan.limit)% | usado $used% | $($plan.focus)" -ForegroundColor White
+    }
+}
+
 if ($Reset) {
-    Initialize-Tracking
-    Write-Host "🔄 Tracking reseteado manualmente" -ForegroundColor Green
-    exit
+    New-Tracking | Out-Null
+    Write-Host "Tracking reseteado manualmente" -ForegroundColor Green
+    exit 0
 }
 
-# Mostrar ayuda si no hay parámetros específicos
-if ($args.Count -eq 0) {
-    Write-Host "🎯 TOKEN MONITOR PARA SIGAH" -ForegroundColor Cyan
-    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "Comandos disponibles:" -ForegroundColor White
-    Write-Host "  .\token-monitor.ps1                    - Mostrar estado actual" -ForegroundColor Gray
-    Write-Host "  .\token-monitor.ps1 -Reset            - Resetear tracking" -ForegroundColor Gray
-    Write-Host "  .\token-monitor.ps1 -Task 'nombre' X   - Registrar tarea con X% de tokens" -ForegroundColor Gray
-    Write-Host ""
+if ($Weekly) {
+    Show-Weekly
+    exit 0
+}
+
+if (-not [string]::IsNullOrWhiteSpace($Task)) {
+    Register-Task $Task $Tokens
     Show-Status
-    Suggest-Tasks
-    exit
+    Show-Suggestions
+    exit 0
 }
 
-# Registrar tarea si se especifica
-if ($args.Count -ge 2 -and $args[0] -eq "-Task") {
-    $taskName = $args[1]
-    $tokensUsed = if ($args.Count -ge 3) { [int]$args[2] } else { 5 }
-    Register-Task $taskName $tokensUsed
-    Show-Status
-    exit
-}
-
-# Mostrar estado por defecto
 Show-Status
-Suggest-Tasks
+Show-Suggestions
