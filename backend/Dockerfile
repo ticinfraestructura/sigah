@@ -51,6 +51,9 @@ COPY --from=builder /app/src/seed.ts ./src/seed.ts
 # Asegurar que el provider sea PostgreSQL en el runner también
 RUN sed -i 's/provider = "sqlite"/provider = "postgresql"/g' prisma/schema.prisma
 
+# Regenerar cliente Prisma con el schema correcto
+RUN npx prisma generate
+
 # Exponer puerto
 EXPOSE 3001
 
