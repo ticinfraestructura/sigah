@@ -103,12 +103,12 @@ const DashboardCustom: React.FC = () => {
                 };
 
               case 'low-stock':
-                const lowStockProducts = products.filter(p => p.isLowStock);
+                const lowStockProducts = products.filter((p: any) => p.isLowStock);
                 return {
                   ...widget,
                   loading: false,
                   data: {
-                    alerts: lowStockProducts.map(p => ({
+                    alerts: lowStockProducts.map((p: any) => ({
                       type: 'warning',
                       title: p.name,
                       message: `Stock: ${p.totalStock} (Mín: ${p.minStock})`
@@ -134,11 +134,11 @@ const DashboardCustom: React.FC = () => {
                   ...widget,
                   loading: false,
                   data: {
-                    items: recentRequests.map(req => ({
+                    items: recentRequests.map((req: any) => ({
                       title: req.code,
                       subtitle: req.beneficiaryId,
                       value: req.status,
-                      color: req.status === 'APPROVED' ? 'text-green-600' : 
+                      color: req.status === 'APPROVED' ? 'text-green-600' :
                              req.status === 'REJECTED' ? 'text-red-600' : 'text-yellow-600'
                     }))
                   }
@@ -146,14 +146,14 @@ const DashboardCustom: React.FC = () => {
 
               case 'top-products':
                 const topProducts = products
-                  .sort((a, b) => b.totalStock - a.totalStock)
+                  .sort((a: any, b: any) => b.totalStock - a.totalStock)
                   .slice(0, 5);
                 return {
                   ...widget,
                   loading: false,
                   data: {
                     columns: ['Producto', 'Categoría', 'Stock'],
-                    rows: topProducts.map(p => ({
+                    rows: topProducts.map((p: any) => ({
                       'Producto': p.name,
                       'Categoría': p.category,
                       'Stock': p.totalStock

@@ -1,6 +1,4 @@
 import React from 'react';
-import { Card } from '../ui/Card';
-import { Button } from '../ui/Button';
 
 export interface WidgetProps {
   id: string;
@@ -18,18 +16,15 @@ export interface WidgetProps {
 }
 
 export const Widget: React.FC<WidgetProps> = ({
-  id,
   type,
   title,
   size,
-  position,
   data,
   loading = false,
   error,
   onRefresh,
   onRemove,
-  onResize,
-  onMove
+  onResize
 }) => {
   const sizeClasses = {
     small: 'col-span-1 row-span-1',
@@ -61,7 +56,7 @@ export const Widget: React.FC<WidgetProps> = ({
       case 'stat':
         return <StatWidget data={data} />;
       case 'chart':
-        return <ChartWidget data={data} />;
+        return <ChartWidget />;
       case 'table':
         return <TableWidget data={data} />;
       case 'list':
@@ -74,26 +69,24 @@ export const Widget: React.FC<WidgetProps> = ({
   };
 
   return (
-    <Card className={`${sizeClasses[size]} relative group`}>
+    <div className={`${sizeClasses[size]} relative group bg-white rounded-lg shadow`}>
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b">
         <h3 className="text-lg font-semibold">{title}</h3>
-        
+
         {/* Actions */}
         <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
           {onRefresh && (
-            <Button
-              variant="ghost"
-              size="sm"
+            <button
               onClick={onRefresh}
-              className="p-1"
+              className="p-1 hover:bg-gray-100 rounded"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-            </Button>
+            </button>
           )}
-          
+
           <div className="flex items-center">
             <select
               value={size}
@@ -107,16 +100,14 @@ export const Widget: React.FC<WidgetProps> = ({
           </div>
 
           {onRemove && (
-            <Button
-              variant="ghost"
-              size="sm"
+            <button
               onClick={onRemove}
-              className="p-1 text-red-500 hover:text-red-700"
+              className="p-1 text-red-500 hover:text-red-700 hover:bg-gray-100 rounded"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
-            </Button>
+            </button>
           )}
         </div>
       </div>
@@ -125,7 +116,7 @@ export const Widget: React.FC<WidgetProps> = ({
       <div className="p-4">
         {renderContent()}
       </div>
-    </Card>
+    </div>
   );
 };
 
@@ -148,7 +139,7 @@ const StatWidget: React.FC<{ data?: any }> = ({ data }) => {
   );
 };
 
-const ChartWidget: React.FC<{ data?: any }> = ({ data }) => {
+const ChartWidget: React.FC = () => {
   return (
     <div className="h-32 flex items-center justify-center text-gray-500">
       <div className="text-center">

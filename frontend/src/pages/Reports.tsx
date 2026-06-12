@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, Download, Package, TrendingUp, AlertTriangle, Loader2, Search, Filter } from 'lucide-react';
+import { FileText, Download, Package, TrendingUp, AlertTriangle, Loader2, Search } from 'lucide-react';
 import { reportApi } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 
@@ -12,7 +12,7 @@ export default function Reports() {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('');
+  const [selectedStatus] = useState('');
   const toast = useToast();
 
   const generateReport = async () => {
@@ -51,7 +51,6 @@ export default function Reports() {
 
   // Obtener categorías únicas para filtros
   const categories = [...new Set(data.map(item => item.Categoría).filter(Boolean))];
-  const statuses = [...new Set(data.map(item => item.Estado).filter(Boolean))];
 
   // Estadísticas para visualización
   const stats = {

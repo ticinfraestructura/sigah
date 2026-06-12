@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import * as XLSX from 'xlsx';
-import * as PDFDocument from 'pdfkit';
+import PDFDocument from 'pdfkit';
 
 const prisma = new PrismaClient();
 
@@ -73,7 +73,8 @@ export class ReportsService {
         }
       };
     } catch (error) {
-      throw new Error(`Error generando reporte de inventario: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Error generando reporte de inventario: ${message}`);
     }
   }
 
@@ -128,7 +129,8 @@ export class ReportsService {
         }
       };
     } catch (error) {
-      throw new Error(`Error generando reporte de movimientos: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Error generando reporte de movimientos: ${message}`);
     }
   }
 
@@ -187,7 +189,8 @@ export class ReportsService {
         }
       };
     } catch (error) {
-      throw new Error(`Error generando reporte de beneficiarios: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Error generando reporte de beneficiarios: ${message}`);
     }
   }
 
@@ -255,7 +258,8 @@ export class ReportsService {
         }
       };
     } catch (error) {
-      throw new Error(`Error generando reporte de solicitudes: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Error generando reporte de solicitudes: ${message}`);
     }
   }
 
@@ -289,7 +293,8 @@ export class ReportsService {
 
       return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
     } catch (error) {
-      throw new Error(`Error exportando a Excel: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Error exportando a Excel: ${message}`);
     }
   }
 
@@ -303,7 +308,7 @@ export class ReportsService {
           margins: { top: 50, bottom: 50, left: 50, right: 50 }
         });
 
-        doc.on('data', (chunk) => chunks.push(chunk));
+        doc.on('data', (chunk: Buffer) => chunks.push(chunk));
         doc.on('end', () => resolve(Buffer.concat(chunks)));
         doc.on('error', reject);
 
@@ -343,7 +348,7 @@ export class ReportsService {
           });
 
           // Datos de tabla
-          reportData.data.slice(0, 50).forEach((row: any, rowIndex) => {
+          reportData.data.slice(0, 50).forEach((row: any, rowIndex: number) => {
             const y = tableTop + (rowIndex + 1) * rowHeight;
             if (y > 700) { // Nueva página si es necesario
               doc.addPage();
@@ -367,7 +372,8 @@ export class ReportsService {
         doc.end();
       });
     } catch (error) {
-      throw new Error(`Error exportando a PDF: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Error exportando a PDF: ${message}`);
     }
   }
 

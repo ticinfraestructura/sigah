@@ -1,5 +1,3 @@
-import React from 'react';
-
 export default function AppDiagnostic() {
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>

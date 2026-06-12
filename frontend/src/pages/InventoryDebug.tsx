@@ -64,7 +64,7 @@ export default function InventoryDebug() {
               </tr>
             </thead>
             <tbody>
-              {data.slice(0, 5).map((product, index) => (
+              {data.slice(0, 5).map((product) => (
                 <tr key={product.id}>
                   <td className="border px-4 py-2">{product.code}</td>
                   <td className="border px-4 py-2">{product.name}</td>
