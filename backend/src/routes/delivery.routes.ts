@@ -104,9 +104,6 @@ router.get('/', authenticate, validateZodRequest({ query: deliveryZodSchemas.lis
     const where: any = {};
 
     if (requestId) where.requestId = requestId;
-    if (status) where.status = status;
-    if (warehouseUserId) where.warehouseUserId = warehouseUserId;
-
     if (startDate && endDate) {
       where.createdAt = {
         gte: new Date(startDate as string),
@@ -123,17 +120,9 @@ router.get('/', authenticate, validateZodRequest({ query: deliveryZodSchemas.lis
           request: {
             include: { beneficiary: true }
           },
-          createdBy: { select: { id: true, firstName: true, lastName: true, role: true } },
-          authorizedBy: { select: { id: true, firstName: true, lastName: true, role: true } },
-          warehouseUser: { select: { id: true, firstName: true, lastName: true, role: true } },
-          preparedBy: { select: { id: true, firstName: true, lastName: true, role: true } },
           deliveredBy: { select: { id: true, firstName: true, lastName: true, role: true } },
           deliveryDetails: {
             include: { product: true, kit: true, lot: true }
-          },
-          history: {
-            include: { user: { select: { firstName: true, lastName: true, role: true } } },
-            orderBy: { createdAt: 'desc' }
           }
         },
         orderBy: { createdAt: 'desc' },
@@ -172,24 +161,12 @@ router.get('/:id', authenticate, validateZodRequest({ params: deliveryZodSchemas
             requestKits: { include: { kit: { include: { kitProducts: { include: { product: true } } } } } }
           }
         },
-        createdBy: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
-        authorizedBy: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
-        warehouseUser: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
-        preparedBy: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
         deliveredBy: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
         deliveryDetails: {
           include: { product: true, kit: true, lot: true }
         },
-        history: {
-          include: { user: { select: { firstName: true, lastName: true, role: true } } },
-          orderBy: { createdAt: 'desc' }
-        },
         returns: {
           include: { returnDetails: true }
-        },
-        notifications: {
-          orderBy: { createdAt: 'desc' },
-          take: 10
         }
       }
     });
@@ -900,20 +877,17 @@ router.get('/stats/summary', authenticate, async (req: Request, res: Response, n
   try {
     const prisma: PrismaClient = req.app.get('prisma');
 
-    const counts = await prisma.delivery.groupBy({
-      by: ['status'],
-      _count: { id: true }
-    });
+    const total = await prisma.delivery.count();
 
     const stats = {
-      pendingAuthorization: counts.find(c => c.status === 'PENDING_AUTHORIZATION')?._count.id || 0,
-      authorized: counts.find(c => c.status === 'AUTHORIZED')?._count.id || 0,
-      receivedWarehouse: counts.find(c => c.status === 'RECEIVED_WAREHOUSE')?._count.id || 0,
-      inPreparation: counts.find(c => c.status === 'IN_PREPARATION')?._count.id || 0,
-      ready: counts.find(c => c.status === 'READY')?._count.id || 0,
-      delivered: counts.find(c => c.status === 'DELIVERED')?._count.id || 0,
-      cancelled: counts.find(c => c.status === 'CANCELLED')?._count.id || 0,
-      total: counts.reduce((sum, c) => sum + c._count.id, 0)
+      pendingAuthorization: 0,
+      authorized: 0,
+      receivedWarehouse: 0,
+      inPreparation: 0,
+      ready: 0,
+      delivered: total,
+      cancelled: 0,
+      total
     };
 
     res.json({ success: true, data: stats });

@@ -25,15 +25,24 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 router.post('/login', async (req: Request, res: Response, next: NextFunction) => {
   try {
     console.log('🔓 MODO PRUEBAS: Acceso sin autenticación habilitado');
+    const prisma: PrismaClient = req.app.get('prisma');
+    const adminUser = await prisma.user.findUnique({
+      where: { email: 'admin@sigah.com' },
+      include: { role: true }
+    });
+
+    if (!adminUser || !adminUser.isActive) {
+      throw new AppError('Usuario administrador de pruebas no disponible', 401);
+    }
     
     // Usuario de pruebas con permisos completos
     const mockUser = {
-      id: 'test-admin-id',
-      email: 'test@sigah.com',
-      firstName: 'Usuario',
-      lastName: 'Pruebas',
-      roleId: 'admin-role-id',
-      roleName: 'Administrador',
+      id: adminUser.id,
+      email: adminUser.email,
+      firstName: adminUser.firstName,
+      lastName: adminUser.lastName,
+      roleId: adminUser.roleId,
+      roleName: adminUser.role?.name || 'Administrador',
       permissions: [
         // Dashboard
         { module: 'dashboard', action: 'view' },

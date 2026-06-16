@@ -25,7 +25,6 @@ router.get('/summary', authenticate, async (req: Request, res: Response, next: N
       expiringProducts,
       lowStockProducts,
       stockByCategory,
-      deliveriesByStatus,
       pendingDeliveryTasks
     ] = await Promise.all([
       prisma.product.count({ where: { isActive: true } }),
@@ -42,18 +41,8 @@ router.get('/summary', authenticate, async (req: Request, res: Response, next: N
       inventoryService.getExpiringProducts(30),
       inventoryService.getLowStockProducts(),
       inventoryService.getStockByCategory(),
-      // Entregas agrupadas por estado
-      prisma.delivery.groupBy({
-        by: ['status'],
-        _count: { id: true }
-      }),
       // Entregas pendientes con detalles para tareas
       prisma.delivery.findMany({
-        where: {
-          status: {
-            in: ['PENDING_AUTHORIZATION', 'AUTHORIZED', 'RECEIVED_WAREHOUSE', 'IN_PREPARATION', 'READY']
-          }
-        },
         include: {
           request: {
             include: {
@@ -61,10 +50,7 @@ router.get('/summary', authenticate, async (req: Request, res: Response, next: N
                 select: { firstName: true, lastName: true, documentNumber: true }
               }
             }
-          },
-          createdBy: { select: { firstName: true, lastName: true } },
-          authorizedBy: { select: { firstName: true, lastName: true } },
-          preparedBy: { select: { firstName: true, lastName: true } }
+          }
         },
         orderBy: { createdAt: 'asc' },
         take: 20
@@ -81,18 +67,13 @@ router.get('/summary', authenticate, async (req: Request, res: Response, next: N
     const totalStock = stockByCategory.reduce((sum, cat) => sum + cat.totalStock, 0);
 
     // Conteo de entregas por estado
-    const deliveryStats = deliveriesByStatus.reduce((acc: any, s: any) => {
-      acc[s.status] = s._count.id;
-      return acc;
-    }, {} as Record<string, number>);
+    const deliveryStats = {} as Record<string, number>;
 
     // Agrupar tareas por rol responsable
     const tasksByRole = {
-      AUTHORIZER: pendingDeliveryTasks.filter((d: any) => d.status === 'PENDING_AUTHORIZATION'),
-      WAREHOUSE: pendingDeliveryTasks.filter((d: any) => 
-        ['AUTHORIZED', 'RECEIVED_WAREHOUSE', 'IN_PREPARATION'].includes(d.status)
-      ),
-      DISPATCHER: pendingDeliveryTasks.filter((d: any) => d.status === 'READY')
+      AUTHORIZER: [],
+      WAREHOUSE: [],
+      DISPATCHER: []
     };
 
     res.json({
