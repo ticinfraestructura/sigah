@@ -22,6 +22,7 @@ interface JWTPayload {
 }
 
 const prisma = new PrismaClient();
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export class AuthSecureMiddleware {
   private static readonly JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
@@ -98,18 +99,23 @@ export class AuthSecureMiddleware {
       const token = authHeader.substring(7);
       const decoded = this.verifyAccessToken(token);
 
+      if (!decoded.id || !UUID_REGEX.test(decoded.id)) {
+        return res.status(401).json({
+          success: false,
+          error: 'Sesión inválida. Por favor, inicie sesión nuevamente.'
+        });
+      }
+
+      if (decoded.roleId && !UUID_REGEX.test(decoded.roleId)) {
+        return res.status(401).json({
+          success: false,
+          error: 'Sesión inválida. Por favor, inicie sesión nuevamente.'
+        });
+      }
+
       // Verificar que el usuario aún exista y esté activo
       const user = await prisma.user.findUnique({
-        where: { id: decoded.id },
-        include: {
-          role: {
-            include: {
-              permissions: {
-                include: { permission: true }
-              }
-            }
-          }
-        }
+        where: { id: decoded.id }
       });
 
       if (!user || !user.isActive) {
@@ -119,17 +125,13 @@ export class AuthSecureMiddleware {
         });
       }
 
-      // Construir permisos
-      const permissions = user.role?.permissions.map(rp => ({
-        module: rp.permission.module,
-        action: rp.permission.action
-      })) || [];
+      const permissions: Array<{ module: string; action: string }> = [];
 
       req.user = {
         id: user.id,
         email: user.email,
-        roleId: user.roleId,
-        roleName: user.role?.name || '',
+        roleId: decoded.roleId,
+        roleName: user.role || '',
         permissions
       };
 
@@ -137,7 +139,7 @@ export class AuthSecureMiddleware {
     } catch (error) {
       return res.status(401).json({
         success: false,
-        error: error.message || 'Error de autenticación'
+        error: error instanceof Error ? error.message : 'Error de autenticación'
       });
     }
   };
@@ -187,18 +189,23 @@ export class AuthSecureMiddleware {
 
       const decoded = this.verifyRefreshToken(refreshToken);
 
+      if (!decoded.id || !UUID_REGEX.test(decoded.id)) {
+        return res.status(401).json({
+          success: false,
+          error: 'Sesión inválida. Por favor, inicie sesión nuevamente.'
+        });
+      }
+
+      if (decoded.roleId && !UUID_REGEX.test(decoded.roleId)) {
+        return res.status(401).json({
+          success: false,
+          error: 'Sesión inválida. Por favor, inicie sesión nuevamente.'
+        });
+      }
+
       // Verificar que el usuario aún exista
       const user = await prisma.user.findUnique({
-        where: { id: decoded.id },
-        include: {
-          role: {
-            include: {
-              permissions: {
-                include: { permission: true }
-              }
-            }
-          }
-        }
+        where: { id: decoded.id }
       });
 
       if (!user || !user.isActive) {
@@ -208,11 +215,7 @@ export class AuthSecureMiddleware {
         });
       }
 
-      // Generar nuevos tokens
-      const permissions = user.role?.permissions.map(rp => ({
-        module: rp.permission.module,
-        action: rp.permission.action
-      })) || [];
+      const permissions: Array<{ module: string; action: string }> = [];
 
       const tokens = this.generateTokens({
         ...user,
@@ -229,8 +232,8 @@ export class AuthSecureMiddleware {
             email: user.email,
             firstName: user.firstName,
             lastName: user.lastName,
-            roleId: user.roleId,
-            roleName: user.role?.name || '',
+            roleId: decoded.roleId,
+            roleName: user.role || '',
             permissions
           }
         }
@@ -238,7 +241,7 @@ export class AuthSecureMiddleware {
     } catch (error) {
       res.status(401).json({
         success: false,
-        error: error.message || 'Error al refrescar token'
+        error: error instanceof Error ? error.message : 'Error al refrescar token'
       });
     }
   };

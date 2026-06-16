@@ -37,6 +37,7 @@ export interface AuthRequest extends Request {
 // Cache de permisos por rol (para evitar consultas repetidas)
 const permissionsCache: Map<string, { permissions: UserPermission[]; timestamp: number }> = new Map();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const authenticate = async (
   req: AuthRequest,
@@ -66,30 +67,18 @@ export const authenticate = async (
       lastName: string;
     };
 
-    const prisma: PrismaClient = req.app.get('prisma');
-    // Si el schema no tiene relación User.role, omitir include
-    let user;
-    try {
-      user = await prisma.user.findUnique({
-        where: { id: decoded.id },
-        include: {
-          role: {
-            include: {
-              permissions: {
-                include: {
-                  permission: true
-                }
-              }
-            }
-          }
-        }
-      });
-    } catch {
-      // Fallback para schema donde User.role es string
-      user = await prisma.user.findUnique({
-        where: { id: decoded.id }
-      });
+    if (!decoded.id || !UUID_REGEX.test(decoded.id)) {
+      throw new AppError('Sesión inválida. Por favor, inicie sesión nuevamente.', 401);
     }
+
+    if (decoded.roleId && !UUID_REGEX.test(decoded.roleId)) {
+      throw new AppError('Sesión inválida. Por favor, inicie sesión nuevamente.', 401);
+    }
+
+    const prisma: PrismaClient = req.app.get('prisma');
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id }
+    });
 
     if (!user || !user.isActive) {
       throw new AppError('Usuario no encontrado o inactivo', 401);
@@ -99,21 +88,7 @@ export const authenticate = async (
     let permissions: UserPermission[] = [];
     let roleName = 'Sin Rol';
     
-    // Si user.role es objeto (relación), usarlo; si es string, asignar directamente
-    if (typeof user.role === 'object' && user.role !== null) {
-      roleName = user.role.name || 'Sin Rol';
-      // Verificar cache
-      const cached = permissionsCache.get(user.role.id);
-      if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-        permissions = cached.permissions;
-      } else {
-        permissions = user.role.permissions.map((rp: any) => ({
-          module: rp.permission.module,
-          action: rp.permission.action
-        }));
-        permissionsCache.set(user.role.id, { permissions, timestamp: Date.now() });
-      }
-    } else if (typeof user.role === 'string') {
+    if (typeof user.role === 'string') {
       roleName = user.role;
       // Para schemas con role como string, no hay permisos granulares
       permissions = [];

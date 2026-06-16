@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Router, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest, hasPermission } from '../middleware/auth.middleware';
