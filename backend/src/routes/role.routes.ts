@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { Router, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { v4 as uuidv4 } from 'uuid';
 import { authenticate, AuthRequest, isAdmin, clearPermissionsCache } from '../middleware/auth.middleware';
 import { roleZodSchemas, validateZodRequest } from '../middleware/validation.middleware';
 
@@ -101,11 +102,6 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response, next: Next
     const roles = await prisma.role.findMany({
       where: { isActive: true },
       include: {
-        permissions: {
-          include: {
-            permission: true
-          }
-        },
         _count: {
           select: { users: true }
         }
@@ -113,16 +109,25 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response, next: Next
       orderBy: { name: 'asc' }
     });
 
+    const roleIds = roles.map(role => role.id);
+    const permissionsRows = roleIds.length > 0
+      ? await (prisma as any).$queryRaw`
+          SELECT rp."roleId", p.module, p.action
+          FROM role_permissions rp
+          INNER JOIN permissions p ON p.id = rp."permissionId"
+          WHERE rp."roleId" = ANY(${roleIds}::uuid[])
+        `
+      : [];
+
     const rolesWithPermissions = roles.map(role => ({
       id: role.id,
       name: role.name,
       description: role.description,
       isSystem: role.isSystem,
       userCount: role._count.users,
-      permissions: role.permissions.map(rp => ({
-        module: rp.permission.module,
-        action: rp.permission.action
-      })),
+      permissions: (permissionsRows as any[])
+        .filter(row => row.roleId === role.id)
+        .map(row => ({ module: row.module, action: row.action })),
       createdAt: role.createdAt
     }));
 
@@ -141,11 +146,6 @@ router.get('/:id', authenticate, validateZodRequest({ params: roleZodSchemas.idP
     const role = await prisma.role.findUnique({
       where: { id },
       include: {
-        permissions: {
-          include: {
-            permission: true
-          }
-        },
         users: {
           select: {
             id: true,
@@ -162,14 +162,18 @@ router.get('/:id', authenticate, validateZodRequest({ params: roleZodSchemas.idP
       return res.status(404).json({ success: false, error: 'Rol no encontrado' });
     }
 
+    const permissions = await (prisma as any).$queryRaw`
+      SELECT p.module, p.action
+      FROM role_permissions rp
+      INNER JOIN permissions p ON p.id = rp."permissionId"
+      WHERE rp."roleId" = ${id}::uuid
+    `;
+
     res.json({
       success: true,
       data: {
         ...role,
-        permissions: role.permissions.map(rp => ({
-          module: rp.permission.module,
-          action: rp.permission.action
-        }))
+        permissions
       }
     });
   } catch (error) {
@@ -201,28 +205,24 @@ router.post('/', authenticate, isAdmin(), validateZodRequest({ body: roleZodSche
     // Asignar permisos si se proporcionan
     if (permissions && Array.isArray(permissions)) {
       for (const perm of permissions) {
-        // Buscar o crear el permiso
-        let permission = await prisma.permission.findUnique({
-          where: { module_action: { module: perm.module, action: perm.action } }
-        });
+        const permissionRows = await (prisma as any).$queryRaw`
+          SELECT id FROM permissions WHERE module = ${perm.module} AND action = ${perm.action} LIMIT 1
+        `;
+        const existingPermission = permissionRows[0];
+        const permissionId = existingPermission?.id || uuidv4();
 
-        if (!permission) {
-          permission = await prisma.permission.create({
-            data: {
-              module: perm.module,
-              action: perm.action,
-              description: `${perm.action} en ${perm.module}`
-            }
-          });
+        if (!existingPermission) {
+          await (prisma as any).$executeRaw`
+            INSERT INTO permissions (id, module, action, description)
+            VALUES (${permissionId}::uuid, ${perm.module}, ${perm.action}, ${`${perm.action} en ${perm.module}`})
+          `;
         }
 
-        // Asignar al rol
-        await prisma.rolePermission.create({
-          data: {
-            roleId: role.id,
-            permissionId: permission.id
-          }
-        });
+        await (prisma as any).$executeRaw`
+          INSERT INTO role_permissions (id, "roleId", "permissionId")
+          VALUES (${uuidv4()}::uuid, ${role.id}::uuid, ${permissionId}::uuid)
+          ON CONFLICT ("roleId", "permissionId") DO NOTHING
+        `;
       }
     }
 
@@ -272,26 +272,24 @@ router.put('/:id', authenticate, isAdmin(), validateZodRequest({ params: roleZod
 
       // Agregar nuevos permisos
       for (const perm of permissions) {
-        let permission = await prisma.permission.findUnique({
-          where: { module_action: { module: perm.module, action: perm.action } }
-        });
+        const permissionRows = await (prisma as any).$queryRaw`
+          SELECT id FROM permissions WHERE module = ${perm.module} AND action = ${perm.action} LIMIT 1
+        `;
+        const existingPermission = permissionRows[0];
+        const permissionId = existingPermission?.id || uuidv4();
 
-        if (!permission) {
-          permission = await prisma.permission.create({
-            data: {
-              module: perm.module,
-              action: perm.action,
-              description: `${perm.action} en ${perm.module}`
-            }
-          });
+        if (!existingPermission) {
+          await (prisma as any).$executeRaw`
+            INSERT INTO permissions (id, module, action, description)
+            VALUES (${permissionId}::uuid, ${perm.module}, ${perm.action}, ${`${perm.action} en ${perm.module}`})
+          `;
         }
 
-        await prisma.rolePermission.create({
-          data: {
-            roleId: id,
-            permissionId: permission.id
-          }
-        });
+        await (prisma as any).$executeRaw`
+          INSERT INTO role_permissions (id, "roleId", "permissionId")
+          VALUES (${uuidv4()}::uuid, ${id}::uuid, ${permissionId}::uuid)
+          ON CONFLICT ("roleId", "permissionId") DO NOTHING
+        `;
       }
 
       // Limpiar cache de permisos

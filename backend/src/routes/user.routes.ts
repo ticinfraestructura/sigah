@@ -19,8 +19,6 @@ router.get('/', authenticate, hasPermission('users', 'view'), async (req: AuthRe
         firstName: true,
         lastName: true,
         phone: true,
-        whatsappApiKey: true,
-        telegramChatId: true,
         isActive: true,
         createdAt: true,
         updatedAt: true,
@@ -40,8 +38,6 @@ router.get('/', authenticate, hasPermission('users', 'view'), async (req: AuthRe
       firstName: user.firstName,
       lastName: user.lastName,
       phone: user.phone,
-      whatsappApiKey: user.whatsappApiKey,
-      telegramChatId: user.telegramChatId,
       isActive: user.isActive,
       roleId: user.role?.id,
       roleName: user.role?.name,
@@ -107,7 +103,7 @@ router.get('/:id', authenticate, hasPermission('users', 'view'), validateZodRequ
 router.post('/', authenticate, hasPermission('users', 'create'), validateZodRequest({ body: userZodSchemas.create }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
-    const { email, password, firstName, lastName, phone, whatsappApiKey, telegramChatId, roleId } = req.body;
+    const { email, password, firstName, lastName, phone, roleId } = req.body;
 
     // Verificar email único
     const existing = await prisma.user.findUnique({ where: { email } });
@@ -134,8 +130,6 @@ router.post('/', authenticate, hasPermission('users', 'create'), validateZodRequ
         firstName,
         lastName,
         phone: phone || null,
-        whatsappApiKey: whatsappApiKey || null,
-        telegramChatId: telegramChatId || null,
         roleId: roleId || null
       },
       select: {
@@ -186,7 +180,7 @@ router.put('/:id', authenticate, hasPermission('users', 'edit'), validateZodRequ
   try {
     const prisma: PrismaClient = req.app.get('prisma');
     const { id } = req.params;
-    const { email, firstName, lastName, phone, whatsappApiKey, telegramChatId, roleId, password } = req.body;
+    const { email, firstName, lastName, phone, roleId, password } = req.body;
 
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) {
@@ -215,12 +209,9 @@ router.put('/:id', authenticate, hasPermission('users', 'edit'), validateZodRequ
     if (firstName) updateData.firstName = firstName;
     if (lastName) updateData.lastName = lastName;
     if (phone !== undefined) updateData.phone = phone || null;
-    if (whatsappApiKey !== undefined) updateData.whatsappApiKey = whatsappApiKey || null;
-    if (telegramChatId !== undefined) updateData.telegramChatId = telegramChatId || null;
     if (roleId !== undefined) updateData.roleId = roleId || null;
     if (password) {
       updateData.password = await bcrypt.hash(password, 10);
-      updateData.passwordChangedAt = new Date();
     }
 
     const updatedUser = await prisma.user.update({

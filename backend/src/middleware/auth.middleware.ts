@@ -88,10 +88,20 @@ export const authenticate = async (
     let permissions: UserPermission[] = [];
     let roleName = 'Sin Rol';
     
-    if (typeof user.role === 'string') {
-      roleName = user.role;
-      // Para schemas con role como string, no hay permisos granulares
-      permissions = [];
+    if ((user as any).roleId) {
+      const role = await (prisma as any).role.findUnique({
+        where: { id: (user as any).roleId }
+      });
+
+      if (role) {
+        roleName = role.name;
+        permissions = await (prisma as any).$queryRaw`
+          SELECT p.module, p.action
+          FROM role_permissions rp
+          INNER JOIN permissions p ON p.id = rp."permissionId"
+          WHERE rp."roleId" = ${(user as any).roleId}::uuid
+        `;
+      }
     }
 
     req.user = {
