@@ -14,6 +14,10 @@ const router = Router();
 const NOTIFICATION_TYPES = ['INFO', 'ALERT', 'DELIVERY', 'REQUEST', 'SYSTEM', 'REMINDER'];
 const CRITICALITY_LEVELS = ['INFORMATIVE', 'LOW', 'NORMAL', 'MEDIUM', 'HIGH', 'CRITICAL'];
 
+function hasNotificationModel(prisma: PrismaClient): boolean {
+  return !!(prisma as any).notification;
+}
+
 const notificationSendLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 20,
@@ -52,6 +56,18 @@ router.get('/', authenticate, validateZodRequest({ query: notificationZodSchemas
     if (channel) where.channel = channel;
     if (type) where.type = type;
     if (criticality) where.criticality = criticality;
+
+    if (!hasNotificationModel(prisma)) {
+      return res.json({
+        success: true,
+        data: [],
+        pagination: {
+          total: 0,
+          limit,
+          offset
+        }
+      });
+    }
 
     const notifications = await prisma.notification.findMany({
       where,
@@ -618,6 +634,13 @@ router.patch('/:id/read', authenticate, validateZodRequest({ params: notificatio
     const prisma: PrismaClient = req.app.get('prisma');
     const { id } = req.params;
 
+    if (!hasNotificationModel(prisma)) {
+      return res.status(404).json({
+        success: false,
+        error: 'Historial de notificaciones no disponible en el esquema actual'
+      });
+    }
+
     const notification = await prisma.notification.update({
       where: { id },
       data: {
@@ -636,6 +659,18 @@ router.patch('/:id/read', authenticate, validateZodRequest({ params: notificatio
 router.get('/stats', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
+
+    if (!hasNotificationModel(prisma)) {
+      return res.json({
+        success: true,
+        data: {
+          total: 0,
+          byType: {},
+          byCriticality: {},
+          whatsappSent: 0
+        }
+      });
+    }
 
     const [total, byType, byCriticality, whatsappStats] = await Promise.all([
       prisma.notification.count(),
