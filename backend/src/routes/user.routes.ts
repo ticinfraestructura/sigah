@@ -111,12 +111,10 @@ router.post('/', authenticate, hasPermission('users', 'create'), validateZodRequ
       return res.status(400).json({ success: false, error: 'Ya existe un usuario con ese email' });
     }
 
-    // Verificar rol si se proporciona
-    if (roleId) {
-      const role = await prisma.role.findUnique({ where: { id: roleId } });
-      if (!role) {
-        return res.status(400).json({ success: false, error: 'Rol no encontrado' });
-      }
+    // Verificar que el rol existe
+    const role = await prisma.role.findUnique({ where: { id: roleId } });
+    if (!role) {
+      return res.status(400).json({ success: false, error: 'Rol no encontrado' });
     }
 
     // Hash de contraseña
@@ -130,7 +128,7 @@ router.post('/', authenticate, hasPermission('users', 'create'), validateZodRequ
         firstName,
         lastName,
         phone: phone || null,
-        roleId: roleId || null
+        roleId
       },
       select: {
         id: true,

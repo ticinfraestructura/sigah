@@ -617,13 +617,16 @@ export default function UsersManagement() {
               </div>
 
               <div>
-                <label className="label">Rol</label>
+                <label className="label">
+                  Rol {!editingUser && <span className="text-red-500">*</span>}
+                </label>
                 <select
                   value={formData.roleId}
                   onChange={(e) => setFormData({ ...formData, roleId: e.target.value })}
                   className="input"
+                  required={!editingUser}
                 >
-                  <option value="">Sin rol asignado</option>
+                  <option value="">{editingUser ? 'Sin rol asignado' : 'Seleccionar rol...'}</option>
                   {roles.map((role) => (
                     <option key={role.id} value={role.id}>
                       {role.name}

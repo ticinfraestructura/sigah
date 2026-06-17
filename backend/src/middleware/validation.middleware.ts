@@ -482,7 +482,7 @@ export const userZodSchemas = {
     phone: optionalWhatsappPhoneSchema,
     whatsappApiKey: optionalApiKeySchema,
     telegramChatId: z.preprocess(normalizeOptionalText, z.string().max(255).optional().nullable()),
-    roleId: z.string().uuid('Rol inválido').optional().nullable()
+    roleId: z.string().uuid('El rol es obligatorio')
   }),
   update: z
     .object({
