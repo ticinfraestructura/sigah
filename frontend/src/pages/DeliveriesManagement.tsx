@@ -275,9 +275,9 @@ export default function DeliveriesManagement() {
         
         {/* Search Results Info */}
         {searchTerm && (
-          <div className="mt-3 text-sm text-gray-500">
+          <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
             {searchResults.length === 0 ? (
-              <span className="text-amber-600">No se encontraron entregas para "{searchTerm}"</span>
+              <span className="text-amber-600 dark:text-amber-400">No se encontraron entregas para "{searchTerm}"</span>
             ) : (
               <span>Mostrando {searchResults.length} resultado(s) para "{searchTerm}"</span>
             )}
@@ -294,8 +294,8 @@ export default function DeliveriesManagement() {
             </div>
           ) : searchResults.length === 0 ? (
             <div className="card p-8 text-center">
-              <Truck className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-              <p className="text-gray-500">No hay entregas</p>
+              <Truck className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
+              <p className="text-gray-500 dark:text-gray-400">No hay entregas</p>
             </div>
           ) : (
             searchResults.map((delivery) => {
@@ -571,8 +571,8 @@ export default function DeliveriesManagement() {
             </div>
           ) : (
             <div className="card p-8 text-center">
-              <Eye className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-              <p className="text-gray-500">Seleccione una entrega para ver detalles</p>
+              <Eye className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
+              <p className="text-gray-500 dark:text-gray-400">Seleccione una entrega para ver detalles</p>
             </div>
           )}
         </div>
@@ -625,7 +625,7 @@ export default function DeliveriesManagement() {
                   setShowCancelModal(false);
                   setCancelReason('');
                 }}
-                className="btn btn-outline flex-1"
+                className="btn btn-outline flex-1 dark:text-gray-200 dark:border-gray-500 dark:hover:bg-gray-700"
               >
                 Volver
               </button>
@@ -840,7 +840,7 @@ function ConfirmDeliveryModal({
         <div className="flex gap-3 mt-6">
           <button
             onClick={onCancel}
-            className="btn btn-outline flex-1"
+            className="btn btn-outline flex-1 dark:text-gray-200 dark:border-gray-500 dark:hover:bg-gray-700"
           >
             Cancelar
           </button>
