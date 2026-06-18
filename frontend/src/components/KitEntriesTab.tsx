@@ -53,12 +53,11 @@ export default function KitEntriesTab() {
   const fetchKitEntries = async () => {
     setLoading(true);
     try {
-      const params: any = {};
-      if (startDate) params.startDate = startDate;
-      if (endDate) params.endDate = endDate;
-      if (selectedKit) params.filters = { kitCode: selectedKit };
-      
-      const response = await kitApi.getEntries(params);
+      const response = await kitApi.getEntries({
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        kitCode: selectedKit || undefined
+      });
       setKitEntries(response.data.data || []);
     } catch (error) {
       toast.error('Error al cargar ingresos de kits');
@@ -209,9 +208,9 @@ export default function KitEntriesTab() {
       {/* Kit Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {kits.map(kit => {
-          const kitEntryCount = kitEntries.filter(entry => entry.reference.startsWith(`KIT_ENTRY:${kit.code}`)).length;
+          const kitEntryCount = kitEntries.filter(entry => entry.productCode === kit.code).length;
           return (
-            <div key={kit.id} className="card cursor-pointer hover:shadow-md transition-shadow" onClick={() => filterByKit(kit.code)}>
+            <div key={kit.id} className={`card cursor-pointer hover:shadow-md transition-shadow ${selectedKit === kit.code ? 'ring-2 ring-primary-500' : ''}`} onClick={() => filterByKit(kit.code)}>
               <div className="flex items-center justify-between">
                 <div>
                   <h4 className="font-semibold">{kit.code}</h4>
@@ -250,8 +249,8 @@ export default function KitEntriesTab() {
                 <tr className="border-b">
                   <th className="text-left py-2 px-2">Fecha</th>
                   <th className="text-left py-2 px-2">Hora</th>
-                  <th className="text-left py-2 px-2">Kit</th>
-                  <th className="text-left py-2 px-2">Producto</th>
+                  <th className="text-left py-2 px-2">Código Kit</th>
+                  <th className="text-left py-2 px-2">Nombre Kit</th>
                   <th className="text-left py-2 px-2">Cantidad</th>
                   <th className="text-left py-2 px-2">Usuario</th>
                   <th className="text-left py-2 px-2">Referencia</th>
@@ -262,7 +261,7 @@ export default function KitEntriesTab() {
                   <tr key={index} className="border-b hover:bg-gray-50">
                     <td className="py-2 px-2">{entry.fecha}</td>
                     <td className="py-2 px-2">{entry.hora}</td>
-                    <td className="py-2 px-2 font-medium">{entry.reference?.replace('KIT_ENTRY:', '') || '-'}</td>
+                    <td className="py-2 px-2 font-medium">{entry.productCode}</td>
                     <td className="py-2 px-2">{entry.productName}</td>
                     <td className="py-2 px-2">
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">

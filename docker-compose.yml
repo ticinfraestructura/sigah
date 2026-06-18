@@ -63,7 +63,7 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost,http://localhost:80}
+      ALLOWED_ORIGINS: "http://localhost:8080,http://localhost:5173,http://localhost:3000,http://172.16.61.203:8080,http://172.16.61.203"
       TZ: America/Bogota
     depends_on:
       postgres:

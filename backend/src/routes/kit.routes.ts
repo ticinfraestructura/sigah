@@ -52,6 +52,7 @@ router.get('/', validateZodRequest({ query: kitZodSchemas.listQuery }), async (r
 router.get('/available-for-exit', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
+    const inventoryService = new InventoryService(prisma);
 
     // Get all kits and check their inventory through inventory service
     const kits = await prisma.kit.findMany({
@@ -72,7 +73,7 @@ router.get('/available-for-exit', authenticate, async (req: Request, res: Respon
     const kitsWithStock = [];
     for (const kit of kits) {
       try {
-        const inventory = await InventoryService.getKitInventory(kit.id);
+        const inventory = await inventoryService.getKitInventory(kit.id);
         if (inventory && inventory.quantity > 0) {
           kitsWithStock.push({
             id: kit.id,

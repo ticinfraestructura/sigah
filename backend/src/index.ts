@@ -70,15 +70,20 @@ app.use(helmet({
 }));
 
 // 2. CORS Restrictivo para dominio.com/sigah
-const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-  'http://localhost:8080',
-  'http://127.0.0.1:8080',
-  'http://localhost',
-  'https://dominio.com',
-  'https://dominio.com/sigah'
-];
+const allowedOriginsEnv = process.env.ALLOWED_ORIGINS;
+const allowedOrigins = (allowedOriginsEnv && allowedOriginsEnv.trim() !== '') 
+  ? allowedOriginsEnv.split(',') 
+  : [
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'http://localhost:8080',
+      'http://127.0.0.1:8080',
+      'http://localhost',
+      'http://172.16.61.203:8080',
+      'http://172.16.61.203',
+      'https://dominio.com',
+      'https://dominio.com/sigah'
+    ];
 
 app.use(cors({
   origin: (origin, callback) => {

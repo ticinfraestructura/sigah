@@ -1,0 +1,43 @@
+# Docker Compose para ambiente de pruebas SIGAH
+# Usa la base de datos sigah_test existente
+
+version: '3.8'
+
+services:
+  backend-test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: builder
+    container_name: sigah-backend-test
+    restart: unless-stopped
+    environment:
+      NODE_ENV: test
+      PORT: 3003
+      DATABASE_URL: postgresql://sigah:postgres123@sigah-db:5432/sigah_test
+      JWT_SECRET: test-secret-key-for-testing-only
+      ALLOWED_ORIGINS: http://localhost:8081,http://172.16.61.203:8081
+    ports:
+      - "3003:3003"
+    networks:
+      - sigah-network
+    command: sh -c "npx prisma generate && npm run dev"
+
+  frontend-test:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sigah-frontend-test
+    restart: unless-stopped
+    environment:
+      NODE_ENV: test
+      VITE_API_URL: http://172.16.61.203:3003
+      PORT: 8081
+    ports:
+      - "8081:8081"
+    networks:
+      - sigah-network
+
+networks:
+  sigah-network:
+    external: true

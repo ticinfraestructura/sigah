@@ -19,6 +19,16 @@ export class InventoryService {
   constructor(private prisma: PrismaClient) {}
 
   /**
+   * Obtiene el stock de un kit desde kitInventory
+   */
+  async getKitInventory(kitId: string): Promise<{ quantity: number } | null> {
+    const kitInventory = await this.prisma.kitInventory.findUnique({
+      where: { kitId }
+    });
+    return kitInventory ? { quantity: kitInventory.quantity } : null;
+  }
+
+  /**
    * Obtiene el stock total de un producto (sumando todos sus lotes)
    */
   async getProductStock(productId: string): Promise<number> {

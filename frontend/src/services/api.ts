@@ -135,14 +135,21 @@ export const kitApi = {
   getEntries: (params?: { startDate?: string; endDate?: string; kitCode?: string }) =>
     api.post('/reports/generate', { 
       reportType: 'kits', 
-      subtype: 'ingresos', 
-      ...params 
+      subtype: 'ingresos',
+      startDate: params?.startDate,
+      endDate: params?.endDate,
+      filters: params?.kitCode ? { kitCode: params.kitCode } : undefined
     }),
   getExits: (params?: { startDate?: string; endDate?: string; kitId?: string; search?: string }) =>
     api.post('/reports/generate', { 
       reportType: 'kits', 
-      subtype: 'egresos', 
-      ...params 
+      subtype: 'egresos',
+      startDate: params?.startDate,
+      endDate: params?.endDate,
+      filters: {
+        ...(params?.kitId ? { kitId: params.kitId } : {}),
+        ...(params?.search ? { search: params.search } : {})
+      }
     }),
 };
 

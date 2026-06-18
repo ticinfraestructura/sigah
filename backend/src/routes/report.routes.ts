@@ -125,7 +125,8 @@ const REPORT_FIELDS: Record<string, { id: string; name: string; default: boolean
     { id: 'name', name: 'Nombre', default: true },
     { id: 'description', name: 'DescripciÃ³n', default: true },
     { id: 'products', name: 'Productos', default: true },
-    { id: 'available', name: 'Disponibles', default: true },
+    { id: 'available', name: 'Stock FÃ­sico', default: true },
+    { id: 'canAssemble', name: 'Puede Armar', default: false },
     { id: 'isActive', name: 'Activo', default: false }
   ],
   beneficiaries: [
@@ -633,6 +634,7 @@ async function generateKitsReport(prisma: PrismaClient, subtype: string, dateFil
   const kits = await prisma.kit.findMany({
     where: { isActive: filters?.includeInactive ? undefined : true },
     include: {
+      inventory: true,
       kitProducts: {
         include: {
           product: {
@@ -657,15 +659,21 @@ async function generateKitsReport(prisma: PrismaClient, subtype: string, dateFil
 
     case 'disponibilidad':
       return kits.map(k => {
-        const availability = k.kitProducts.map(kp => {
+        // Stock físico en inventario de kits (consistente con /available-for-exit)
+        const physicalStock = k.inventory?.[0]?.quantity || 0;
+        
+        // Cuántos kits se pueden armar con productos actuales (capacidad productiva)
+        const assemblyCapacity = k.kitProducts.map(kp => {
           const stock = kp.product.lots.reduce((sum, l) => sum + l.quantity, 0);
           return Math.floor(stock / kp.quantity);
         });
-        const available = availability.length > 0 ? Math.min(...availability) : 0;
+        const canAssemble = assemblyCapacity.length > 0 ? Math.min(...assemblyCapacity) : 0;
+        
         return {
           code: k.code,
           name: k.name,
-          available,
+          available: physicalStock,  // Stock físico real en bodega
+          canAssemble,              // Capacidad de armado con productos actuales
           products: k.kitProducts.map(kp => `${kp.product.name} (${kp.quantity})`).join(', ')
         };
       });
@@ -1535,21 +1543,15 @@ router.get('/quick/:reportType', authenticate, validateZodRequest({ params: repo
         const kits = await prisma.kit.findMany({
           where: { isActive: true },
           include: {
+            inventory: true,
             kitProducts: {
               include: {
-                product: { include: { lots: { where: { isActive: true } } } }
-              }
+                product: { include: { lots: { where: { isActive: true } } } } }
             }
           }
         });
-        const availableKits = kits.filter(k => {
-          if (k.kitProducts.length === 0) return false;
-          const availability = k.kitProducts.map(kp => {
-            const stock = kp.product.lots.reduce((sum, l) => sum + l.quantity, 0);
-            return Math.floor(stock / kp.quantity);
-          });
-          return Math.min(...availability) > 0;
-        }).length;
+        // Disponibles = kits con stock físico en kitInventory (consistente con /available-for-exit)
+        const availableKits = kits.filter(k => (k.inventory?.[0]?.quantity || 0) > 0).length;
         quickData = {
           total: kits.length,
           available: availableKits,
