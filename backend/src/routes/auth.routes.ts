@@ -20,97 +20,147 @@ import { authZodSchemas, validateZodRequest } from '../middleware/validation.mid
 const router = Router();
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 30 * 60 * 1000; // 30 minutos
 
-// Login DESHABILITADO para pruebas - Acceso sin autenticación
 router.post('/login', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    console.log('🔓 MODO PRUEBAS: Acceso sin autenticación habilitado');
     const prisma: PrismaClient = req.app.get('prisma');
-    const adminUser = await prisma.user.findUnique({
-      where: { email: 'admin@sigah.com' },
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      logLoginAttempt(false, email || 'unknown', req, 'Campos requeridos faltantes');
+      return res.status(400).json({ success: false, error: 'Email y contraseña son requeridos' });
+    }
+
+    const identifier = email.toLowerCase().trim();
+
+    // Verificar bloqueo por intentos fallidos
+    const lockStatus = isLoginLocked(identifier);
+    if (lockStatus.locked) {
+      const minutesLeft = lockStatus.unlockTime
+        ? Math.ceil((lockStatus.unlockTime.getTime() - Date.now()) / 60000)
+        : 30;
+      logLoginAttempt(false, identifier, req, 'Cuenta bloqueada por exceso de intentos');
+      return res.status(429).json({
+        success: false,
+        error: `Cuenta bloqueada por múltiples intentos fallidos. Intente nuevamente en ${minutesLeft} minuto(s).`
+      });
+    }
+
+    // Buscar usuario
+    const user = await prisma.user.findUnique({
+      where: { email: identifier },
       include: { role: true }
     });
 
-    if (!adminUser || !adminUser.isActive) {
-      throw new AppError('Usuario administrador de pruebas no disponible', 401);
+    // Verificar existencia y contraseña (mismo mensaje para no enumerar usuarios)
+    const isValidPassword = user ? await bcrypt.compare(password, user.password) : false;
+
+    if (!user || !isValidPassword) {
+      const result = recordFailedLogin(identifier);
+
+      // Registrar en auditoría si el usuario existe (intento fallido real)
+      if (user) {
+        await prisma.auditLog.create({
+          data: {
+            userId: user.id,
+            action: 'LOGIN_FAILED',
+            entity: 'User',
+            entityId: user.id,
+            newValues: JSON.stringify({
+              ip: req.ip || req.socket?.remoteAddress || 'unknown',
+              userAgent: req.get('User-Agent') || 'unknown',
+              reason: 'Contraseña incorrecta'
+            })
+          }
+        });
+      }
+
+      logLoginAttempt(false, identifier, req, `Intento ${MAX_FAILED_ATTEMPTS - result.remainingAttempts}/${MAX_FAILED_ATTEMPTS}`);
+
+      if (result.remainingAttempts <= 2 && result.remainingAttempts > 0) {
+        return res.status(401).json({
+          success: false,
+          error: `Credenciales incorrectas. Le quedan ${result.remainingAttempts} intento(s) antes del bloqueo.`
+        });
+      }
+
+      return res.status(401).json({ success: false, error: 'Credenciales incorrectas' });
     }
-    
-    // Usuario de pruebas con permisos completos
-    const mockUser = {
-      id: adminUser.id,
-      email: adminUser.email,
-      firstName: adminUser.firstName,
-      lastName: adminUser.lastName,
-      roleId: adminUser.roleId,
-      roleName: adminUser.role?.name || 'Administrador',
-      permissions: [
-        // Dashboard
-        { module: 'dashboard', action: 'view' },
-        // Inventario
-        { module: 'inventory', action: 'view' },
-        { module: 'inventory', action: 'create' },
-        { module: 'inventory', action: 'edit' },
-        { module: 'inventory', action: 'delete' },
-        { module: 'inventory', action: 'export' },
-        { module: 'inventory', action: 'adjust' },
-        // Kits
-        { module: 'kits', action: 'view' },
-        { module: 'kits', action: 'create' },
-        { module: 'kits', action: 'edit' },
-        { module: 'kits', action: 'delete' },
-        // Beneficiarios
-        { module: 'beneficiaries', action: 'view' },
-        { module: 'beneficiaries', action: 'create' },
-        { module: 'beneficiaries', action: 'edit' },
-        { module: 'beneficiaries', action: 'delete' },
-        { module: 'beneficiaries', action: 'export' },
-        // Solicitudes
-        { module: 'requests', action: 'view' },
-        { module: 'requests', action: 'create' },
-        { module: 'requests', action: 'edit' },
-        { module: 'requests', action: 'delete' },
-        { module: 'requests', action: 'approve' },
-        { module: 'requests', action: 'reject' },
-        // Entregas
-        { module: 'deliveries', action: 'view' },
-        { module: 'deliveries', action: 'create' },
-        { module: 'deliveries', action: 'authorize' },
-        { module: 'deliveries', action: 'prepare' },
-        { module: 'deliveries', action: 'dispatch' },
-        // Reportes
-        { module: 'reports', action: 'view' },
-        { module: 'reports', action: 'export' },
-        // Usuarios
-        { module: 'users', action: 'view' },
-        { module: 'users', action: 'create' },
-        { module: 'users', action: 'edit' },
-        { module: 'users', action: 'delete' },
-        // Roles
-        { module: 'roles', action: 'view' },
-        { module: 'roles', action: 'create' },
-        { module: 'roles', action: 'edit' },
-        { module: 'roles', action: 'delete' }
-      ]
+
+    if (!user.isActive) {
+      logLoginAttempt(false, identifier, req, 'Usuario inactivo');
+      return res.status(401).json({ success: false, error: 'Usuario inactivo. Contacte al administrador.' });
+    }
+
+    // Login exitoso: limpiar intentos fallidos
+    clearFailedLogins(identifier);
+
+    // Obtener permisos del rol
+    let permissions: { module: string; action: string }[] = [];
+    if (user.roleId) {
+      permissions = await (prisma as any).$queryRaw`
+        SELECT p.module, p.action
+        FROM role_permissions rp
+        INNER JOIN permissions p ON p.id = rp."permissionId"
+        WHERE rp."roleId" = ${user.roleId}::uuid
+      `;
+    }
+
+    const tokenPayload = {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      roleId: user.roleId || null,
+      roleName: user.role?.name || 'Sin Rol'
     };
 
-    const signOptions: SignOptions = { expiresIn: '24h' };
-    const token = jwt.sign(
-      mockUser,
-      SECRET,
-      signOptions
-    );
+    const signOptions: SignOptions = { expiresIn: JWT_EXPIRES_IN as any };
+    const token = jwt.sign(tokenPayload, SECRET, signOptions);
+
+    // Registrar sesión
+    const sessionId = require('crypto').randomUUID();
+    registerSession(sessionId, user.id, req.get('User-Agent') || 'unknown', req.ip || 'unknown');
+
+    // Registrar login exitoso en auditoría
+    await prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: 'LOGIN',
+        entity: 'User',
+        entityId: user.id,
+        newValues: JSON.stringify({
+          ip: req.ip || req.socket?.remoteAddress || 'unknown',
+          userAgent: req.get('User-Agent') || 'unknown'
+        })
+      }
+    });
+
+    logLoginAttempt(true, identifier, req, 'Login exitoso');
+
+    // Detectar si la contraseña es débil (seed por defecto)
+    const isDefaultPassword = await bcrypt.compare('admin123', user.password);
 
     res.json({
       success: true,
       data: {
         token,
-        user: mockUser,
-        passwordExpired: false
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          roleId: user.roleId || null,
+          roleName: user.role?.name || 'Sin Rol',
+          permissions
+        },
+        passwordExpired: isDefaultPassword
       }
     });
 
   } catch (error) {
-    console.error('Error en login de pruebas:', error);
     next(error);
   }
 });

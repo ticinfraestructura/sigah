@@ -4,6 +4,7 @@ import { Boxes, Plus, Edit2, Trash2, Eye } from 'lucide-react';
 import { kitApi, productApi } from '../services/api';
 import { Kit, Product } from '../types';
 import { useToast } from '../components/ui/Toast';
+import ConfirmModal from '../components/ui/ConfirmModal';
 
 export default function Kits() {
   const [kits, setKits] = useState<Kit[]>([]);
@@ -11,10 +12,17 @@ export default function Kits() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedKit, setSelectedKit] = useState<Kit | null>(null);
+  const [confirmKit, setConfirmKit] = useState<Kit | null>(null);
   const toast = useToast();
 
-  const handleDelete = async (kit: Kit) => {
-    if (!confirm(`¿Desactivar el kit "${kit.name}"? Podrá reactivarlo después.`)) return;
+  const handleDelete = (kit: Kit) => {
+    setConfirmKit(kit);
+  };
+
+  const handleConfirmDelete = async () => {
+    const kit = confirmKit;
+    setConfirmKit(null);
+    if (!kit) return;
     try {
       await kitApi.delete(kit.id);
       toast.success('Kit desactivado');
@@ -140,6 +148,16 @@ export default function Kits() {
           onSave={fetchData}
         />
       )}
+
+      <ConfirmModal
+        open={!!confirmKit}
+        title="Desactivar kit"
+        message={`¿Desactivar el kit "${confirmKit?.name}"? Podrá reactivarlo después.`}
+        confirmLabel="Desactivar"
+        variant="warning"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setConfirmKit(null)}
+      />
     </div>
   );
 }

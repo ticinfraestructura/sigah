@@ -165,8 +165,8 @@ interface FailedLoginAttempt {
 
 const failedLogins = new Map<string, FailedLoginAttempt>();
 
-const MAX_FAILED_ATTEMPTS = 999; // Desactivado temporalmente para desarrollo
-const LOCKOUT_DURATION_MS = 0; // Sin bloqueo temporalmente
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 30 * 60 * 1000; // 30 minutos
 
 /**
  * Registrar un intento de login fallido
@@ -228,5 +228,3 @@ export const clearFailedLogins = (identifier: string): void => {
   failedLogins.delete(identifier);
 };
 
-// Limpiar todos los intentos fallidos existentes para desarrollo
-failedLogins.clear();

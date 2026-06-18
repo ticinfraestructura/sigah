@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import ConfirmModal from '../components/ui/ConfirmModal';
 import { 
   Shield, Plus, Edit2, Trash2, Users, Check, X, 
   Save, ChevronDown, ChevronUp, AlertCircle, UserCheck
@@ -129,7 +130,9 @@ export default function RolesManagement() {
     setError('');
   };
 
-  const handleDeleteRole = async (role: Role) => {
+  const [confirmRole, setConfirmRole] = useState<Role | null>(null);
+
+  const handleDeleteRole = (role: Role) => {
     if (role.isSystem) {
       toast.warning('No se puede eliminar un rol del sistema');
       return;
@@ -138,8 +141,13 @@ export default function RolesManagement() {
       toast.warning(`No se puede eliminar el rol porque tiene ${role.userCount} usuario(s) asignado(s)`);
       return;
     }
-    if (!confirm(`¿Está seguro de eliminar el rol "${role.name}"?`)) return;
+    setConfirmRole(role);
+  };
 
+  const handleConfirmDeleteRole = async () => {
+    const role = confirmRole;
+    setConfirmRole(null);
+    if (!role) return;
     try {
       await api.delete(`/roles/${role.id}`);
       toast.success('Rol eliminado');
@@ -482,6 +490,16 @@ export default function RolesManagement() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={!!confirmRole}
+        title="Eliminar rol"
+        message={`¿Está seguro de eliminar el rol "${confirmRole?.name}"? Esta acción no se puede deshacer.`}
+        confirmLabel="Eliminar"
+        variant="danger"
+        onConfirm={handleConfirmDeleteRole}
+        onCancel={() => setConfirmRole(null)}
+      />
     </div>
   );
 }

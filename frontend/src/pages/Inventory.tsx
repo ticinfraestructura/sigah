@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Package, Plus, Search, AlertTriangle, Clock, Edit2, Trash2, Box } from 'lucide-react';
-import { productApi, categoryApi, inventoryApi, kitApi } from '../services/api';
+import api, { productApi, categoryApi, inventoryApi, kitApi } from '../services/api';
 import { Product, Category, Unit } from '../types';
 import { useToast } from '../components/ui/Toast';
+import ConfirmModal from '../components/ui/ConfirmModal';
 
 const unitLabels: Record<string, string> = {
   UNIT: 'Unidad',
@@ -111,32 +112,24 @@ export default function Inventory() {
     setShowHistoryModal(true);
     console.log('✅ showHistoryModal establecido en true');
     try {
-      const token = localStorage.getItem('token');
       const isKit = item.__type === 'kit' || item.kitProducts;
       const entity = isKit ? 'kit' : 'product';
 
       // Si es kit, cargar detalles completos primero
       let kitWithProducts = item;
       if (isKit && !item.kitProducts) {
-        const kitRes = await fetch(`/api/kits/${item.id}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const kitData = await kitRes.json();
-        kitWithProducts = kitData.data;
+        const kitRes = await api.get(`/kits/${item.id}`);
+        kitWithProducts = kitRes.data.data;
       }
 
       // Cargar datos en paralelo
       const [movementsRes, auditRes] = await Promise.all([
-        fetch(`/api/inventory/movements?${isKit ? '' : `productId=${item.id}`}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }),
-        fetch(`/api/audit/entity/${entity}/${item.id}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }).catch(() => ({ ok: false, json: async () => ({ data: [] }) }))
+        api.get(`/inventory/movements${isKit ? '' : `?productId=${item.id}`}`),
+        api.get(`/audit/entity/${entity}/${item.id}`).catch(() => ({ data: { data: [] } }))
       ]);
 
-      const movementsData = await movementsRes.json();
-      const auditData = await auditRes.json();
+      const movementsData = movementsRes.data;
+      const auditData = auditRes.data;
 
       // Si es kit, también cargar movimientos de kit
       let kitMovementsData: any = { data: [] };
@@ -148,19 +141,11 @@ export default function Inventory() {
         try {
           const kitCode = item.code || kitWithProducts?.code;
           console.log('📡 Buscando ingresos para kit con code:', kitCode);
-          const reportRes = await fetch('/api/reports/generate', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              reportType: 'kits',
-              subtype: 'ingresos'
-            })
+          const reportRes = await api.post('/reports/generate', {
+            reportType: 'kits',
+            subtype: 'ingresos'
           });
-          const reportJson = await reportRes.json();
-          const allEntries = reportJson?.data || [];
+          const allEntries = reportRes.data?.data || [];
           console.log('📊 Total ingresos de kits:', allEntries.length, 'registros');
           if (kitCode) {
             const normalizedKitCode = String(kitCode).trim().toUpperCase();
@@ -187,24 +172,18 @@ export default function Inventory() {
           console.warn('No se pudo cargar reporte de ingresos de kits', e);
         }
         // 1) Movimientos formales de KitInventoryMovement (si existen)
-        const kitMovUrl = `/api/inventory/kit-inventory/movements/${item.id}`;
-        console.log('📡 Llamando kit-inventory endpoint:', kitMovUrl);
-        const kitMovRes = await fetch(kitMovUrl, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        kitMovementsData = await kitMovRes.json();
+        console.log('📡 Llamando kit-inventory endpoint:', `/api/inventory/kit-inventory/movements/${item.id}`);
+        const kitMovRes = await api.get(`/inventory/kit-inventory/movements/${item.id}`);
+        kitMovementsData = kitMovRes.data;
         console.log('📦 kitMovementsData respuesta:', kitMovementsData);
         console.log('📦 kitMovementsData.data.length:', kitMovementsData?.data?.length || 0);
         console.log('📦 kitMovementsData.debug:', kitMovementsData?.debug);
 
         // 2) Fallback: reconstruir eventos del kit desde StockMovements (vía /api/kits/:id/history)
         try {
-          const kitHistUrl = `/api/kits/${item.id}/history`;
-          console.log('📡 Llamando kits/history endpoint:', kitHistUrl);
-          const kitHistRes = await fetch(kitHistUrl, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          const kitHistJson = await kitHistRes.json();
+          console.log('📡 Llamando kits/history endpoint:', `/api/kits/${item.id}/history`);
+          const kitHistRes = await api.get(`/kits/${item.id}/history`);
+          const kitHistJson = kitHistRes.data;
           console.log('📦 kits/:id/history respuesta:', kitHistJson);
           const stockEntries: any[] = kitHistJson?.data?.stockEntries || [];
           console.log('📦 stockEntries encontrados:', stockEntries.length);
@@ -244,16 +223,12 @@ export default function Inventory() {
           productsHistory = await Promise.all(
             kitWithProducts.kitProducts.map(async (kitProduct: any) => {
               const [prodMovRes, prodAuditRes] = await Promise.all([
-                fetch(`/api/inventory/movements?productId=${kitProduct.product.id}`, {
-                  headers: { Authorization: `Bearer ${token}` }
-                }),
-                fetch(`/api/audit/entity/product/${kitProduct.product.id}`, {
-                  headers: { Authorization: `Bearer ${token}` }
-                }).catch(() => ({ ok: false, json: async () => ({ data: [] }) }))
+                api.get(`/inventory/movements?productId=${kitProduct.product.id}`),
+                api.get(`/audit/entity/product/${kitProduct.product.id}`).catch(() => ({ data: { data: [] } }))
               ]);
-              
-              const prodMovData = await prodMovRes.json();
-              const prodAuditData = await prodAuditRes.json();
+
+              const prodMovData = prodMovRes.data;
+              const prodAuditData = prodAuditRes.data;
               
               return {
                 product: kitProduct.product,
@@ -332,8 +307,16 @@ export default function Inventory() {
     }
   };
 
+  const [confirmState, setConfirmState] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null });
+
   const handleDelete = async (product: Product) => {
-    if (!confirm(`¿Desactivar el producto "${product.name}"? Podrá reactivarlo después.`)) return;
+    setConfirmState({ open: true, product });
+  };
+
+  const handleConfirmDelete = async () => {
+    const product = confirmState.product;
+    setConfirmState({ open: false, product: null });
+    if (!product) return;
     try {
       await productApi.delete(product.id);
       toast.success('Producto desactivado');
@@ -1135,6 +1118,16 @@ export default function Inventory() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={confirmState.open}
+        title="Confirmar acción"
+        message={`¿${confirmState.product?.isActive ? 'Desactivar' : 'Activar'} el producto "${confirmState.product?.name}"? Podrá revertirlo después.`}
+        confirmLabel={confirmState.product?.isActive ? 'Desactivar' : 'Activar'}
+        variant={confirmState.product?.isActive ? 'danger' : 'warning'}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setConfirmState({ open: false, product: null })}
+      />
     </div>
   );
 }

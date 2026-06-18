@@ -17,6 +17,7 @@ import {
   Send
 } from 'lucide-react';
 import api from '../services/api';
+import ConfirmModal from '../components/ui/ConfirmModal';
 
 interface User {
   id: string;
@@ -128,9 +129,16 @@ export default function UsersManagement() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('¿Está seguro de eliminar este usuario?')) return;
+  const [confirmUserId, setConfirmUserId] = useState<string | null>(null);
 
+  const handleDelete = (id: string) => {
+    setConfirmUserId(id);
+  };
+
+  const handleConfirmDelete = async () => {
+    const id = confirmUserId;
+    setConfirmUserId(null);
+    if (!id) return;
     try {
       await api.delete(`/users/${id}`);
       setSuccess('Usuario eliminado correctamente');
@@ -796,6 +804,15 @@ export default function UsersManagement() {
           </div>
         </div>
       )}
+      <ConfirmModal
+        open={!!confirmUserId}
+        title="Eliminar usuario"
+        message="¿Está seguro de eliminar este usuario? Esta acción no se puede deshacer."
+        confirmLabel="Eliminar"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setConfirmUserId(null)}
+      />
     </div>
   );
 }

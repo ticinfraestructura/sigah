@@ -4,6 +4,7 @@ import { Plus, Search, Eye, XCircle, RotateCcw } from 'lucide-react';
 import { requestApi } from '../services/api';
 import { Request } from '../types';
 import { useToast } from '../components/ui/Toast';
+import ConfirmModal from '../components/ui/ConfirmModal';
 
 const statusLabels: Record<string, string> = {
   REGISTERED: 'Registrada', IN_REVIEW: 'En Revisión', APPROVED: 'Aprobada',
@@ -19,35 +20,40 @@ export default function Requests() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
+  const [confirmReq, setConfirmReq] = useState<{ req: Request; action: 'cancel' | 'reactivate' } | null>(null);
   const toast = useToast();
 
-  const handleCancel = async (req: Request) => {
+  const handleCancel = (req: Request) => {
     if (req.status === 'CANCELLED' || req.status === 'DELIVERED') {
       toast.warning('Esta solicitud no puede ser cancelada');
       return;
     }
-    if (!confirm(`¿Cancelar la solicitud "${req.code}"?`)) return;
-    try {
-      await requestApi.updateStatus(req.id, 'CANCELLED');
-      toast.success('Solicitud cancelada');
-      fetchData();
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Error al cancelar');
-    }
+    setConfirmReq({ req, action: 'cancel' });
   };
 
-  const handleReactivate = async (req: Request) => {
+  const handleReactivate = (req: Request) => {
     if (req.status !== 'CANCELLED') {
       toast.warning('Solo se pueden reactivar solicitudes canceladas');
       return;
     }
-    if (!confirm(`¿Reactivar la solicitud "${req.code}"? Volverá al estado "Registrada".`)) return;
+    setConfirmReq({ req, action: 'reactivate' });
+  };
+
+  const handleConfirmReq = async () => {
+    const current = confirmReq;
+    setConfirmReq(null);
+    if (!current) return;
     try {
-      await requestApi.updateStatus(req.id, 'REGISTERED');
-      toast.success('Solicitud reactivada');
+      if (current.action === 'cancel') {
+        await requestApi.updateStatus(current.req.id, 'CANCELLED');
+        toast.success('Solicitud cancelada');
+      } else {
+        await requestApi.updateStatus(current.req.id, 'REGISTERED');
+        toast.success('Solicitud reactivada');
+      }
       fetchData();
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Error al reactivar');
+      toast.error(error.response?.data?.error || 'Error al actualizar');
     }
   };
 
@@ -150,6 +156,20 @@ export default function Requests() {
           </table>
         </div>
       )}
+
+      <ConfirmModal
+        open={!!confirmReq}
+        title={confirmReq?.action === 'cancel' ? 'Cancelar solicitud' : 'Reactivar solicitud'}
+        message={
+          confirmReq?.action === 'cancel'
+            ? `¿Cancelar la solicitud "${confirmReq?.req.code}"?`
+            : `¿Reactivar la solicitud "${confirmReq?.req.code}"? Volverá al estado "Registrada".`
+        }
+        confirmLabel={confirmReq?.action === 'cancel' ? 'Cancelar solicitud' : 'Reactivar'}
+        variant={confirmReq?.action === 'cancel' ? 'danger' : 'warning'}
+        onConfirm={handleConfirmReq}
+        onCancel={() => setConfirmReq(null)}
+      />
     </div>
   );
 }

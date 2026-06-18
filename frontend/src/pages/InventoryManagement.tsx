@@ -5,6 +5,7 @@ import {
   History, Calendar, User, Send, FileText
 } from 'lucide-react';
 import { productApi, categoryApi, inventoryApi, kitApi } from '../services/api';
+import ConfirmModal from '../components/ui/ConfirmModal';
 import { Product, Category, ProductLot, StockMovement, Unit, Kit } from '../types';
 import { useToast } from '../components/ui/Toast';
 import KitEntriesTab from '../components/KitEntriesTab';
@@ -141,9 +142,17 @@ function ProductsTab() {
     setShowModal(true);
   };
 
-  const handleDelete = async (product: Product) => {
+  const [confirmProduct, setConfirmProduct] = useState<Product | null>(null);
+
+  const handleDelete = (product: Product) => {
+    setConfirmProduct(product);
+  };
+
+  const handleConfirmProduct = async () => {
+    const product = confirmProduct;
+    setConfirmProduct(null);
+    if (!product) return;
     const action = product.isActive ? 'desactivar' : 'reactivar';
-    if (!confirm(`¿${action.charAt(0).toUpperCase() + action.slice(1)} el producto "${product.name}"?`)) return;
     try {
       await productApi.update(product.id, { isActive: !product.isActive });
       fetchData();
@@ -303,6 +312,16 @@ function ProductsTab() {
           onSave={fetchData}
         />
       )}
+
+      <ConfirmModal
+        open={!!confirmProduct}
+        title="Confirmar acción"
+        message={`¿${confirmProduct?.isActive ? 'Desactivar' : 'Reactivar'} el producto "${confirmProduct?.name}"?`}
+        confirmLabel={confirmProduct?.isActive ? 'Desactivar' : 'Reactivar'}
+        variant={confirmProduct?.isActive ? 'danger' : 'warning'}
+        onConfirm={handleConfirmProduct}
+        onCancel={() => setConfirmProduct(null)}
+      />
     </div>
   );
 }
@@ -337,9 +356,17 @@ function CategoriesTab() {
     setShowModal(true);
   };
 
-  const handleDelete = async (category: Category) => {
+  const [confirmCategory, setConfirmCategory] = useState<Category | null>(null);
+
+  const handleDelete = (category: Category) => {
+    setConfirmCategory(category);
+  };
+
+  const handleConfirmCategory = async () => {
+    const category = confirmCategory;
+    setConfirmCategory(null);
+    if (!category) return;
     const action = category.isActive ? 'desactivar' : 'reactivar';
-    if (!confirm(`¿${action.charAt(0).toUpperCase() + action.slice(1)} la categoría "${category.name}"?`)) return;
     try {
       if (category.isActive) {
         await categoryApi.delete(category.id);
@@ -443,6 +470,16 @@ function CategoriesTab() {
           onSave={fetchData}
         />
       )}
+
+      <ConfirmModal
+        open={!!confirmCategory}
+        title="Confirmar acción"
+        message={`¿${confirmCategory?.isActive ? 'Desactivar' : 'Reactivar'} la categoría "${confirmCategory?.name}"?`}
+        confirmLabel={confirmCategory?.isActive ? 'Desactivar' : 'Reactivar'}
+        variant={confirmCategory?.isActive ? 'danger' : 'warning'}
+        onConfirm={handleConfirmCategory}
+        onCancel={() => setConfirmCategory(null)}
+      />
     </div>
   );
 }
@@ -507,8 +544,16 @@ function LotsTab() {
     setShowModal(true);
   };
 
-  const handleDelete = async (lot: ProductLot) => {
-    if (!confirm(`¿Eliminar el lote "${lot.lotNumber}"? Esta acción no se puede deshacer.`)) return;
+  const [confirmLot, setConfirmLot] = useState<ProductLot | null>(null);
+
+  const handleDelete = (lot: ProductLot) => {
+    setConfirmLot(lot);
+  };
+
+  const handleConfirmLot = async () => {
+    const lot = confirmLot;
+    setConfirmLot(null);
+    if (!lot) return;
     try {
       await productApi.deleteLot(selectedProduct, lot.id);
       fetchLots();
@@ -665,6 +710,16 @@ function LotsTab() {
           onSave={fetchLots}
         />
       )}
+
+      <ConfirmModal
+        open={!!confirmLot}
+        title="Eliminar lote"
+        message={`¿Eliminar el lote "${confirmLot?.lotNumber}"? Esta acción no se puede deshacer.`}
+        confirmLabel="Eliminar"
+        variant="danger"
+        onConfirm={handleConfirmLot}
+        onCancel={() => setConfirmLot(null)}
+      />
     </div>
   );
 }

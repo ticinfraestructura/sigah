@@ -4,6 +4,7 @@ import { ArrowLeft, Truck, Clock } from 'lucide-react';
 import { requestApi } from '../services/api';
 import { Request } from '../types';
 import { useToast } from '../components/ui/Toast';
+import ConfirmModal from '../components/ui/ConfirmModal';
 
 const statusLabels: Record<string, string> = {
   REGISTERED: 'Registrada', IN_REVIEW: 'En Revisión', APPROVED: 'Aprobada',
@@ -18,6 +19,7 @@ export default function RequestDetail() {
   const { id } = useParams<{ id: string }>();
   const [request, setRequest] = useState<Request | null>(null);
   const [loading, setLoading] = useState(true);
+  const [confirmStatus, setConfirmStatus] = useState<string | null>(null);
   const toast = useToast();
 
   useEffect(() => { if (id) fetchRequest(); }, [id]);
@@ -30,8 +32,14 @@ export default function RequestDetail() {
     finally { setLoading(false); }
   };
 
-  const updateStatus = async (status: string) => {
-    if (!confirm(`¿Cambiar estado a ${statusLabels[status]}?`)) return;
+  const updateStatus = (status: string) => {
+    setConfirmStatus(status);
+  };
+
+  const handleConfirmStatus = async () => {
+    const status = confirmStatus;
+    setConfirmStatus(null);
+    if (!status) return;
     try {
       await requestApi.updateStatus(id!, status);
       fetchRequest();
@@ -137,6 +145,15 @@ export default function RequestDetail() {
           </div>
         </div>
       )}
+      <ConfirmModal
+        open={!!confirmStatus}
+        title="Cambiar estado"
+        message={`¿Cambiar estado a ${confirmStatus ? statusLabels[confirmStatus] : ''}?`}
+        confirmLabel="Confirmar"
+        variant="warning"
+        onConfirm={handleConfirmStatus}
+        onCancel={() => setConfirmStatus(null)}
+      />
     </div>
   );
 }

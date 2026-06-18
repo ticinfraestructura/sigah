@@ -7,7 +7,7 @@ interface AuthContextType {
   token: string | null;
   isAuthenticated: boolean;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<{ passwordExpired: boolean }>;
   logout: () => void;
   hasPermission: (module: string, action: string) => boolean;
   hasAnyPermission: (permissions: { module: string; action: string }[]) => boolean;
@@ -42,15 +42,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string): Promise<{ passwordExpired: boolean }> => {
     const response = await authApi.login(email, password);
-    const { token: newToken, user: userData } = response.data.data;
+    const { token: newToken, user: userData, passwordExpired } = response.data.data;
     
     localStorage.setItem('token', newToken);
     localStorage.setItem('user', JSON.stringify(userData));
     
     setToken(newToken);
     setUser(userData);
+
+    return { passwordExpired: !!passwordExpired };
   }, []);
 
   const logout = useCallback(() => {
