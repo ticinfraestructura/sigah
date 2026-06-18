@@ -71,8 +71,6 @@ const buildEventCompositionSignature = (products: any[] = [], kitQty: number | n
     .join('|');
 
 export default function Inventory() {
-  console.log('🚀 Componente Inventory montado');
-
   const [activeTab, setActiveTab] = useState<'all' | 'products' | 'kits'>('all');
   const [products, setProducts] = useState<Product[]>([]);
   const [kits, setKits] = useState<any[]>([]);
@@ -89,11 +87,6 @@ export default function Inventory() {
   const [historyData, setHistoryData] = useState<any>(null);
   const toast = useToast();
 
-  useEffect(() => {
-    console.log('🎨 showHistoryModal cambió a:', showHistoryModal);
-    console.log('🎨 selectedItemHistory:', selectedItemHistory);
-  }, [showHistoryModal, selectedItemHistory]);
-
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
     setShowModal(true);
@@ -105,12 +98,10 @@ export default function Inventory() {
   };
 
   const handleViewHistory = async (item: any) => {
-    console.log('🔍 handleViewHistory llamado con:', item);
     setSelectedItemHistory(item);
     setHistoryDataLoaded(false);
     setHistoryData(null);
     setShowHistoryModal(true);
-    console.log('✅ showHistoryModal establecido en true');
     try {
       const isKit = item.__type === 'kit' || item.kitProducts;
       const entity = isKit ? 'kit' : 'product';
@@ -140,13 +131,11 @@ export default function Inventory() {
         // 0) Llamar endpoint de reportes de ingresos de kits (traer TODOS y filtrar client-side)
         try {
           const kitCode = item.code || kitWithProducts?.code;
-          console.log('📡 Buscando ingresos para kit con code:', kitCode);
           const reportRes = await api.post('/reports/generate', {
             reportType: 'kits',
             subtype: 'ingresos'
           });
           const allEntries = reportRes.data?.data || [];
-          console.log('📊 Total ingresos de kits:', allEntries.length, 'registros');
           if (kitCode) {
             const normalizedKitCode = String(kitCode).trim().toUpperCase();
             const selectedKitId = String(item.id || kitWithProducts?.id || '').trim();
@@ -167,26 +156,18 @@ export default function Inventory() {
           } else {
             kitReportEntries = [];
           }
-          console.log('📊 Ingresos filtrados para', kitCode, ':', kitReportEntries.length, 'registros', kitReportEntries);
         } catch (e) {
           console.warn('No se pudo cargar reporte de ingresos de kits', e);
         }
         // 1) Movimientos formales de KitInventoryMovement (si existen)
-        console.log('📡 Llamando kit-inventory endpoint:', `/api/inventory/kit-inventory/movements/${item.id}`);
         const kitMovRes = await api.get(`/inventory/kit-inventory/movements/${item.id}`);
         kitMovementsData = kitMovRes.data;
-        console.log('📦 kitMovementsData respuesta:', kitMovementsData);
-        console.log('📦 kitMovementsData.data.length:', kitMovementsData?.data?.length || 0);
-        console.log('📦 kitMovementsData.debug:', kitMovementsData?.debug);
 
         // 2) Fallback: reconstruir eventos del kit desde StockMovements (vía /api/kits/:id/history)
         try {
-          console.log('📡 Llamando kits/history endpoint:', `/api/kits/${item.id}/history`);
           const kitHistRes = await api.get(`/kits/${item.id}/history`);
           const kitHistJson = kitHistRes.data;
-          console.log('📦 kits/:id/history respuesta:', kitHistJson);
           const stockEntries: any[] = kitHistJson?.data?.stockEntries || [];
-          console.log('📦 stockEntries encontrados:', stockEntries.length);
           const map = new Map<string, any>();
           for (const m of stockEntries) {
             const dateKey = new Date(m.createdAt).toISOString().slice(0, 16);
@@ -243,12 +224,9 @@ export default function Inventory() {
         // Fallback 2: si kitEvents sigue vacío, reconstruirlo desde productsHistory
         // agrupando los movimientos de los productos por reference o (reason+minuto)
         if (kitEvents.length === 0 && productsHistory.length > 0) {
-          console.log('🔧 Fallback 2: reconstruyendo kitEvents desde productsHistory', productsHistory);
           const map = new Map<string, any>();
           for (const ph of productsHistory) {
-            console.log(`📦 Producto ${ph.product?.name}:`, ph.movements?.length || 0, 'movimientos');
             for (const m of (ph.movements || [])) {
-              console.log('  ➤ Movimiento:', m);
               const dateKey = new Date(m.createdAt).toISOString().slice(0, 16);
               const key = m.reference || `${m.reason ?? 'sin-razon'}|${dateKey}|${m.type}`;
               if (!map.has(key)) {
@@ -276,7 +254,6 @@ export default function Inventory() {
           kitEvents = Array.from(map.values()).sort(
             (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
           );
-          console.log('✅ kitEvents reconstruidos:', kitEvents);
         }
       }
 

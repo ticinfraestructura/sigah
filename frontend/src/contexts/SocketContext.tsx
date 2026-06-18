@@ -75,12 +75,12 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     });
 
     newSocket.on('connect', () => {
-      console.log('[Socket] Connected:', newSocket.id);
+      if (import.meta.env.DEV) console.log('[Socket] Connected:', newSocket.id);
       setIsConnected(true);
     });
 
     newSocket.on('disconnect', (reason) => {
-      console.log('[Socket] Disconnected:', reason);
+      if (import.meta.env.DEV) console.log('[Socket] Disconnected:', reason);
       setIsConnected(false);
     });
 
@@ -91,7 +91,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 
     // Recibir notificaciones
     newSocket.on('notification', (notification: Notification) => {
-      console.log('[Socket] Notification received:', notification);
+      if (import.meta.env.DEV) console.log('[Socket] Notification received:', notification);
       setNotifications(prev => [
         { ...notification, read: false, createdAt: new Date(notification.createdAt) },
         ...prev
@@ -109,7 +109,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 
     // Actualización de dashboard
     newSocket.on('dashboard:update', (stats) => {
-      console.log('[Socket] Dashboard update:', stats);
+      if (import.meta.env.DEV) console.log('[Socket] Dashboard update:', stats);
       // Emitir evento personalizado para que el dashboard lo capture
       window.dispatchEvent(new CustomEvent('dashboard:update', { detail: stats }));
     });
