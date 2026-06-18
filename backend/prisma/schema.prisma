@@ -32,11 +32,14 @@ model User {
   password  String
   firstName String
   lastName  String
-  phone     String?
-  roleId    String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  phone              String?
+  roleId             String?
+  isActive           Boolean   @default(true)
+  passwordChangedAt  DateTime?
+  whatsappApiKey     String?
+  telegramChatId     String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   // Relations
   role              Role?            @relation(fields: [roleId], references: [id])
