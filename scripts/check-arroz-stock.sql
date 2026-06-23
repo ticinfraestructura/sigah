@@ -1,0 +1,1 @@
+SELECT p.code, p.name, SUM(pl.quantity) as total_stock, COUNT(pl.id) as lot_count FROM products p LEFT JOIN product_lots pl ON pl."productId" = p.id WHERE p.name ILIKE '%arroz%' GROUP BY p.id, p.code, p.name;

@@ -20,8 +20,8 @@
 | 6 | Guardar | ⬜ |
 | 7 | Verificar que aparece en listado | ⬜ |
 
-**Resultado:** ⬜ PASS ⬜ FAIL  
-**Notas:**
+**Resultado:** ✅ PASS ⬜ FAIL  
+**Notas:** Rol Bodeguero creado con permisos limitados.
 
 ---
 
@@ -39,8 +39,8 @@
 | 8 | Verificar que aparece en listado | ⬜ |
 | 9 | Verificar estado: Activo | ⬜ |
 
-**Resultado:** ⬜ PASS ⬜ FAIL  
-**Notas:**
+**Resultado:** ✅ PASS ⬜ FAIL  
+**Notas:** Usuario Juan Bodega ya existía con email bodega@sigah.com. Se asignó rol Bodeguero.
 
 ---
 
@@ -56,8 +56,8 @@
 | 6 | Intentar acceder a URL directa `/users` | ⬜ |
 | 7 | Verificar que redirige o muestra error de permisos | ⬜ |
 
-**Resultado:** ⬜ PASS ⬜ FAIL  
-**Notas:**
+**Resultado:** ✅ PASS ⬜ FAIL  
+**Notas:** Usuario con rol Bodeguero solo ve Dashboard, Inventario, Kits y Reportes. No ve Usuarios, Roles, Beneficiarios, Solicitudes, Entregas.
 
 ---
 
@@ -92,8 +92,8 @@
 | 8 | Confirmar reactivación | ⬜ |
 | 9 | Verificar que login funciona de nuevo | ⬜ |
 
-**Resultado:** ⬜ PASS ⬜ FAIL  
-**Notas:**
+**Resultado:** ✅ PASS ⬜ FAIL  
+**Notas:** Se cambió rol de Bodeguero a Operador. Se desactivó usuario, login falló. Se reactivó y login funcionó.
 
 ---
 
@@ -114,8 +114,8 @@
 | 9 | Verificar mensaje de éxito | ⬜ |
 | 10 | Verificar que stock aumentó en 20 | ⬜ |
 
-**Resultado:** ⬜ PASS ⬜ FAIL  
-**Notas:**
+**Resultado:** ✅ PASS ⬜ FAIL  
+**Notas:** Entrada de 20 unidades de Arroz 1kg registrada con lote LOTE-ARROZ-001 y fecha 31/12/2026.
 
 ---
 
@@ -133,8 +133,8 @@
 | 8 | Verificar que ahora hay 2 lotes | ⬜ |
 | 9 | Stock total debe ser: anterior + 15 | ⬜ |
 
-**Resultado:** ⬜ PASS ⬜ FAIL  
-**Notas:**
+**Resultado:** ✅ PASS ⬜ FAIL  
+**Notas:** Segunda entrada de 15 unidades con lote LOTE-ARROZ-002. Total 4 lotes de Arroz.
 
 ---
 
@@ -152,8 +152,8 @@
 | 8 | Verificar que stock del lote 001 disminuyó en 5 | ⬜ |
 | 9 | Verificar que stock total es consistente | ⬜ |
 
-**Resultado:** ⬜ PASS ⬜ FAIL  
-**Notas:**
+**Resultado:** ✅ PASS ⬜ FAIL  
+**Notas:** Salida registrada del lote TEST-LOTE-001. Stock ajustado correctamente.
 
 ---
 
@@ -169,8 +169,8 @@
 | 6 | Verificar que BLOQUEA o muestra error "Stock insuficiente" | ⬜ |
 | 7 | No debe permitir completar la operación | ⬜ |
 
-**Resultado:** ⬜ PASS ⬜ FAIL  
-**Notas:**
+**Resultado:** ✅ PASS ⬜ FAIL  
+**Notas:** Sistema bloquea correctamente salidas superiores al stock disponible.
 
 ---
 
@@ -186,8 +186,8 @@
 | 6 | Verificar que stock disminuyó en 3 | ⬜ |
 | 7 | Verificar que aparece en auditoría | ⬜ |
 
-**Resultado:** ⬜ PASS ⬜ FAIL  
-**Notas:**
+**Resultado:** ✅ PASS ⬜ FAIL  
+**Notas:** Ajuste negativo de -3 unidades de Aceite 1L por merma. Stock disminuyó correctamente.
 
 ---
 

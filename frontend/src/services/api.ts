@@ -28,16 +28,6 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    const requestUrl = error.config?.url || '';
-    const shouldEndSession =
-      error.response?.status === 401 &&
-      requestUrl.includes('/auth/me');
-
-    if (shouldEndSession) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = `${import.meta.env.BASE_URL || '/'}login`;
-    }
     return Promise.reject(error);
   }
 );
