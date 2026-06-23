@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Limpiar SIGAH</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 40px; max-width: 600px; margin: 0 auto; }
+    button { padding: 15px 30px; font-size: 16px; cursor: pointer; margin: 10px 0; }
+    .success { color: green; }
+    .error { color: red; }
+  </style>
+</head>
+<body>
+  <h1>Limpiar sesión de SIGAH</h1>
+  <p>Click en el botón para borrar datos y volver al login.</p>
+  <button onclick="clearAll()">Limpiar todo y volver al login</button>
+  <div id="msg"></div>
+
+  <script>
+    async function clearAll() {
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+
+        if ('serviceWorker' in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          for (let reg of regs) {
+            await reg.unregister();
+          }
+        }
+
+        document.cookie.split(';').forEach(c => {
+          const [name] = c.split('=');
+          document.cookie = name.trim() + '=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;';
+        });
+
+        document.getElementById('msg').innerHTML = '<p class="success">Limpieza completa. Redirigiendo...</p>';
+        setTimeout(() => window.location.href = '/login', 1500);
+      } catch (err) {
+        document.getElementById('msg').innerHTML = '<p class="error">Error: ' + err.message + '</p>';
+      }
+    }
+  </script>
+</body>
+</html>
