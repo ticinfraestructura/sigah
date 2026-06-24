@@ -32,10 +32,10 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard, module: 'dashboard', action: 'view' },
   { name: 'Inventario', href: '/inventory', icon: Package, module: 'inventory', action: 'view' },
   { name: 'Kits', href: '/kits', icon: Boxes, module: 'kits', action: 'view' },
-  { name: 'Beneficiarios', href: '/beneficiaries', icon: Users, module: 'beneficiaries', action: 'view' },
-  { name: 'Solicitudes', href: '/requests', icon: FileText, module: 'requests', action: 'view' },
-  { name: 'Entregas', href: '/deliveries', icon: Truck, module: 'deliveries', action: 'view' },
-  { name: 'Devoluciones', href: '/returns', icon: RotateCcw, module: 'returns', action: 'view' },
+  // { name: 'Beneficiarios', href: '/beneficiaries', icon: Users, module: 'beneficiaries', action: 'view' },
+  // { name: 'Solicitudes', href: '/requests', icon: FileText, module: 'requests', action: 'view' },
+  // { name: 'Entregas', href: '/deliveries', icon: Truck, module: 'deliveries', action: 'view' },
+  // { name: 'Devoluciones', href: '/returns', icon: RotateCcw, module: 'returns', action: 'view' },
   { name: 'Reportes', href: '/reports', icon: BarChart3, module: 'reports', action: 'view' },
 ];
 
@@ -43,10 +43,10 @@ const navigation = [
 const adminNavigation = [
   { name: 'Gestión Inventario', href: '/inventory-admin', icon: Settings, module: 'inventory', action: 'edit' },
   { name: 'Auditoría Inventario', href: '/inventory-audit', icon: ClipboardList, module: 'roles', action: 'view' },
-  { name: 'Enviar Notificaciones', href: '/send-notifications', icon: MessageSquare, module: 'users', action: 'view' },
+  // { name: 'Enviar Notificaciones', href: '/send-notifications', icon: MessageSquare, module: 'users', action: 'view' },
   { name: 'Roles y Permisos', href: '/roles', icon: Shield, module: 'roles', action: 'view' },
   { name: 'Usuarios', href: '/users', icon: Users, module: 'users', action: 'view' },
-  { name: 'Config. Notificaciones', href: '/notifications', icon: Bell, module: 'users', action: 'view' },
+  // { name: 'Config. Notificaciones', href: '/notifications', icon: Bell, module: 'users', action: 'view' },
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
