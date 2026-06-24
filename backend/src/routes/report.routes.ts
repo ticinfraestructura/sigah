@@ -435,15 +435,15 @@ async function generateInventoryReport(prisma: PrismaClient, subtype: string, da
           for (const kp of ki.kit.kitProducts) {
             const cantidadCalculada = ki.quantity * kp.quantity;
             desagregados.push({
-              kitCode: ki.kit.code,
-              kitName: ki.kit.name,
-              kitStock: ki.quantity,
-              productCode: kp.product.code,
-              productName: kp.product.name,
-              productCategory: kp.product.category.name,
-              quantityPerKit: kp.quantity,
-              calculatedQuantity: cantidadCalculada,
-              unit: kp.product.unit
+              'Código Kit': ki.kit.code,
+              'Nombre Kit': ki.kit.name,
+              'Stock Kits Disponibles': ki.quantity,
+              'Código Producto': kp.product.code,
+              'Nombre Producto': kp.product.name,
+              'Categoría Producto': kp.product.category.name,
+              'Cantidad por Kit': kp.quantity,
+              'Total Necesario': cantidadCalculada,
+              'Unidad': kp.product.unit
             });
           }
         }

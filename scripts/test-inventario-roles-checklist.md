@@ -280,20 +280,20 @@
 ### Usuarios y Roles
 | Prueba | Estado |
 |--------|--------|
-| A.1 Crear rol Bodeguero | ⬜ |
-| A.2 Crear usuario Juan Bodega | ⬜ |
-| A.3 Validar permisos limitados | ⬜ |
-| A.4 Editar rol de usuario | ⬜ |
-| A.5 Desactivar/reactivar usuario | ⬜ |
+| A.1 Crear rol Bodeguero | ✅ |
+| A.2 Crear usuario Juan Bodega | ✅ |
+| A.3 Validar permisos limitados | ✅ |
+| A.4 Editar rol de usuario | ✅ |
+| A.5 Desactivar/reactivar usuario | ✅ |
 
 ### Inventario Productos
 | Prueba | Estado |
 |--------|--------|
-| B.1 Entrada producto con lote | ⬜ |
-| B.2 Segunda entrada (acumulación) | ⬜ |
-| B.3 Salida FEFO | ⬜ |
-| B.4 Validación stock insuficiente | ⬜ |
-| B.5 Ajuste negativo | ⬜ |
+| B.1 Entrada producto con lote | ✅ |
+| B.2 Segunda entrada (acumulación) | ✅ |
+| B.3 Salida FEFO | ✅ |
+| B.4 Validación stock insuficiente | ✅ |
+| B.5 Ajuste negativo | ✅ |
 
 ### Reportes
 | Prueba | Estado |
@@ -310,7 +310,7 @@
 
 ---
 
-**TOTAL: ___/17 pruebas ejecutadas**
+**TOTAL: 10/17 pruebas ejecutadas (58.8%)**
 
 **Leyenda:**
 - ✅ PASS - Funciona correctamente

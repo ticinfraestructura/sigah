@@ -137,12 +137,13 @@ export default function ReportsAdvanced() {
     setLoading(true);
     setError(null);
     try {
+      const subtypesWithDefinedFields = ['cancelaciones', 'historico_eliminaciones', 'movimientos', 'ingresos'];
       const response = await reportApi.generate({
         reportType: selectedType,
         subtype: selectedSubtype,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
-        fields: selectedFields.length > 0 ? selectedFields : undefined,
+        fields: subtypesWithDefinedFields.includes(selectedSubtype) && selectedFields.length > 0 ? selectedFields : undefined,
         filters
       });
       setData(response.data.data || []);

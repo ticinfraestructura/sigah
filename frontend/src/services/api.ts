@@ -363,10 +363,10 @@ export const reportApi = {
     api.get('/reports/requests', { params }),
   getDeliveries: (params?: { startDate?: string; endDate?: string; deliveredById?: string }) =>
     api.get('/reports/deliveries', { params }),
-  getInventory: (params?: { startDate?: string; endDate?: string; subtype?: string; type?: string; categoryId?: string }) =>
-    api.get('/reports/inventory', { params }),
+  getInventory: (params?: { startDate?: string; endDate?: string; subtype?: string; type?: string; categoryId?: string; search?: string; status?: string }) =>
+    api.post('/reports/generate', { reportType: 'inventory', ...params }),
   getKits: (params?: { startDate?: string; endDate?: string; subtype?: string }) =>
-    api.get('/reports/kits', { params }),
+    api.post('/reports/generate', { reportType: 'kits', ...params }),
   exportExcel: (reportType: string, params?: Record<string, string>) =>
     api.get(`/reports/export/excel/${reportType}`, { params, responseType: 'blob' }),
   exportPdf: (reportType: string, params?: Record<string, string>) =>

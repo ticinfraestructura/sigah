@@ -7,9 +7,9 @@
  * - Sincronización en background
  */
 
-const CACHE_NAME = 'sigah-v1';
-const STATIC_CACHE = 'sigah-static-v1';
-const DYNAMIC_CACHE = 'sigah-dynamic-v1';
+const CACHE_NAME = 'sigah-v2';
+const STATIC_CACHE = 'sigah-static-v2';
+const DYNAMIC_CACHE = 'sigah-dynamic-v2';
 
 // Assets a cachear inmediatamente
 const STATIC_ASSETS = [
@@ -58,27 +58,12 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Para assets estáticos: Cache First
+  // Para assets estáticos: Network only (evitar cache con codificación vieja)
   if (request.destination === 'image' || 
       request.destination === 'style' || 
       request.destination === 'script' ||
       request.destination === 'font') {
-    event.respondWith(
-      caches.match(request).then((cachedResponse) => {
-        if (cachedResponse) {
-          return cachedResponse;
-        }
-        return fetch(request).then((networkResponse) => {
-          if (networkResponse.ok) {
-            const responseClone = networkResponse.clone();
-            caches.open(DYNAMIC_CACHE).then((cache) => {
-              cache.put(request, responseClone);
-            });
-          }
-          return networkResponse;
-        });
-      })
-    );
+    event.respondWith(fetch(request));
     return;
   }
 

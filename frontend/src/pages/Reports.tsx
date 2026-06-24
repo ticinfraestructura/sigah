@@ -40,11 +40,16 @@ export default function Reports() {
 
   // Filtrar datos localmente para mejor rendimiento
   const filteredData = data.filter(item => {
-    if (searchTerm && !item.Nombre?.toLowerCase().includes(searchTerm.toLowerCase()) && 
-        !item.Código?.toLowerCase().includes(searchTerm.toLowerCase())) {
-      return false;
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      const matches = Object.entries(item).some(([, value]) => {
+        if (typeof value === 'string' && value.toLowerCase().includes(term)) return true;
+        if (typeof value === 'number' && value.toString().includes(term)) return true;
+        return false;
+      });
+      if (!matches) return false;
     }
-    if (selectedCategory && item.Categoría !== selectedCategory) return false;
+    if (selectedCategory && item.Categoría !== selectedCategory && item['Categoría Producto'] !== selectedCategory) return false;
     if (selectedStatus && item.Estado !== selectedStatus) return false;
     return true;
   });
@@ -55,10 +60,10 @@ export default function Reports() {
   // Estadísticas para visualización
   const stats = {
     totalProducts: data.length,
-    totalStock: data.reduce((sum, item) => sum + (item['Stock Actual'] || 0), 0),
+    totalStock: data.reduce((sum, item) => sum + (item['Stock Actual'] || item['Stock Kits Disponibles'] || item['Stock'] || 0), 0),
     lowStock: data.filter(item => (item['Stock Actual'] || 0) < (item['Stock Mínimo'] || 10)).length,
     categories: categories.length,
-    avgStock: data.length > 0 ? Math.round(data.reduce((sum, item) => sum + (item['Stock Actual'] || 0), 0) / data.length) : 0
+    avgStock: data.length > 0 ? Math.round(data.reduce((sum, item) => sum + (item['Stock Actual'] || item['Stock Kits Disponibles'] || item['Stock'] || 0), 0) / data.length) : 0
   };
 
   const exportReport = async () => {
@@ -261,10 +266,10 @@ export default function Reports() {
           </div>
 
           {/* Tabla de resultados */}
-          {filteredData.length > 0 && (
+          {data.length > 0 && (
             <div className="card">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold">Resultados ({filteredData.length} de {data.length})</h3>
+                <h3 className="font-semibold">Resultados ({filteredData.length > 0 ? filteredData.length : data.length} de {data.length})</h3>
             <div className="text-sm text-gray-500">
               {searchTerm && `Buscando: "${searchTerm}"`}
               {selectedCategory && ` | Categoría: ${selectedCategory}`}
@@ -277,17 +282,22 @@ export default function Reports() {
               </button>
             </div>
           </div>
+          {filteredData.length === 0 && data.length > 0 && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded p-3 mb-4 text-sm text-yellow-800">
+              Filtros activos ocultan los resultados. <button onClick={() => {setSearchTerm(''); setSelectedCategory('');}} className="underline font-medium">Limpiar filtros</button>
+            </div>
+          )}
           <div className="overflow-x-auto max-h-96">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-gray-50">
-                  {filteredData[0] && Object.keys(filteredData[0]).map(key => (
+                  {(filteredData.length > 0 ? filteredData[0] : data[0]) && Object.keys(filteredData.length > 0 ? filteredData[0] : data[0]).map(key => (
                     <th key={key} className="text-left py-2 px-2 whitespace-nowrap font-medium text-gray-700">{key}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {filteredData.map((row, i) => (
+                {(filteredData.length > 0 ? filteredData : data).map((row, i) => (
                   <tr key={i} className="border-b hover:bg-gray-50">
                     {Object.values(row).map((val: any, j) => (
                       <td key={j} className="py-2 px-2 whitespace-nowrap">
