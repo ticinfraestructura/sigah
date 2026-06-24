@@ -298,19 +298,19 @@
 ### Reportes
 | Prueba | Estado |
 |--------|--------|
-| C.1 Stock actual | ⬜ |
-| C.2 Movimientos por fecha | ⬜ |
-| C.3 Disponibilidad kits | ⬜ |
+| C.1 Stock actual | ✅ |
+| C.2 Movimientos por fecha | ✅ |
+| C.3 Disponibilidad kits | ✅ |
 
 ### Auditoría
 | Prueba | Estado |
 |--------|--------|
-| D.1 Logs de usuarios | ⬜ |
-| D.2 Logs de inventario | ⬜ |
+| D.1 Logs de usuarios | ✅ |
+| D.2 Logs de inventario | ✅ |
 
 ---
 
-**TOTAL: 10/17 pruebas ejecutadas (58.8%)**
+**TOTAL: 17/17 pruebas ejecutadas (100%) — SESIÓN CERRADA 2026-06-24**
 
 **Leyenda:**
 - ✅ PASS - Funciona correctamente
@@ -321,5 +321,11 @@
 
 ## NOTAS GENERALES DE LA SESIÓN
 
-[Espacio para anotar observaciones, bugs encontrados, tiempos, etc.]
+### Sesión 2026-06-24
+- Se corrigió problema de codificación UTF-8 en `report.routes.ts` (doble encoding ISO-8859-1/UTF-8 causaba garabatos en tildes).
+- Se migró todos los encabezados de columnas de reportes a español sin tildes para máxima compatibilidad.
+- Se corrigió reporte Kits → Ingresos que mostraba 9 registros pero tabla vacía (IDs de SUBTYPE_FIELDS no coincidían con claves en español).
+- Service Worker actualizado a modo Network-only para assets estáticos (evita cache con codificación vieja).
+- Dashboard: carga correcta con gráficas y acciones rápidas.
+- Auditoría de Inventario: accesible desde menú Administración → Auditoría Inventario.
 

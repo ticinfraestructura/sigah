@@ -1,5 +1,5 @@
-// @ts-nocheck
-﻿import { Router, Response, NextFunction } from 'express';
+﻿// @ts-nocheck
+import { Router, Response, NextFunction } from 'express';
 // Reporte de cancelaciones actualizado - v2
 import { PrismaClient } from '@prisma/client';
 import * as XLSX from 'xlsx';
@@ -17,7 +17,7 @@ const reportGenerateLimiter = rateLimit({
   legacyHeaders: false,
   message: {
     success: false,
-    error: 'Demasiadas solicitudes de generaciÃ³n de reportes. Espere un momento.'
+    error: 'Demasiadas solicitudes de generacion de reportes. Espere un momento.'
   }
 });
 
@@ -28,7 +28,7 @@ const reportExportLimiter = rateLimit({
   legacyHeaders: false,
   message: {
     success: false,
-    error: 'Demasiadas solicitudes de exportaciÃ³n. Espere un momento.'
+    error: 'Demasiadas solicitudes de exportacion. Espere un momento.'
   }
 });
 
@@ -44,8 +44,8 @@ const REPORT_TYPES = {
       { id: 'stock_kits', name: 'Stock de Kits', description: 'Estado actual del inventario de kits' },
       { id: 'kits_desagregados', name: 'Kits Desagregados', description: 'Productos componentes de kits con cantidades calculadas (solo reporte)' },
       { id: 'movimientos', name: 'Movimientos', description: 'Historial de entradas, salidas y ajustes' },
-      { id: 'historico_eliminaciones', name: 'HistÃ³rico Eliminaciones', description: 'Registro de lotes eliminados y sus motivos' },
-      { id: 'por_vencer', name: 'Por Vencer', description: 'Productos prÃ³ximos a vencer' },
+      { id: 'historico_eliminaciones', name: 'Historico Eliminaciones', description: 'Registro de lotes eliminados y sus motivos' },
+      { id: 'por_vencer', name: 'Por Vencer', description: 'Productos proximos a vencer' },
       { id: 'bajo_stock', name: 'Bajo Stock', description: 'Productos con stock bajo' }
     ]
   },
@@ -55,7 +55,7 @@ const REPORT_TYPES = {
     subtypes: [
       { id: 'listado', name: 'Listado de Kits', description: 'Todos los kits configurados' },
       { id: 'disponibilidad', name: 'Disponibilidad', description: 'Kits disponibles para entrega' },
-      { id: 'composicion', name: 'ComposiciÃ³n', description: 'Detalle de productos por kit' },
+      { id: 'composicion', name: 'Composicion', description: 'Detalle de productos por kit' },
       { id: 'ingresos', name: 'Ingresos de Kits', description: 'Historial de ingresos de kits al inventario' }
     ]
   },
@@ -64,7 +64,7 @@ const REPORT_TYPES = {
     description: 'Registro de beneficiarios y sus solicitudes',
     subtypes: [
       { id: 'listado', name: 'Listado', description: 'Todos los beneficiarios registrados' },
-      { id: 'por_ubicacion', name: 'Por UbicaciÃ³n', description: 'Beneficiarios agrupados por ubicaciÃ³n' },
+      { id: 'por_ubicacion', name: 'Por Ubicacion', description: 'Beneficiarios agrupados por ubicacion' },
       { id: 'historial_ayudas', name: 'Historial de Ayudas', description: 'Ayudas recibidas por beneficiario' }
     ]
   },
@@ -89,11 +89,11 @@ const REPORT_TYPES = {
   },
   authorizations: {
     name: 'Autorizaciones',
-    description: 'Historial de autorizaciones y segregaciÃ³n',
+    description: 'Historial de autorizaciones y segregacion',
     subtypes: [
       { id: 'listado', name: 'Listado', description: 'Todas las autorizaciones' },
       { id: 'por_autorizador', name: 'Por Autorizador', description: 'Agrupado por quien autoriza' },
-      { id: 'tiempos', name: 'Tiempos de Respuesta', description: 'AnÃ¡lisis de tiempos' }
+      { id: 'tiempos', name: 'Tiempos de Respuesta', description: 'Analisis de tiempos' }
     ]
   },
   returns: {
@@ -101,8 +101,8 @@ const REPORT_TYPES = {
     description: 'Devoluciones y sus motivos',
     subtypes: [
       { id: 'listado', name: 'Listado', description: 'Todas las devoluciones' },
-      { id: 'por_motivo', name: 'Por Motivo', description: 'Agrupado por razÃ³n de devoluciÃ³n' },
-      { id: 'por_producto', name: 'Por Producto', description: 'Productos mÃ¡s devueltos' }
+      { id: 'por_motivo', name: 'Por Motivo', description: 'Agrupado por razon de devolucion' },
+      { id: 'por_producto', name: 'Por Producto', description: 'Productos mas devueltos' }
     ]
   }
 };
@@ -110,22 +110,22 @@ const REPORT_TYPES = {
 // Campos seleccionables por tipo de reporte
 const REPORT_FIELDS: Record<string, { id: string; name: string; default: boolean }[]> = {
   inventory: [
-    { id: 'code', name: 'CÃ³digo', default: true },
+    { id: 'code', name: 'Codigo', default: true },
     { id: 'name', name: 'Nombre', default: true },
-    { id: 'category', name: 'CategorÃ­a', default: true },
+    { id: 'category', name: 'Categoria', default: true },
     { id: 'stock', name: 'Stock Actual', default: true },
-    { id: 'minStock', name: 'Stock MÃ­nimo', default: true },
+    { id: 'minStock', name: 'Stock Minimo', default: true },
     { id: 'unit', name: 'Unidad', default: true },
     { id: 'isPerishable', name: 'Perecedero', default: false },
     { id: 'expiryDate', name: 'Fecha Vencimiento', default: false },
     { id: 'lotNumber', name: 'Lote', default: false }
   ],
   kits: [
-    { id: 'code', name: 'CÃ³digo', default: true },
+    { id: 'code', name: 'Codigo', default: true },
     { id: 'name', name: 'Nombre', default: true },
-    { id: 'description', name: 'DescripciÃ³n', default: true },
+    { id: 'description', name: 'Descripcion', default: true },
     { id: 'products', name: 'Productos', default: true },
-    { id: 'available', name: 'Stock FÃ­sico', default: true },
+    { id: 'available', name: 'Stock Fisico', default: true },
     { id: 'canAssemble', name: 'Puede Armar', default: false },
     { id: 'isActive', name: 'Activo', default: false }
   ],
@@ -134,15 +134,15 @@ const REPORT_FIELDS: Record<string, { id: string; name: string; default: boolean
     { id: 'documentNumber', name: 'Documento', default: true },
     { id: 'firstName', name: 'Nombre', default: true },
     { id: 'lastName', name: 'Apellido', default: true },
-    { id: 'phone', name: 'TelÃ©fono', default: true },
-    { id: 'address', name: 'DirecciÃ³n', default: true },
+    { id: 'phone', name: 'Telefono', default: true },
+    { id: 'address', name: 'Direccion', default: true },
     { id: 'city', name: 'Ciudad', default: true },
-    { id: 'familySize', name: 'NÃºcleo Familiar', default: true },
+    { id: 'familySize', name: 'Nucleo Familiar', default: true },
     { id: 'vulnerabilityType', name: 'Tipo Vulnerabilidad', default: false },
     { id: 'requestCount', name: 'Total Solicitudes', default: true }
   ],
   requests: [
-    { id: 'code', name: 'CÃ³digo', default: true },
+    { id: 'code', name: 'Codigo', default: true },
     { id: 'requestDate', name: 'Fecha Solicitud', default: true },
     { id: 'beneficiary', name: 'Beneficiario', default: true },
     { id: 'document', name: 'Documento', default: true },
@@ -154,13 +154,13 @@ const REPORT_FIELDS: Record<string, { id: string; name: string; default: boolean
     { id: 'notes', name: 'Notas', default: false }
   ],
   deliveries: [
-    { id: 'code', name: 'CÃ³digo Entrega', default: true },
-    { id: 'requestCode', name: 'CÃ³digo Solicitud', default: true },
+    { id: 'code', name: 'Codigo Entrega', default: true },
+    { id: 'requestCode', name: 'Codigo Solicitud', default: true },
     { id: 'beneficiary', name: 'Beneficiario', default: true },
     { id: 'status', name: 'Estado', default: true },
-    { id: 'createdAt', name: 'Fecha CreaciÃ³n', default: true },
+    { id: 'createdAt', name: 'Fecha Creacion', default: true },
     { id: 'authorizedBy', name: 'Autorizado Por', default: true },
-    { id: 'authorizationDate', name: 'Fecha AutorizaciÃ³n', default: false },
+    { id: 'authorizationDate', name: 'Fecha Autorizacion', default: false },
     { id: 'warehouseUser', name: 'Recibido Bodega', default: false },
     { id: 'preparedBy', name: 'Preparado Por', default: false },
     { id: 'deliveredBy', name: 'Entregado Por', default: true },
@@ -169,30 +169,30 @@ const REPORT_FIELDS: Record<string, { id: string; name: string; default: boolean
     { id: 'isPartial', name: 'Parcial', default: false }
   ],
   authorizations: [
-    { id: 'deliveryCode', name: 'CÃ³digo Entrega', default: true },
-    { id: 'requestCode', name: 'CÃ³digo Solicitud', default: true },
+    { id: 'deliveryCode', name: 'Codigo Entrega', default: true },
+    { id: 'requestCode', name: 'Codigo Solicitud', default: true },
     { id: 'beneficiary', name: 'Beneficiario', default: true },
     { id: 'authorizedBy', name: 'Autorizado Por', default: true },
-    { id: 'authorizationDate', name: 'Fecha AutorizaciÃ³n', default: true },
+    { id: 'authorizationDate', name: 'Fecha Autorizacion', default: true },
     { id: 'authorizationNotes', name: 'Notas', default: false },
-    { id: 'isPartialAuth', name: 'AutorizaciÃ³n Parcial', default: true },
+    { id: 'isPartialAuth', name: 'Autorizacion Parcial', default: true },
     { id: 'responseTime', name: 'Tiempo Respuesta (hrs)', default: true }
   ],
   returns: [
-    { id: 'code', name: 'CÃ³digo', default: true },
-    { id: 'deliveryCode', name: 'CÃ³digo Entrega', default: true },
-    { id: 'returnDate', name: 'Fecha DevoluciÃ³n', default: true },
+    { id: 'code', name: 'Codigo', default: true },
+    { id: 'deliveryCode', name: 'Codigo Entrega', default: true },
+    { id: 'returnDate', name: 'Fecha Devolucion', default: true },
     { id: 'reason', name: 'Motivo', default: true },
     { id: 'products', name: 'Productos', default: true },
     { id: 'quantities', name: 'Cantidades', default: true },
-    { id: 'condition', name: 'CondiciÃ³n', default: true },
+    { id: 'condition', name: 'Condicion', default: true },
     { id: 'processedBy', name: 'Procesado Por', default: true },
     { id: 'notes', name: 'Notas', default: false }
   ]
 };
 
 // ============================================
-// ENDPOINTS DE CONFIGURACIÃ“N
+// ENDPOINTS DE CONFIGURACIo"N
 // ============================================
 
 // Obtener tipos de reportes disponibles
@@ -200,60 +200,60 @@ router.get('/types', authenticate, async (req: AuthRequest, res: Response) => {
   res.json({ success: true, data: REPORT_TYPES });
 });
 
-// Campos especÃ­ficos por subtipo
+// Campos especificos por subtipo
 const SUBTYPE_FIELDS: Record<string, { id: string; name: string; default: boolean }[]> = {
   'cancelaciones': [
-    { id: 'code', name: 'CÃ³digo Entrega', default: true },
-    { id: 'requestCode', name: 'CÃ³digo Solicitud', default: true },
+    { id: 'code', name: 'Codigo Entrega', default: true },
+    { id: 'requestCode', name: 'Codigo Solicitud', default: true },
     { id: 'beneficiary', name: 'Beneficiario', default: true },
     { id: 'document', name: 'Documento', default: true },
     { id: 'estadoAnterior', name: 'Estado Anterior', default: true },
-    { id: 'fechaCancelacion', name: 'Fecha CancelaciÃ³n', default: true },
-    { id: 'horaCancelacion', name: 'Hora CancelaciÃ³n', default: true },
+    { id: 'fechaCancelacion', name: 'Fecha Cancelacion', default: true },
+    { id: 'horaCancelacion', name: 'Hora Cancelacion', default: true },
     { id: 'canceladoPor', name: 'Cancelado Por', default: true },
-    { id: 'motivoCancelacion', name: 'Motivo de CancelaciÃ³n', default: true },
+    { id: 'motivoCancelacion', name: 'Motivo de Cancelacion', default: true },
     { id: 'productos', name: 'Productos/Kits', default: true },
-    { id: 'fechaCreacion', name: 'Fecha CreaciÃ³n', default: true },
+    { id: 'fechaCreacion', name: 'Fecha Creacion', default: true },
     { id: 'creadoPor', name: 'Creado Por', default: false },
     { id: 'autorizadoPor', name: 'Autorizado Por', default: false },
-    { id: 'fechaAutorizacion', name: 'Fecha AutorizaciÃ³n', default: false },
-    { id: 'notasAutorizacion', name: 'Notas AutorizaciÃ³n', default: false }
+    { id: 'fechaAutorizacion', name: 'Fecha Autorizacion', default: false },
+    { id: 'notasAutorizacion', name: 'Notas Autorizacion', default: false }
   ],
   'historico_eliminaciones': [
     { id: 'fecha', name: 'Fecha', default: true },
     { id: 'hora', name: 'Hora', default: true },
-    { id: 'productCode', name: 'CÃ³digo Producto', default: true },
+    { id: 'productCode', name: 'Codigo Producto', default: true },
     { id: 'productName', name: 'Nombre Producto', default: true },
-    { id: 'category', name: 'CategorÃ­a', default: true },
-    { id: 'lotNumber', name: 'NÃºmero de Lote', default: true },
+    { id: 'category', name: 'Categoria', default: true },
+    { id: 'lotNumber', name: 'Numero de Lote', default: true },
     { id: 'quantityRemoved', name: 'Cantidad Eliminada', default: true },
-    { id: 'reason', name: 'Motivo de EliminaciÃ³n', default: true },
+    { id: 'reason', name: 'Motivo de Eliminacion', default: true },
     { id: 'user', name: 'Usuario', default: true },
     { id: 'source', name: 'Fuente', default: false }
   ],
   'movimientos': [
-    { id: 'fecha', name: 'Fecha', default: true },
-    { id: 'hora', name: 'Hora', default: true },
-    { id: 'code', name: 'CÃ³digo Producto', default: true },
-    { id: 'name', name: 'Nombre Producto', default: true },
-    { id: 'category', name: 'CategorÃ­a', default: true },
-    { id: 'lotNumber', name: 'Lote', default: true },
-    { id: 'type', name: 'Tipo Movimiento', default: true },
-    { id: 'quantity', name: 'Cantidad', default: true },
-    { id: 'reason', name: 'Motivo', default: true },
-    { id: 'reference', name: 'Referencia', default: false },
-    { id: 'user', name: 'Usuario', default: true }
+    { id: 'Fecha', name: 'Fecha', default: true },
+    { id: 'Hora', name: 'Hora', default: true },
+    { id: 'Codigo Producto', name: 'Codigo Producto', default: true },
+    { id: 'Nombre Producto', name: 'Nombre Producto', default: true },
+    { id: 'Categoria', name: 'Categoria', default: true },
+    { id: 'Lote', name: 'Lote', default: true },
+    { id: 'Tipo Movimiento', name: 'Tipo Movimiento', default: true },
+    { id: 'Cantidad', name: 'Cantidad', default: true },
+    { id: 'Motivo', name: 'Motivo', default: true },
+    { id: 'Referencia', name: 'Referencia', default: false },
+    { id: 'Usuario', name: 'Usuario', default: true }
   ],
   'ingresos': [
-    { id: 'fecha', name: 'Fecha', default: true },
-    { id: 'hora', name: 'Hora', default: true },
-    { id: 'productCode', name: 'CÃ³digo Producto', default: true },
-    { id: 'productName', name: 'Nombre Producto', default: true },
-    { id: 'lotNumber', name: 'Lote', default: true },
-    { id: 'quantity', name: 'Cantidad', default: true },
-    { id: 'reason', name: 'Motivo', default: true },
-    { id: 'reference', name: 'Referencia', default: false },
-    { id: 'user', name: 'Usuario', default: true }
+    { id: 'Fecha', name: 'Fecha', default: true },
+    { id: 'Hora', name: 'Hora', default: true },
+    { id: 'Codigo Kit', name: 'Codigo Kit', default: true },
+    { id: 'Nombre Kit', name: 'Nombre Kit', default: true },
+    { id: 'Lote', name: 'Lote', default: true },
+    { id: 'Cantidad', name: 'Cantidad', default: true },
+    { id: 'Motivo', name: 'Motivo', default: true },
+    { id: 'Referencia', name: 'Referencia', default: false },
+    { id: 'Usuario', name: 'Usuario', default: true }
   ]
 };
 
@@ -262,20 +262,20 @@ router.get('/fields/:reportType', authenticate, validateZodRequest({ params: rep
   const { reportType } = req.params;
   const { subtype } = req.query;
   
-  // Primero verificar si hay campos especÃ­ficos para el subtipo
+  // Primero verificar si hay campos especificos para el subtipo
   if (subtype && SUBTYPE_FIELDS[subtype as string]) {
     return res.json({ success: true, data: SUBTYPE_FIELDS[subtype as string] });
   }
   
   const fields = REPORT_FIELDS[reportType];
   if (!fields) {
-    return res.status(400).json({ success: false, error: 'Tipo de reporte invÃ¡lido' });
+    return res.status(400).json({ success: false, error: 'Tipo de reporte invalido' });
   }
   res.json({ success: true, data: fields });
 });
 
 // ============================================
-// GENERACIÃ“N DE REPORTES PARAMETRIZABLES
+// GENERACIo"N DE REPORTES PARAMETRIZABLES
 // ============================================
 
 router.post('/generate', authenticate, reportGenerateLimiter, validateZodRequest({ body: reportZodSchemas.generate }), async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -365,7 +365,7 @@ router.post('/generate', authenticate, reportGenerateLimiter, validateZodRequest
 });
 
 // ============================================
-// FUNCIONES DE GENERACIÃ“N POR TIPO
+// FUNCIONES DE GENERACIo"N POR TIPO
 // ============================================
 
 async function generateInventoryReport(prisma: PrismaClient, subtype: string, dateFilter: any, hasDateFilter: boolean, filters: any) {
@@ -383,14 +383,14 @@ async function generateInventoryReport(prisma: PrismaClient, subtype: string, da
         orderBy: { name: 'asc' }
       });
       return products.map(p => ({
-        code: p.code,
-        name: p.name,
-        category: p.category.name,
-        stock: p.lots.reduce((sum, l) => sum + l.quantity, 0),
-        minStock: p.minStock,
-        unit: p.unit,
-        isPerishable: p.isPerishable ? 'SÃ­' : 'No',
-        status: p.lots.reduce((sum, l) => sum + l.quantity, 0) <= p.minStock ? 'BAJO' : 'OK'
+        'Codigo': p.code,
+        'Nombre': p.name,
+        'Categoria': p.category.name,
+        'Stock Actual': p.lots.reduce((sum, l) => sum + l.quantity, 0),
+        'Stock Minimo': p.minStock,
+        'Unidad': p.unit,
+        'Perecedero': p.isPerishable ? 'Si' : 'No',
+        'Estado': p.lots.reduce((sum, l) => sum + l.quantity, 0) <= p.minStock ? 'BAJO' : 'OK'
       }));
 
     case 'stock_kits':
@@ -401,12 +401,11 @@ async function generateInventoryReport(prisma: PrismaClient, subtype: string, da
         orderBy: { kit: { name: 'asc' } }
       });
       return kitInventories.map(ki => ({
-        code: ki.kit.code,
-        name: ki.kit.name,
-        category: ki.kit.type,
-        stock: ki.quantity,
-        type: ki.kit.type,
-        status: ki.quantity === 0 ? 'SIN STOCK' : ki.quantity < 5 ? 'BAJO' : 'OK'
+        'Codigo': ki.kit.code,
+        'Nombre': ki.kit.name,
+        'Tipo': ki.kit.type,
+        'Stock Disponible': ki.quantity,
+        'Estado': ki.quantity === 0 ? 'SIN STOCK' : ki.quantity < 5 ? 'BAJO' : 'OK'
       }));
 
     case 'kits_desagregados':
@@ -435,12 +434,12 @@ async function generateInventoryReport(prisma: PrismaClient, subtype: string, da
           for (const kp of ki.kit.kitProducts) {
             const cantidadCalculada = ki.quantity * kp.quantity;
             desagregados.push({
-              'Código Kit': ki.kit.code,
+              'Codigo Kit': ki.kit.code,
               'Nombre Kit': ki.kit.name,
               'Stock Kits Disponibles': ki.quantity,
-              'Código Producto': kp.product.code,
+              'Codigo Producto': kp.product.code,
               'Nombre Producto': kp.product.name,
-              'Categoría Producto': kp.product.category.name,
+              'Categoria Producto': kp.product.category.name,
               'Cantidad por Kit': kp.quantity,
               'Total Necesario': cantidadCalculada,
               'Unidad': kp.product.unit
@@ -466,17 +465,17 @@ async function generateInventoryReport(prisma: PrismaClient, subtype: string, da
       return movements.map(m => {
         const localDate = new Date(m.createdAt);
         return {
-          fecha: localDate.toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-'),
-          hora: localDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false }),
-          code: m.product.code,
-          name: m.product.name,
-          category: m.product.category.name,
-          lotNumber: m.lot?.lotNumber || '-',
-          type: m.type,
-          quantity: m.quantity,
-          reason: m.reason || '-',
-          reference: m.reference || '-',
-          user: `${m.user.firstName} ${m.user.lastName}`
+          'Fecha': localDate.toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-'),
+          'Hora': localDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false }),
+          'Codigo Producto': m.product.code,
+          'Nombre Producto': m.product.name,
+          'Categoria': m.product.category.name,
+          'Lote': m.lot?.lotNumber || '-',
+          'Tipo Movimiento': m.type,
+          'Cantidad': m.quantity,
+          'Motivo': m.reason || '-',
+          'Referencia': m.reference || '-',
+          'Usuario': `${m.user.firstName} ${m.user.lastName}`
         };
       });
 
@@ -495,7 +494,7 @@ async function generateInventoryReport(prisma: PrismaClient, subtype: string, da
         orderBy: { createdAt: 'desc' }
       });
       
-      // TambiÃ©n obtener lotes inactivos del auditLog
+      // Tambien obtener lotes inactivos del auditLog
       const deletedLotAudits = await prisma.auditLog.findMany({
         where: {
           entity: 'ProductLot',
@@ -508,7 +507,7 @@ async function generateInventoryReport(prisma: PrismaClient, subtype: string, da
         orderBy: { createdAt: 'desc' }
       });
 
-      // Combinar informaciÃ³n de ambas fuentes
+      // Combinar informacion de ambas fuentes
       const deletionRecords = deletionMovements.map(m => {
         const localDate = new Date(m.createdAt);
         return {
@@ -525,7 +524,7 @@ async function generateInventoryReport(prisma: PrismaClient, subtype: string, da
         };
       });
 
-      // AÃ±adir registros de auditorÃ­a que no estÃ©n en movimientos
+      // Anadir registros de auditoria que no esten en movimientos
       for (const audit of deletedLotAudits) {
         const oldValues = JSON.parse(audit.oldValues || '{}');
         const newValues = JSON.parse(audit.newValues || '{}');
@@ -537,7 +536,7 @@ async function generateInventoryReport(prisma: PrismaClient, subtype: string, da
         );
         
         if (!exists && oldValues.lotNumber) {
-          // Obtener informaciÃ³n del producto
+          // Obtener informacion del producto
           const product = await prisma.product.findUnique({
             where: { id: oldValues.productId },
             include: { category: true }
@@ -553,7 +552,7 @@ async function generateInventoryReport(prisma: PrismaClient, subtype: string, da
             quantityRemoved: oldValues.quantity || 0,
             reason: newValues.reason || 'Sin motivo especificado',
             user: `${audit.user.firstName} ${audit.user.lastName}`,
-            source: 'AuditorÃ­a'
+            source: 'Auditoria'
           });
         }
       }
@@ -602,15 +601,15 @@ async function generateInventoryReport(prisma: PrismaClient, subtype: string, da
       });
       return lowStockProducts
         .map(p => ({
-          code: p.code,
-          name: p.name,
-          category: p.category.name,
-          stock: p.lots.reduce((sum, l) => sum + l.quantity, 0),
-          minStock: p.minStock,
-          deficit: p.minStock - p.lots.reduce((sum, l) => sum + l.quantity, 0)
+          'Codigo': p.code,
+          'Nombre': p.name,
+          'Categoria': p.category.name,
+          'Stock Actual': p.lots.reduce((sum, l) => sum + l.quantity, 0),
+          'Stock Minimo': p.minStock,
+          'Deficit': p.minStock - p.lots.reduce((sum, l) => sum + l.quantity, 0)
         }))
-        .filter(p => p.stock <= p.minStock)
-        .sort((a, b) => b.deficit - a.deficit);
+        .filter(p => p['Stock Actual'] <= p['Stock Minimo'])
+        .sort((a, b) => b['Deficit'] - a['Deficit']);
 
     default:
       return [];
@@ -650,19 +649,19 @@ async function generateKitsReport(prisma: PrismaClient, subtype: string, dateFil
   switch (subtype) {
     case 'listado':
       return kits.map(k => ({
-        code: k.code,
-        name: k.name,
-        description: k.description || '-',
-        productCount: k.kitProducts.length,
-        isActive: k.isActive ? 'SÃ­' : 'No'
+        'Codigo': k.code,
+        'Nombre': k.name,
+        'Descripcion': k.description || '-',
+        'Cantidad Productos': k.kitProducts.length,
+        'Activo': k.isActive ? 'Si' : 'No'
       }));
 
     case 'disponibilidad':
       return kits.map(k => {
-        // Stock físico en inventario de kits (consistente con /available-for-exit)
+        // Stock fosico en inventario de kits (consistente con /available-for-exit)
         const physicalStock = k.inventory?.[0]?.quantity || 0;
         
-        // Cuántos kits se pueden armar con productos actuales (capacidad productiva)
+        // Cuontos kits se pueden armar con productos actuales (capacidad productiva)
         const assemblyCapacity = k.kitProducts.map(kp => {
           const stock = kp.product.lots.reduce((sum, l) => sum + l.quantity, 0);
           return Math.floor(stock / kp.quantity);
@@ -670,11 +669,11 @@ async function generateKitsReport(prisma: PrismaClient, subtype: string, dateFil
         const canAssemble = assemblyCapacity.length > 0 ? Math.min(...assemblyCapacity) : 0;
         
         return {
-          code: k.code,
-          name: k.name,
-          available: physicalStock,  // Stock físico real en bodega
-          canAssemble,              // Capacidad de armado con productos actuales
-          products: k.kitProducts.map(kp => `${kp.product.name} (${kp.quantity})`).join(', ')
+          'Codigo': k.code,
+          'Nombre': k.name,
+          'Stock Fisico': physicalStock,
+          'Capacidad Armado': canAssemble,
+          'Productos': k.kitProducts.map(kp => `${kp.product.name} (${kp.quantity})`).join(', ')
         };
       });
 
@@ -683,12 +682,12 @@ async function generateKitsReport(prisma: PrismaClient, subtype: string, dateFil
       kits.forEach(k => {
         k.kitProducts.forEach(kp => {
           result.push({
-            kitCode: k.code,
-            kitName: k.name,
-            productCode: kp.product.code,
-            productName: kp.product.name,
-            quantityPerKit: kp.quantity,
-            stockAvailable: 0
+            'Codigo Kit': k.code,
+            'Nombre Kit': k.name,
+            'Codigo Producto': kp.product.code,
+            'Nombre Producto': kp.product.name,
+            'Cantidad por Kit': kp.quantity,
+            'Stock Disponible': 0
           });
         });
       });
@@ -701,7 +700,7 @@ async function generateKitsReport(prisma: PrismaClient, subtype: string, dateFil
         createdAt: hasDateFilter ? dateFilter : undefined
       };
       
-      // Si hay filtro por kit específico
+      // Si hay filtro por kit especofico
       if (filters?.kitCode) {
         kitWhereClause.kitInventory = {
           kit: {
@@ -726,15 +725,15 @@ async function generateKitsReport(prisma: PrismaClient, subtype: string, dateFil
       return kitInventoryMovements.map(m => {
         const localDate = new Date(m.createdAt);
         return {
-          fecha: localDate.toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-'),
-          hora: localDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false }),
-          productCode: m.kitInventory.kit.code,
-          productName: m.kitInventory.kit.name,
-          lotNumber: m.lotNumber || '-',
-          quantity: m.quantity,
-          reason: m.reason || '-',
-          reference: m.reference || '-',
-          user: `${m.user.firstName} ${m.user.lastName}`
+          'Fecha': localDate.toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-'),
+          'Hora': localDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false }),
+          'Codigo Kit': m.kitInventory.kit.code,
+          'Nombre Kit': m.kitInventory.kit.name,
+          'Lote': m.lotNumber || '-',
+          'Cantidad': m.quantity,
+          'Motivo': m.reason || '-',
+          'Referencia': m.reference || '-',
+          'Usuario': `${m.user.firstName} ${m.user.lastName}`
         };
       });
 
@@ -745,7 +744,7 @@ async function generateKitsReport(prisma: PrismaClient, subtype: string, dateFil
         createdAt: hasDateFilter ? dateFilter : undefined
       };
       
-      // Si hay filtro por kit específico
+      // Si hay filtro por kit especofico
       if (filters?.kitId) {
         exitWhereClause.kitInventory = {
           kit: {
@@ -754,7 +753,7 @@ async function generateKitsReport(prisma: PrismaClient, subtype: string, dateFil
         };
       }
       
-      // Si hay búsqueda general
+      // Si hay bosqueda general
       if (filters?.search) {
         exitWhereClause.OR = [
           {
@@ -796,15 +795,15 @@ async function generateKitsReport(prisma: PrismaClient, subtype: string, dateFil
       return exitInventoryMovements.map(m => {
         const localDate = new Date(m.createdAt);
         return {
-          fecha: localDate.toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-'),
-          hora: localDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false }),
-          productCode: m.kitInventory.kit.code,
-          productName: m.kitInventory.kit.name,
-          lotNumber: m.lotNumber || '-',
-          quantity: m.quantity,
-          reason: m.reason || '-',
-          reference: m.reference || '-',
-          user: `${m.user.firstName} ${m.user.lastName}`
+          'Fecha': localDate.toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-'),
+          'Hora': localDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false }),
+          'Codigo Kit': m.kitInventory.kit.code,
+          'Nombre Kit': m.kitInventory.kit.name,
+          'Lote': m.lotNumber || '-',
+          'Cantidad': m.quantity,
+          'Motivo': m.reason || '-',
+          'Referencia': m.reference || '-',
+          'Usuario': `${m.user.firstName} ${m.user.lastName}`
         };
       });
 
@@ -984,7 +983,7 @@ async function generateDeliveriesReport(prisma: PrismaClient, subtype: string, d
         deliveredBy: d.deliveredBy ? `${d.deliveredBy.firstName} ${d.deliveredBy.lastName}` : '-',
         deliveryDate: d.deliveryDate?.toISOString().split('T')[0] || '-',
         receivedBy: d.receivedBy || '-',
-        isPartial: d.isPartial ? 'SÃ­' : 'No'
+        isPartial: d.isPartial ? 'Si' : 'No'
       }));
 
     case 'por_estado':
@@ -1019,7 +1018,7 @@ async function generateDeliveriesReport(prisma: PrismaClient, subtype: string, d
     case 'cancelaciones':
       // Las entregas ya vienen filtradas por CANCELLED desde la query
       return deliveries.map(d => {
-        // Buscar el registro de historial donde se cancelÃ³
+        // Buscar el registro de historial donde se cancelo
         const cancellationHistory = d.history.find((h: any) => h.toStatus === 'CANCELLED');
         const previousStatus = cancellationHistory?.fromStatus || '-';
         const cancellationDate = cancellationHistory?.createdAt;
@@ -1082,7 +1081,7 @@ async function generateAuthorizationsReport(prisma: PrismaClient, subtype: strin
         authorizedBy: d.authorizedBy ? `${d.authorizedBy.firstName} ${d.authorizedBy.lastName}` : '-',
         authorizationDate: d.authorizationDate?.toISOString().split('T')[0] || '-',
         authorizationNotes: d.authorizationNotes || '-',
-        isPartialAuth: d.isPartialAuth ? 'SÃ­' : 'No',
+        isPartialAuth: d.isPartialAuth ? 'Si' : 'No',
         responseTime: d.authorizationDate && d.createdAt 
           ? Math.round((d.authorizationDate.getTime() - d.createdAt.getTime()) / (1000 * 60 * 60)) 
           : '-'
@@ -1188,7 +1187,7 @@ async function generateReturnsReport(prisma: PrismaClient, subtype: string, date
 }
 
 // ============================================
-// EXPORTACIÃ“N A EXCEL
+// EXPORTACIo"N A EXCEL
 // ============================================
 
 router.post('/export/excel', authenticate, reportExportLimiter, validateZodRequest({ body: reportZodSchemas.exportExcel }), async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -1228,7 +1227,7 @@ router.post('/export/excel', authenticate, reportExportLimiter, validateZodReque
           data = await generateReturnsReport(prisma, subtype || 'listado', dateFilter, hasDateFilter, filters);
           break;
         default:
-          return res.status(400).json({ success: false, error: 'Tipo de reporte invÃ¡lido' });
+          return res.status(400).json({ success: false, error: 'Tipo de reporte invalido' });
       }
     }
 
@@ -1237,7 +1236,7 @@ router.post('/export/excel', authenticate, reportExportLimiter, validateZodReque
     let worksheet;
     
     if (!data || data.length === 0) {
-      // Crear hoja vacÃ­a con mensaje
+      // Crear hoja vacia con mensaje
       worksheet = XLSX.utils.aoa_to_sheet([
         ['No hay datos disponibles para este reporte'],
         [''],
@@ -1271,7 +1270,7 @@ router.post('/export/excel', authenticate, reportExportLimiter, validateZodReque
 });
 
 // ============================================
-// EXPORTACIÃ“N A PDF
+// EXPORTACIo"N A PDF
 // ============================================
 
 router.post('/export/pdf', authenticate, reportExportLimiter, validateZodRequest({ body: reportZodSchemas.exportPdf }), async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -1325,7 +1324,7 @@ router.post('/export/pdf', authenticate, reportExportLimiter, validateZodRequest
     });
 
     // Header
-    doc.fontSize(18).font('Helvetica-Bold').text('SIGAH - Sistema de GestiÃ³n de Ayudas Humanitarias', { align: 'center' });
+    doc.fontSize(18).font('Helvetica-Bold').text('SIGAH - Sistema de Gestion de Ayudas Humanitarias', { align: 'center' });
     doc.moveDown(0.5);
     
     const reportTitle = title || REPORT_TYPES[reportType as keyof typeof REPORT_TYPES]?.name || 'Reporte';
@@ -1333,7 +1332,7 @@ router.post('/export/pdf', authenticate, reportExportLimiter, validateZodRequest
     doc.moveDown(0.3);
 
     if (startDate || endDate) {
-      doc.fontSize(10).font('Helvetica').text(`PerÃ­odo: ${startDate || 'Inicio'} - ${endDate || 'Actual'}`, { align: 'center' });
+      doc.fontSize(10).font('Helvetica').text(`Periodo: ${startDate || 'Inicio'} - ${endDate || 'Actual'}`, { align: 'center' });
     }
     doc.fontSize(9).text(`Generado: ${new Date().toLocaleString('es-ES')}`, { align: 'center' });
     doc.moveDown(1);
@@ -1343,17 +1342,17 @@ router.post('/export/pdf', authenticate, reportExportLimiter, validateZodRequest
       doc.fontSize(11).font('Helvetica-Bold').text(`Total de registros: ${data.length}`);
       doc.moveDown(0.5);
 
-      // ConfiguraciÃ³n de tabla
+      // Configuracion de tabla
       const keys = Object.keys(data[0]);
       const maxCols = Math.min(keys.length, 12);
       const tableWidth = doc.page.width - 80;
       const startX = 40;
       let currentY = doc.y;
 
-      // Campos que necesitan mÃ¡s espacio (textos largos)
+      // Campos que necesitan mas espacio (textos largos)
       const wideFields = ['motivocancelacion', 'motivo', 'notas', 'productos', 'reason', 'notes', 'description', 'notasautorizacion'];
       
-      // Calcular anchos de columna dinÃ¡micamente
+      // Calcular anchos de columna dinamicamente
       const selectedKeys = keys.slice(0, maxCols);
       const colWidths = selectedKeys.map(key => {
         const isWide = wideFields.some(f => key.toLowerCase().includes(f));
@@ -1362,7 +1361,7 @@ router.post('/export/pdf', authenticate, reportExportLimiter, validateZodRequest
       const totalWeight = colWidths.reduce((a, b) => a + b, 0);
       const normalizedWidths = colWidths.map(w => (w / totalWeight) * tableWidth);
 
-      // FunciÃ³n para calcular altura de fila basada en contenido
+      // Funcion para calcular altura de fila basada en contenido
       const calculateRowHeight = (rowData: string[], isHeader: boolean): number => {
         if (isHeader) return 22;
         
@@ -1370,15 +1369,15 @@ router.post('/export/pdf', authenticate, reportExportLimiter, validateZodRequest
         rowData.forEach((cell, i) => {
           const width = normalizedWidths[i] - 6;
           const text = String(cell || '-');
-          const avgCharWidth = 4; // AproximaciÃ³n
+          const avgCharWidth = 4; // Aproximacion
           const charsPerLine = Math.floor(width / avgCharWidth);
           const lines = Math.ceil(text.length / charsPerLine);
-          maxLines = Math.max(maxLines, Math.min(lines, 4)); // MÃ¡ximo 4 lÃ­neas
+          maxLines = Math.max(maxLines, Math.min(lines, 4)); // Maximo 4 lineas
         });
         return Math.max(18, maxLines * 10 + 8);
       };
 
-      // FunciÃ³n para dibujar una fila
+      // Funcion para dibujar una fila
       const drawRow = (rowData: string[], y: number, isHeader: boolean = false) => {
         const height = calculateRowHeight(rowData, isHeader);
         
@@ -1419,7 +1418,7 @@ router.post('/export/pdf', authenticate, reportExportLimiter, validateZodRequest
 
       // Dibujar encabezados con nombres legibles
       const headerNames: Record<string, string> = {
-        'code': 'CÃ³digo',
+        'code': 'Codigo',
         'requestCode': 'Solicitud',
         'beneficiary': 'Beneficiario',
         'document': 'Documento',
@@ -1427,9 +1426,9 @@ router.post('/export/pdf', authenticate, reportExportLimiter, validateZodRequest
         'fechaCancelacion': 'Fecha Cancel.',
         'horaCancelacion': 'Hora',
         'canceladoPor': 'Cancelado Por',
-        'motivoCancelacion': 'Motivo de CancelaciÃ³n',
+        'motivoCancelacion': 'Motivo de Cancelacion',
         'productos': 'Productos/Kits',
-        'fechaCreacion': 'CreaciÃ³n',
+        'fechaCreacion': 'Creacion',
         'creadoPor': 'Creado Por',
         'autorizadoPor': 'Autorizado Por',
         'fechaAutorizacion': 'Fecha Autoriz.',
@@ -1444,11 +1443,11 @@ router.post('/export/pdf', authenticate, reportExportLimiter, validateZodRequest
         const rowValues = selectedKeys.map(key => String(row[key] ?? '-'));
         const rowHeight = calculateRowHeight(rowValues, false);
         
-        // Nueva pÃ¡gina si es necesario
+        // Nueva pagina si es necesario
         if (currentY + rowHeight > doc.page.height - 60) {
           doc.addPage();
           currentY = 40;
-          // Repetir encabezados en nueva pÃ¡gina
+          // Repetir encabezados en nueva pagina
           currentY = drawRow(headers, currentY, true);
         }
         
@@ -1457,7 +1456,7 @@ router.post('/export/pdf', authenticate, reportExportLimiter, validateZodRequest
 
       if (data.length > maxRows) {
         doc.y = currentY + 10;
-        doc.fontSize(9).text(`... y ${data.length - maxRows} registros mÃ¡s. Exporte a Excel para ver todos.`, { align: 'center' });
+        doc.fontSize(9).text(`... y ${data.length - maxRows} registros mas. Exporte a Excel para ver todos.`, { align: 'center' });
       }
     } else {
       doc.fontSize(12).text('No hay datos para mostrar', { align: 'center' });
@@ -1470,7 +1469,7 @@ router.post('/export/pdf', authenticate, reportExportLimiter, validateZodRequest
 });
 
 // ============================================
-// VISTA RÃPIDA / DASHBOARD DE REPORTES
+// VISTA RAPIDA / DASHBOARD DE REPORTES
 // ============================================
 
 router.get('/quick/:reportType', authenticate, validateZodRequest({ params: reportZodSchemas.reportTypeParam }), async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -1550,7 +1549,7 @@ router.get('/quick/:reportType', authenticate, validateZodRequest({ params: repo
             }
           }
         });
-        // Disponibles = kits con stock físico en kitInventory (consistente con /available-for-exit)
+        // Disponibles = kits con stock fosico en kitInventory (consistente con /available-for-exit)
         const availableKits = kits.filter(k => (k.inventory?.[0]?.quantity || 0) > 0).length;
         quickData = {
           total: kits.length,
@@ -1596,8 +1595,8 @@ router.get('/quick/:reportType', authenticate, validateZodRequest({ params: repo
         break;
 
       default:
-        // Para tipos no soportados, devolver datos vacÃ­os en lugar de error
-        quickData = { message: 'EstadÃ­sticas rÃ¡pidas no disponibles para este tipo' };
+        // Para tipos no soportados, devolver datos vacios en lugar de error
+        quickData = { message: 'Estadisticas rapidas no disponibles para este tipo' };
     }
 
     res.json({ success: true, data: quickData });
