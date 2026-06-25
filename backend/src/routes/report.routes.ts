@@ -257,42 +257,38 @@ async function generateUsersReport(prisma: any, subtype: string, dateFilter: any
 async function generateRolesReport(prisma: any, subtype: string): Promise<any[]> {
   switch (subtype) {
     case 'listado': {
-      const roles = await (prisma as any).role.findMany({
-        include: {
-          users: { select: { id: true } },
-          rolePermissions: { select: { id: true } }
-        },
-        orderBy: { name: 'asc' }
-      });
-      return roles.map((r: any) => ({
+      const rows: any[] = await prisma.$queryRaw`
+        SELECT r.name, r.description, r."createdAt",
+               COUNT(DISTINCT u.id)::int AS user_count,
+               COUNT(DISTINCT rp.id)::int AS perm_count
+        FROM roles r
+        LEFT JOIN users u ON u."roleId" = r.id
+        LEFT JOIN role_permissions rp ON rp."roleId" = r.id
+        GROUP BY r.id, r.name, r.description, r."createdAt"
+        ORDER BY r.name
+      `;
+      return rows.map((r: any) => ({
         'Rol': r.name,
         'Descripcion': r.description || '-',
-        'Total Usuarios': r.users.length,
-        'Total Permisos': r.rolePermissions.length,
+        'Total Usuarios': r.user_count,
+        'Total Permisos': r.perm_count,
         'Fecha Creacion': new Date(r.createdAt).toLocaleDateString('es-CO')
       }));
     }
     case 'permisos': {
-      const roles = await (prisma as any).role.findMany({
-        include: {
-          rolePermissions: {
-            include: { permission: true }
-          }
-        },
-        orderBy: { name: 'asc' }
-      });
-      const rows: any[] = [];
-      for (const r of roles) {
-        for (const rp of r.rolePermissions) {
-          rows.push({
-            'Rol': r.name,
-            'Modulo': rp.permission.module,
-            'Accion': rp.permission.action,
-            'Descripcion Permiso': rp.permission.description || '-'
-          });
-        }
-      }
-      return rows;
+      const rows: any[] = await prisma.$queryRaw`
+        SELECT r.name AS role_name, p.module, p.action, p.description
+        FROM roles r
+        JOIN role_permissions rp ON rp."roleId" = r.id
+        JOIN permissions p ON p.id = rp."permissionId"
+        ORDER BY r.name, p.module, p.action
+      `;
+      return rows.map((r: any) => ({
+        'Rol': r.role_name,
+        'Modulo': r.module,
+        'Accion': r.action,
+        'Descripcion Permiso': r.description || '-'
+      }));
     }
     default:
       return [];
@@ -1638,9 +1634,10 @@ router.get('/quick/:reportType', authenticate, validateZodRequest({ params: repo
         };
         break;
 
-      case 'roles':
-        const totalRoles = await (prisma as any).role.count();
-        const totalPerms = await (prisma as any).permission.count();
+      case 'roles': {
+        const totalRoles = await prisma.role.count();
+        const permCountResult: any[] = await prisma.$queryRaw`SELECT COUNT(*)::int AS cnt FROM role_permissions`;
+        const totalPerms = permCountResult[0]?.cnt ?? 0;
         const usersWithoutRole = await prisma.user.count({ where: { roleId: null } });
         quickData = {
           totalRoles,
@@ -1648,6 +1645,7 @@ router.get('/quick/:reportType', authenticate, validateZodRequest({ params: repo
           usersWithoutRole
         };
         break;
+      }
 
       default:
         // Para tipos no soportados, devolver datos vacios en lugar de error
