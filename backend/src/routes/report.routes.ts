@@ -59,6 +59,23 @@ const REPORT_TYPES = {
       { id: 'ingresos', name: 'Ingresos de Kits', description: 'Historial de ingresos de kits al inventario' }
     ]
   },
+  users: {
+    name: 'Usuarios',
+    description: 'Usuarios del sistema y su actividad',
+    subtypes: [
+      { id: 'listado', name: 'Listado de Usuarios', description: 'Todos los usuarios registrados en el sistema' },
+      { id: 'por_rol', name: 'Por Rol', description: 'Usuarios agrupados por rol asignado' },
+      { id: 'actividad', name: 'Actividad de Auditoria', description: 'Acciones realizadas por cada usuario' }
+    ]
+  },
+  roles: {
+    name: 'Roles y Permisos',
+    description: 'Roles definidos y sus permisos asignados',
+    subtypes: [
+      { id: 'listado', name: 'Listado de Roles', description: 'Todos los roles con cantidad de usuarios y permisos' },
+      { id: 'permisos', name: 'Permisos por Rol', description: 'Detalle de permisos asignados a cada rol' }
+    ]
+  }
 };
 
 // Campos seleccionables por tipo de reporte
@@ -84,6 +101,21 @@ const REPORT_FIELDS: Record<string, { id: string; name: string; default: boolean
     { id: 'isActive', name: 'Activo', default: false }
   ],
   // beneficiaries, requests, deliveries, authorizations, returns: ocultos en esta version
+  users: [
+    { id: 'Nombre', name: 'Nombre', default: true },
+    { id: 'Email', name: 'Email', default: true },
+    { id: 'Rol', name: 'Rol', default: true },
+    { id: 'Estado', name: 'Estado', default: true },
+    { id: 'Fecha Creacion', name: 'Fecha Creacion', default: true },
+    { id: 'Telefono', name: 'Telefono', default: false }
+  ],
+  roles: [
+    { id: 'Rol', name: 'Rol', default: true },
+    { id: 'Descripcion', name: 'Descripcion', default: true },
+    { id: 'Total Usuarios', name: 'Total Usuarios', default: true },
+    { id: 'Total Permisos', name: 'Total Permisos', default: true },
+    { id: 'Fecha Creacion', name: 'Fecha Creacion', default: false }
+  ]
 };
 
 // ============================================
@@ -170,6 +202,104 @@ router.get('/fields/:reportType', authenticate, validateZodRequest({ params: rep
 });
 
 // ============================================
+// FUNCIONES DE REPORTE USUARIOS Y ROLES
+// ============================================
+
+async function generateUsersReport(prisma: any, subtype: string, dateFilter: any, hasDateFilter: any, filters: any): Promise<any[]> {
+  switch (subtype) {
+    case 'listado': {
+      const users = await prisma.user.findMany({
+        include: { role: { select: { name: true } } },
+        orderBy: { createdAt: 'asc' }
+      });
+      return users.map((u: any) => ({
+        'Nombre': `${u.firstName} ${u.lastName}`,
+        'Email': u.email,
+        'Rol': u.role?.name || 'Sin Rol',
+        'Estado': u.isActive ? 'Activo' : 'Inactivo',
+        'Telefono': u.phone || '-',
+        'Fecha Creacion': new Date(u.createdAt).toLocaleDateString('es-CO')
+      }));
+    }
+    case 'por_rol': {
+      const users = await prisma.user.findMany({
+        include: { role: { select: { name: true } } },
+        orderBy: [{ role: { name: 'asc' } }, { firstName: 'asc' }]
+      });
+      return users.map((u: any) => ({
+        'Rol': u.role?.name || 'Sin Rol',
+        'Nombre': `${u.firstName} ${u.lastName}`,
+        'Email': u.email,
+        'Estado': u.isActive ? 'Activo' : 'Inactivo',
+        'Fecha Creacion': new Date(u.createdAt).toLocaleDateString('es-CO')
+      }));
+    }
+    case 'actividad': {
+      const logs = await prisma.auditLog.findMany({
+        include: { user: { select: { firstName: true, lastName: true, email: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: 500
+      });
+      return logs.map((l: any) => ({
+        'Usuario': l.user ? `${l.user.firstName} ${l.user.lastName}` : 'Sistema',
+        'Email': l.user?.email || '-',
+        'Accion': l.action,
+        'Entidad': l.entity,
+        'Fecha': new Date(l.createdAt).toLocaleDateString('es-CO'),
+        'Hora': new Date(l.createdAt).toLocaleTimeString('es-CO')
+      }));
+    }
+    default:
+      return [];
+  }
+}
+
+async function generateRolesReport(prisma: any, subtype: string): Promise<any[]> {
+  switch (subtype) {
+    case 'listado': {
+      const roles = await (prisma as any).role.findMany({
+        include: {
+          users: { select: { id: true } },
+          rolePermissions: { select: { id: true } }
+        },
+        orderBy: { name: 'asc' }
+      });
+      return roles.map((r: any) => ({
+        'Rol': r.name,
+        'Descripcion': r.description || '-',
+        'Total Usuarios': r.users.length,
+        'Total Permisos': r.rolePermissions.length,
+        'Fecha Creacion': new Date(r.createdAt).toLocaleDateString('es-CO')
+      }));
+    }
+    case 'permisos': {
+      const roles = await (prisma as any).role.findMany({
+        include: {
+          rolePermissions: {
+            include: { permission: true }
+          }
+        },
+        orderBy: { name: 'asc' }
+      });
+      const rows: any[] = [];
+      for (const r of roles) {
+        for (const rp of r.rolePermissions) {
+          rows.push({
+            'Rol': r.name,
+            'Modulo': rp.permission.module,
+            'Accion': rp.permission.action,
+            'Descripcion Permiso': rp.permission.description || '-'
+          });
+        }
+      }
+      return rows;
+    }
+    default:
+      return [];
+  }
+}
+
+// ============================================
 // GENERACIo"N DE REPORTES PARAMETRIZABLES
 // ============================================
 
@@ -200,6 +330,12 @@ router.post('/generate', authenticate, reportGenerateLimiter, validateZodRequest
         break;
       case 'kits':
         data = await generateKitsReport(prisma, subtype, dateFilter, hasDateFilter, filters);
+        break;
+      case 'users':
+        data = await generateUsersReport(prisma, subtype, dateFilter, hasDateFilter, filters);
+        break;
+      case 'roles':
+        data = await generateRolesReport(prisma, subtype);
         break;
       case 'beneficiaries':
         data = await generateBeneficiariesReport(prisma, subtype, dateFilter, hasDateFilter, filters);

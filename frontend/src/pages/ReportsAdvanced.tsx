@@ -3,7 +3,7 @@ import {
   FileText, Download, Filter, Eye, RefreshCw,
   Package, Users, ClipboardList, Truck, CheckSquare, RotateCcw,
   Boxes, ChevronDown, ChevronUp, Settings, Table, BarChart3,
-  Printer, X
+  Printer, X, Shield, UserCog
 } from 'lucide-react';
 import { reportApi } from '../services/api';
 
@@ -33,7 +33,9 @@ const REPORT_ICONS: Record<string, any> = {
   requests: ClipboardList,
   deliveries: Truck,
   authorizations: CheckSquare,
-  returns: RotateCcw
+  returns: RotateCcw,
+  users: UserCog,
+  roles: Shield
 };
 
 const REPORT_COLORS: Record<string, string> = {
@@ -43,7 +45,9 @@ const REPORT_COLORS: Record<string, string> = {
   requests: 'bg-yellow-100 text-yellow-600 border-yellow-200',
   deliveries: 'bg-cyan-100 text-cyan-600 border-cyan-200',
   authorizations: 'bg-indigo-100 text-indigo-600 border-indigo-200',
-  returns: 'bg-red-100 text-red-600 border-red-200'
+  returns: 'bg-red-100 text-red-600 border-red-200',
+  users: 'bg-emerald-100 text-emerald-600 border-emerald-200',
+  roles: 'bg-orange-100 text-orange-600 border-orange-200'
 };
 
 export default function ReportsAdvanced() {
