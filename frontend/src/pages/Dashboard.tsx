@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Package,
+  Boxes,
   Users,
   FileText,
   Truck,
@@ -195,8 +196,8 @@ export default function Dashboard() {
         </div>
       ) : null}
 
-      {/* Pending Delivery Tasks */}
-      {summary?.pendingTasks && (
+      {/* Pending Delivery Tasks - oculto en esta version */}
+      {false && summary?.pendingTasks && (
         (summary.pendingTasks.forAuthorizer > 0 || 
          summary.pendingTasks.forWarehouse > 0 || 
          summary.pendingTasks.forDispatcher > 0) && (
@@ -323,55 +324,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Requests by status */}
-        <div className="card">
-          <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Solicitudes por Estado</h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={statusData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={90}
-                  paddingAngle={2}
-                  dataKey="value"
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  labelLine={false}
-                >
-                  {statusData.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Deliveries trend */}
-        <div className="card">
-          <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Entregas por Mes</h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={charts?.deliveriesByMonth || []}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip />
-                <Line 
-                  type="monotone" 
-                  dataKey="deliveries" 
-                  name="Entregas"
-                  stroke="#3B82F6" 
-                  strokeWidth={2}
-                  dot={{ fill: '#3B82F6' }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+        {/* Solicitudes por Estado y Entregas por Mes - oculto en esta version */}
 
         {/* Stock by category */}
         <div className="card">
@@ -407,14 +360,7 @@ export default function Dashboard() {
       {/* Quick actions */}
       <div className="card">
         <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Acciones Rápidas</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Link
-            to="/requests/new"
-            className="p-4 bg-primary-50 hover:bg-primary-100 rounded-xl text-center transition-colors"
-          >
-            <FileText className="w-8 h-8 text-primary-600 mx-auto mb-2" />
-            <span className="text-sm font-medium text-primary-700">Nueva Solicitud</span>
-          </Link>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <Link
             to="/inventory"
             className="p-4 bg-green-50 hover:bg-green-100 rounded-xl text-center transition-colors"
@@ -423,11 +369,11 @@ export default function Dashboard() {
             <span className="text-sm font-medium text-green-700">Ver Inventario</span>
           </Link>
           <Link
-            to="/deliveries"
+            to="/kits"
             className="p-4 bg-purple-50 hover:bg-purple-100 rounded-xl text-center transition-colors"
           >
-            <Truck className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-            <span className="text-sm font-medium text-purple-700">Entregas</span>
+            <Boxes className="w-8 h-8 text-purple-600 mx-auto mb-2" />
+            <span className="text-sm font-medium text-purple-700">Ver Kits</span>
           </Link>
           <Link
             to="/reports"
