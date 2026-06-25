@@ -511,6 +511,19 @@ export const userZodSchemas = {
         strongPasswordRegex,
         'La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula, número y carácter especial'
       )
+  }),
+  changePassword: z.object({
+    currentPassword: z.string().min(1, 'La contraseña actual es requerida'),
+    newPassword: z
+      .string()
+      .regex(
+        strongPasswordRegex,
+        'La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula, número y carácter especial'
+      ),
+    confirmPassword: z.string().min(1, 'Confirma la nueva contraseña')
+  }).refine((data) => data.newPassword === data.confirmPassword, {
+    message: 'Las contraseñas no coinciden',
+    path: ['confirmPassword']
   })
 };
 

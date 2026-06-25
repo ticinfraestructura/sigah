@@ -360,6 +360,49 @@ router.delete('/:id', authenticate, hasPermission('users', 'delete'), validateZo
   }
 });
 
+// Cambio de contraseña autogestionado (cualquier usuario autenticado cambia la suya propia)
+router.post('/me/change-password', authenticate, validateZodRequest({ body: userZodSchemas.changePassword }), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const prisma: PrismaClient = req.app.get('prisma');
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user!.id;
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+    }
+
+    const isCurrentValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isCurrentValid) {
+      return res.status(400).json({ success: false, error: 'La contraseña actual es incorrecta' });
+    }
+
+    if (currentPassword === newPassword) {
+      return res.status(400).json({ success: false, error: 'La nueva contraseña debe ser diferente a la actual' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword, passwordChangedAt: new Date() }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'UPDATE',
+        entity: 'User',
+        entityId: userId,
+        newValues: JSON.stringify({ action: 'self_password_change' })
+      }
+    });
+
+    res.json({ success: true, message: 'Contraseña actualizada correctamente' });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Resetear contraseña de usuario
 router.post('/:id/reset-password', authenticate, hasPermission('users', 'edit'), validateZodRequest({ params: userZodSchemas.idParam, body: userZodSchemas.resetPassword }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {

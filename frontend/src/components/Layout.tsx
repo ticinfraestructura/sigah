@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { authApi } from '../services/api';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useIdleTimeout } from '../hooks/useIdleTimeout';
@@ -24,7 +25,8 @@ import {
   Bell,
   Settings,
   ClipboardList,
-  MessageSquare
+  MessageSquare,
+  KeyRound
 } from 'lucide-react';
 
 // Navegación con permisos requeridos
@@ -52,6 +54,11 @@ const adminNavigation = [
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [cpForm, setCpForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [cpError, setCpError] = useState('');
+  const [cpSuccess, setCpSuccess] = useState('');
+  const [cpLoading, setCpLoading] = useState(false);
   const { user, logout, hasPermission } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -74,6 +81,34 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const handleOpenChangePassword = () => {
+    setUserMenuOpen(false);
+    setCpForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    setCpError('');
+    setCpSuccess('');
+    setShowChangePasswordModal(true);
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCpError('');
+    setCpSuccess('');
+    if (cpForm.newPassword !== cpForm.confirmPassword) {
+      setCpError('Las contraseñas no coinciden');
+      return;
+    }
+    setCpLoading(true);
+    try {
+      await authApi.changePassword(cpForm.currentPassword, cpForm.newPassword, cpForm.confirmPassword);
+      setCpSuccess('Contraseña actualizada correctamente');
+      setTimeout(() => setShowChangePasswordModal(false), 1500);
+    } catch (err: any) {
+      setCpError(err.response?.data?.error || 'Error al cambiar la contraseña');
+    } finally {
+      setCpLoading(false);
+    }
   };
 
   // Filtrar navegación según permisos
@@ -232,6 +267,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       </p>
                     </div>
                     <button
+                      onClick={handleOpenChangePassword}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    >
+                      <KeyRound className="w-4 h-4" />
+                      Cambiar contraseña
+                    </button>
+                    <button
                       onClick={handleLogout}
                       className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
                     >
@@ -255,6 +297,86 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           SIGAH v1.0.0 · Sistema de Gestión de Ayudas Humanitarias
         </footer>
       </div>
+
+      {/* Modal Cambio de Contraseña */}
+      {showChangePasswordModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-sm">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <KeyRound className="w-5 h-5 text-primary-600" />
+                Cambiar mi contraseña
+              </h2>
+              <button
+                onClick={() => setShowChangePasswordModal(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <form onSubmit={handleChangePassword} className="p-4 space-y-4">
+              {cpError && (
+                <div className="p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-sm rounded-lg">{cpError}</div>
+              )}
+              {cpSuccess && (
+                <div className="p-3 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-sm rounded-lg">{cpSuccess}</div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contraseña actual</label>
+                <input
+                  type="password"
+                  value={cpForm.currentPassword}
+                  onChange={(e) => setCpForm({ ...cpForm, currentPassword: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  required
+                  autoComplete="current-password"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nueva contraseña</label>
+                <input
+                  type="password"
+                  value={cpForm.newPassword}
+                  onChange={(e) => setCpForm({ ...cpForm, newPassword: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Min. 8 caracteres, mayúscula, número y carácter especial</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirmar nueva contraseña</label>
+                <input
+                  type="password"
+                  value={cpForm.confirmPassword}
+                  onChange={(e) => setCpForm({ ...cpForm, confirmPassword: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowChangePasswordModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={cpLoading}
+                  className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 rounded-lg transition-colors"
+                >
+                  {cpLoading ? 'Guardando...' : 'Actualizar contraseña'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
