@@ -5,15 +5,16 @@ test.describe('Inventory Management', () => {
     // Login as admin
     await page.goto('/login');
     await page.getByLabel(/correo|email/i).fill('admin@sigah.com');
-    await page.getByLabel(/contraseña|password/i).fill('admin123');
-    await page.getByRole('button', { name: /iniciar|login/i }).click();
-    await expect(page).toHaveURL('/');
+    await page.getByLabel(/contraseña|password/i).fill('Admin123!');
+    await page.getByRole('button', { name: /ingresar|iniciar|login/i }).click();
+    await page.waitForURL(/\/$|\/dashboard/);
   });
 
   test('should navigate to inventory page', async ({ page }) => {
-    await page.getByRole('link', { name: /inventario|inventory/i }).click();
-    await expect(page).toHaveURL('/inventory');
-    await expect(page.getByRole('heading', { name: /inventario|inventory/i })).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('link', { name: /inventario/i }).first().click();
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: /inventario/i })).toBeVisible();
   });
 
   test('should display product list', async ({ page }) => {

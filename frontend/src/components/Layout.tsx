@@ -74,13 +74,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     onTimeout: () => {
       toast.error('Sesión expirada por inactividad. Por favor, inicia sesión nuevamente.');
       logout();
-      navigate('/login');
+      navigate('/login', { replace: true });
     }
   });
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate('/login', { replace: true });
   };
 
   const handleOpenChangePassword = () => {

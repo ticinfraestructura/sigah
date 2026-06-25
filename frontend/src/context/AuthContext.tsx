@@ -32,14 +32,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const userData = JSON.parse(savedUser);
         setToken(savedToken);
         setUser(userData);
+        // Validar token con el servidor — max 3s de espera
+        const timeoutPromise = new Promise<'timeout'>((resolve) =>
+          setTimeout(() => resolve('timeout'), 3000)
+        );
+        Promise.race([authApi.me().then(() => 'ok' as const), timeoutPromise])
+          .then((result) => {
+            if (result === 'timeout') {
+              // Red lenta o sin conexión: confiar en token local y dejar pasar
+              setLoading(false);
+            } else {
+              setLoading(false);
+            }
+          })
+          .catch(() => {
+            // 401/403 del servidor: token inválido o expirado
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            setToken(null);
+            setUser(null);
+            setLoading(false);
+          });
       } catch (error) {
         console.error('Error parsing saved user:', error);
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-      }
-    }
-    
         setLoading(false);
+      }
+    } else {
+      setLoading(false);
+    }
   }, []);
 
   const login = useCallback(async (email: string, password: string): Promise<{ passwordExpired: boolean }> => {

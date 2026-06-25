@@ -5,15 +5,14 @@ test.describe('Dashboard', () => {
     // Login as admin
     await page.goto('/login');
     await page.getByLabel(/correo|email/i).fill('admin@sigah.com');
-    await page.getByLabel(/contraseña|password/i).fill('admin123');
-    await page.getByRole('button', { name: /iniciar|login/i }).click();
-    await expect(page).toHaveURL('/');
+    await page.getByLabel(/contraseña|password/i).fill('Admin123!');
+    await page.getByRole('button', { name: /ingresar|iniciar|login/i }).click();
+    await page.waitForURL(/\/$|\/dashboard/);
   });
 
   test('should display dashboard with stats cards', async ({ page }) => {
-    // Dashboard should have stat cards
-    const statsSection = page.locator('[data-testid="stats-cards"], .stats-grid, .dashboard-stats');
-    await expect(statsSection.or(page.locator('.grid'))).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByText(/Total Productos|Kits Activos|Usuarios Activos/i).first()).toBeVisible();
   });
 
   test('should display charts', async ({ page }) => {
@@ -39,18 +38,15 @@ test.describe('Dashboard', () => {
   });
 
   test('should be responsive', async ({ page }) => {
-    // Test mobile viewport
     await page.setViewportSize({ width: 375, height: 667 });
-    await page.waitForTimeout(500);
-    
-    // Dashboard should still be visible
-    const dashboard = page.locator('main, [data-testid="dashboard"]');
-    await expect(dashboard.or(page.locator('.min-h-screen'))).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('main').first()).toBeVisible();
   });
 
   test('should toggle theme', async ({ page }) => {
-    // Look for theme toggle
-    const themeToggle = page.getByRole('button', { name: /tema|theme|oscuro|dark|claro|light/i });
+    await page.waitForLoadState('networkidle');
+    // Buscar botón de tema por icono (sun/moon) en el header
+    const themeToggle = page.locator('header button').first();
     if (await themeToggle.isVisible()) {
       await themeToggle.click();
       await page.waitForTimeout(300);

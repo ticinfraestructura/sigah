@@ -102,6 +102,8 @@ services:
     image: postgres:16-alpine
     container_name: sigah-db
     restart: unless-stopped
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_USER: sigah
       POSTGRES_PASSWORD: ${DB_PASSWORD}

@@ -54,15 +54,32 @@ model User {
   @@map("users")
 }
 
-model RolePermission {
-  id        String @id @default(uuid())
-  roleId    String
-  permission String
+model Permission {
+  id          String   @id @default(uuid())
+  module      String
+  action      String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Relations
-  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  rolePermissions RolePermission[]
 
-  @@unique([roleId, permission])
+  @@unique([module, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String   @id @default(uuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime @default(now())
+
+  // Relations
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
   @@map("role_permissions")
 }
 
