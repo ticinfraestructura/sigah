@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useIdleTimeout } from '../hooks/useIdleTimeout';
 import { useToast } from './ui/Toast';
 import ThemeToggle from './ThemeToggle';
-import NotificationCenter from './NotificationCenter';
+// import NotificationCenter from './NotificationCenter';
 import {
   LayoutDashboard,
   Package,
@@ -228,8 +228,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             <div className="flex-1" />
 
-            {/* Notifications */}
-            <NotificationCenter />
+            {/* Notifications - oculto en esta version */}
 
             {/* Theme Toggle */}
             <ThemeToggle className="mx-4" />
