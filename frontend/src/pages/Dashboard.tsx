@@ -114,8 +114,23 @@ export default function Dashboard() {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Beneficiarios</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{kpis?.totalBeneficiaries || 0}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Kits Activos</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{kpis?.totalKits || 0}</p>
+            </div>
+            <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+              <Boxes className="w-6 h-6 text-purple-600" />
+            </div>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+            Kits configurados
+          </p>
+        </div>
+
+        <div className="card">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Usuarios Activos</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{kpis?.totalUsers || 0}</p>
             </div>
             <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
               <Users className="w-6 h-6 text-green-600" />
@@ -129,30 +144,15 @@ export default function Dashboard() {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Solicitudes Pendientes</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{kpis?.pendingRequests || 0}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Bajo Stock</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{kpis?.lowStockProducts || 0}</p>
             </div>
             <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
-              <FileText className="w-6 h-6 text-yellow-600" />
+              <AlertTriangle className="w-6 h-6 text-yellow-600" />
             </div>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-            Total: <span className="font-medium text-gray-700 dark:text-gray-300">{kpis?.totalRequests || 0}</span>
-          </p>
-        </div>
-
-        <div className="card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Entregas del Mes</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{kpis?.deliveriesThisMonth || 0}</p>
-            </div>
-            <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-              <Truck className="w-6 h-6 text-purple-600" />
-            </div>
-          </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-            Este mes
+            Productos bajo mínimo
           </p>
         </div>
       </div>

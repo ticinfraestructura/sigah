@@ -320,6 +320,8 @@ export interface DashboardSummary {
     deliveriesReady?: number;
     deliveriesPendingAuth?: number;
     deliveriesInProgress?: number;
+    totalKits?: number;
+    totalUsers?: number;
   };
   requestsByStatus: Record<RequestStatus, number>;
   deliveriesByStatus?: Record<string, number>;

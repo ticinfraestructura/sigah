@@ -25,7 +25,9 @@ router.get('/summary', authenticate, async (req: Request, res: Response, next: N
       expiringProducts,
       lowStockProducts,
       stockByCategory,
-      pendingDeliveryTasks
+      pendingDeliveryTasks,
+      totalKits,
+      totalUsers
     ] = await Promise.all([
       prisma.product.count({ where: { isActive: true } }),
       prisma.beneficiary.count({ where: { isActive: true } }),
@@ -41,6 +43,8 @@ router.get('/summary', authenticate, async (req: Request, res: Response, next: N
       inventoryService.getExpiringProducts(30),
       inventoryService.getLowStockProducts(),
       inventoryService.getStockByCategory(),
+      prisma.kit.count({ where: { isActive: true } }),
+      prisma.user.count({ where: { isActive: true } }),
       // Entregas pendientes con detalles para tareas
       prisma.delivery.findMany({
         include: {
@@ -82,6 +86,8 @@ router.get('/summary', authenticate, async (req: Request, res: Response, next: N
         kpis: {
           totalProducts,
           totalStock,
+          totalKits,
+          totalUsers,
           totalBeneficiaries,
           totalRequests,
           pendingRequests,
