@@ -11,10 +11,7 @@ import {
   X,
   AlertCircle,
   CheckCircle,
-  Phone,
-  MessageCircle,
-  HelpCircle,
-  Send
+  Phone
 } from 'lucide-react';
 import api from '../services/api';
 import ConfirmModal from '../components/ui/ConfirmModal';
@@ -25,8 +22,6 @@ interface User {
   firstName: string;
   lastName: string;
   phone: string | null;
-  whatsappApiKey: string | null;
-  telegramChatId: string | null;
   isActive: boolean;
   roleId: string | null;
   roleName: string | null;
@@ -46,9 +41,7 @@ export default function UsersManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [showTelegramModal, setShowTelegramModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [selectedTelegramUser, setSelectedTelegramUser] = useState<User | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     email: '',
@@ -56,17 +49,9 @@ export default function UsersManagement() {
     firstName: '',
     lastName: '',
     phone: '',
-    whatsappApiKey: '',
-    telegramChatId: '',
     roleId: ''
   });
-  const [showApiKeyHelp, setShowApiKeyHelp] = useState(false);
   const [newPassword, setNewPassword] = useState('');
-  const [telegramChatIdInput, setTelegramChatIdInput] = useState('');
-  const [telegramSaving, setTelegramSaving] = useState(false);
-  const [telegramTesting, setTelegramTesting] = useState(false);
-  const [telegramError, setTelegramError] = useState('');
-  const [telegramSuccess, setTelegramSuccess] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -107,8 +92,6 @@ export default function UsersManagement() {
           firstName: formData.firstName,
           lastName: formData.lastName,
           phone: formData.phone || null,
-          whatsappApiKey: formData.whatsappApiKey || null,
-          telegramChatId: formData.telegramChatId || null,
           roleId: formData.roleId || null,
           ...(formData.password && { password: formData.password })
         });
@@ -188,8 +171,6 @@ export default function UsersManagement() {
       firstName: user.firstName,
       lastName: user.lastName,
       phone: user.phone || '',
-      whatsappApiKey: user.whatsappApiKey || '',
-      telegramChatId: user.telegramChatId || '',
       roleId: user.roleId || ''
     });
     setShowModal(true);
@@ -201,79 +182,6 @@ export default function UsersManagement() {
     setShowPasswordModal(true);
   };
 
-  const openTelegramModal = (user: User) => {
-    setSelectedTelegramUser(user);
-    setTelegramChatIdInput(user.telegramChatId || '');
-    setTelegramError('');
-    setTelegramSuccess('');
-    setShowTelegramModal(true);
-  };
-
-  const closeTelegramModal = () => {
-    setShowTelegramModal(false);
-    setSelectedTelegramUser(null);
-    setTelegramChatIdInput('');
-    setTelegramError('');
-    setTelegramSuccess('');
-  };
-
-  const handleSaveTelegramChatId = async () => {
-    if (!selectedTelegramUser) return;
-
-    setTelegramError('');
-    setTelegramSuccess('');
-    setTelegramSaving(true);
-
-    try {
-      const normalizedChatId = telegramChatIdInput.trim();
-      await api.put(`/users/${selectedTelegramUser.id}`, {
-        telegramChatId: normalizedChatId || null
-      });
-
-      setSelectedTelegramUser({
-        ...selectedTelegramUser,
-        telegramChatId: normalizedChatId || null
-      });
-
-      setTelegramSuccess('Chat ID de Telegram guardado correctamente');
-      await fetchUsers();
-    } catch (err: any) {
-      setTelegramError(err.response?.data?.error || 'Error al guardar Chat ID de Telegram');
-    } finally {
-      setTelegramSaving(false);
-    }
-  };
-
-  const handleSendTelegramTest = async () => {
-    const normalizedChatId = telegramChatIdInput.trim();
-
-    if (!normalizedChatId) {
-      setTelegramError('Debes ingresar un Chat ID antes de enviar la prueba');
-      setTelegramSuccess('');
-      return;
-    }
-
-    setTelegramError('');
-    setTelegramSuccess('');
-    setTelegramTesting(true);
-
-    try {
-      const response = await api.post('/whatsapp-notifications/telegram/test', {
-        chatId: normalizedChatId
-      });
-
-      const modeNote = response.data?.data?.simulated
-        ? ' (modo simulado: revisa TELEGRAM_BOT_TOKEN)'
-        : '';
-
-      setTelegramSuccess(`Prueba enviada correctamente${modeNote}`);
-    } catch (err: any) {
-      setTelegramError(err.response?.data?.error || 'Error enviando prueba de Telegram');
-    } finally {
-      setTelegramTesting(false);
-    }
-  };
-
   const resetForm = () => {
     setEditingUser(null);
     setFormData({
@@ -282,12 +190,9 @@ export default function UsersManagement() {
       firstName: '',
       lastName: '',
       phone: '',
-      whatsappApiKey: '',
-      telegramChatId: '',
       roleId: ''
     });
     setError('');
-    setShowApiKeyHelp(false);
   };
 
   const filteredUsers = users.filter(user => 
@@ -405,10 +310,6 @@ export default function UsersManagement() {
                           {user.phone}
                         </p>
                       )}
-                      <p className="text-gray-500 dark:text-gray-400 text-xs flex items-center gap-1 mt-0.5">
-                        <span className="text-blue-500">✈️</span>
-                        {user.telegramChatId ? 'Telegram configurado' : 'Sin Telegram'}
-                      </p>
                     </div>
                   </td>
                   <td className="px-4 py-3">
@@ -451,13 +352,6 @@ export default function UsersManagement() {
                         title={user.isActive ? 'Desactivar' : 'Activar'}
                       >
                         {user.isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
-                      </button>
-                      <button
-                        onClick={() => openTelegramModal(user)}
-                        className="p-2 text-gray-600 hover:text-sky-600 dark:text-gray-400 dark:hover:text-sky-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                        title="Configurar Telegram"
-                      >
-                        <Send className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDelete(user.id)}
@@ -545,69 +439,18 @@ export default function UsersManagement() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="label flex items-center gap-1">
-                    <Phone className="w-4 h-4 text-green-500" />
-                    Celular (WhatsApp)
-                  </label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="input"
-                    placeholder="+573001234567"
-                  />
-                </div>
-                <div>
-                  <label className="label flex items-center gap-1">
-                    <span className="text-blue-500">✈️</span>
-                    Telegram Chat ID
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.telegramChatId}
-                    onChange={(e) => setFormData({ ...formData, telegramChatId: e.target.value })}
-                    className="input"
-                    placeholder="123456789"
-                  />
-                </div>
-              </div>
-
-              {/* WhatsApp API Key para CallMeBot */}
               <div>
                 <label className="label flex items-center gap-1">
-                  <MessageCircle className="w-4 h-4 text-green-500" />
-                  WhatsApp API Key (CallMeBot)
-                  <button
-                    type="button"
-                    onClick={() => setShowApiKeyHelp(!showApiKeyHelp)}
-                    className="ml-1 text-gray-400 hover:text-primary-500"
-                  >
-                    <HelpCircle className="w-4 h-4" />
-                  </button>
+                  <Phone className="w-4 h-4 text-gray-500" />
+                  Celular
                 </label>
                 <input
-                  type="text"
-                  value={formData.whatsappApiKey}
-                  onChange={(e) => setFormData({ ...formData, whatsappApiKey: e.target.value })}
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   className="input"
-                  placeholder="123456"
+                  placeholder="+573001234567"
                 />
-                {showApiKeyHelp && (
-                  <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm">
-                    <p className="font-medium text-blue-800 dark:text-blue-300 mb-2">📱 ¿Cómo obtener tu API Key?</p>
-                    <ol className="list-decimal list-inside space-y-1 text-blue-700 dark:text-blue-400">
-                      <li>Ve a: <a href="https://textmebot.com/whatsapp" target="_blank" rel="noopener noreferrer" className="underline font-medium">textmebot.com/whatsapp</a></li>
-                      <li>Ingresa tu número de WhatsApp</li>
-                      <li>Sigue las instrucciones para activar</li>
-                      <li>Copia el API Key que te dan y pégalo aquí</li>
-                    </ol>
-                    <p className="mt-2 text-xs text-blue-600 dark:text-blue-500">
-                      ⚡ Servicio gratuito - Solo se requiere una vez por número
-                    </p>
-                  </div>
-                )}
               </div>
 
               <div>
@@ -719,91 +562,6 @@ export default function UsersManagement() {
         </div>
       )}
 
-      {showTelegramModal && selectedTelegramUser && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-lg">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Configurar Telegram
-              </h2>
-              <button
-                onClick={closeTelegramModal}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-
-            <div className="p-4 space-y-4">
-              <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm">
-                <p className="font-medium text-gray-800 dark:text-gray-100">
-                  Usuario: {selectedTelegramUser.firstName} {selectedTelegramUser.lastName}
-                </p>
-                <p className="text-gray-600 dark:text-gray-300 mt-1">{selectedTelegramUser.email}</p>
-              </div>
-
-              <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-sm text-blue-800 dark:text-blue-300 space-y-1">
-                <p className="font-medium">Pasos rápidos:</p>
-                <p>1. El usuario debe abrir el bot y enviar /start.</p>
-                <p>2. Obtén el chat_id desde getUpdates del bot.</p>
-                <p>3. Pega el chat_id aquí, guarda y envía prueba.</p>
-              </div>
-
-              {telegramError && (
-                <div className="p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-sm rounded-lg">
-                  {telegramError}
-                </div>
-              )}
-
-              {telegramSuccess && (
-                <div className="p-3 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-sm rounded-lg">
-                  {telegramSuccess}
-                </div>
-              )}
-
-              <div>
-                <label className="label flex items-center gap-1">
-                  <span className="text-blue-500">✈️</span>
-                  Telegram Chat ID
-                </label>
-                <input
-                  type="text"
-                  value={telegramChatIdInput}
-                  onChange={(e) => setTelegramChatIdInput(e.target.value)}
-                  className="input"
-                  placeholder="Ej: 5881420302"
-                />
-              </div>
-
-              <div className="flex flex-wrap justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={closeTelegramModal}
-                  className="btn-secondary"
-                >
-                  Cerrar
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveTelegramChatId}
-                  disabled={telegramSaving}
-                  className="btn-secondary disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {telegramSaving ? 'Guardando...' : 'Guardar Chat ID'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSendTelegramTest}
-                  disabled={telegramTesting}
-                  className="btn-primary disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {telegramTesting ? 'Enviando prueba...' : 'Enviar Prueba Telegram'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
       <ConfirmModal
         open={!!confirmUserId}
         title="Eliminar usuario"
