@@ -59,52 +59,6 @@ const REPORT_TYPES = {
       { id: 'ingresos', name: 'Ingresos de Kits', description: 'Historial de ingresos de kits al inventario' }
     ]
   },
-  beneficiaries: {
-    name: 'Beneficiarios',
-    description: 'Registro de beneficiarios y sus solicitudes',
-    subtypes: [
-      { id: 'listado', name: 'Listado', description: 'Todos los beneficiarios registrados' },
-      { id: 'por_ubicacion', name: 'Por Ubicacion', description: 'Beneficiarios agrupados por ubicacion' },
-      { id: 'historial_ayudas', name: 'Historial de Ayudas', description: 'Ayudas recibidas por beneficiario' }
-    ]
-  },
-  requests: {
-    name: 'Solicitudes',
-    description: 'Solicitudes de ayuda y su estado',
-    subtypes: [
-      { id: 'listado', name: 'Listado General', description: 'Todas las solicitudes' },
-      { id: 'por_estado', name: 'Por Estado', description: 'Solicitudes agrupadas por estado' },
-      { id: 'pendientes', name: 'Pendientes', description: 'Solicitudes sin procesar' }
-    ]
-  },
-  deliveries: {
-    name: 'Entregas',
-    description: 'Entregas realizadas y su trazabilidad',
-    subtypes: [
-      { id: 'listado', name: 'Listado General', description: 'Todas las entregas' },
-      { id: 'por_estado', name: 'Por Estado', description: 'Entregas agrupadas por estado' },
-      { id: 'trazabilidad', name: 'Trazabilidad', description: 'Flujo completo de cada entrega' },
-      { id: 'cancelaciones', name: 'Cancelaciones', description: 'Detalle completo de entregas canceladas' }
-    ]
-  },
-  authorizations: {
-    name: 'Autorizaciones',
-    description: 'Historial de autorizaciones y segregacion',
-    subtypes: [
-      { id: 'listado', name: 'Listado', description: 'Todas las autorizaciones' },
-      { id: 'por_autorizador', name: 'Por Autorizador', description: 'Agrupado por quien autoriza' },
-      { id: 'tiempos', name: 'Tiempos de Respuesta', description: 'Analisis de tiempos' }
-    ]
-  },
-  returns: {
-    name: 'Devoluciones',
-    description: 'Devoluciones y sus motivos',
-    subtypes: [
-      { id: 'listado', name: 'Listado', description: 'Todas las devoluciones' },
-      { id: 'por_motivo', name: 'Por Motivo', description: 'Agrupado por razon de devolucion' },
-      { id: 'por_producto', name: 'Por Producto', description: 'Productos mas devueltos' }
-    ]
-  }
 };
 
 // Campos seleccionables por tipo de reporte
@@ -129,66 +83,7 @@ const REPORT_FIELDS: Record<string, { id: string; name: string; default: boolean
     { id: 'canAssemble', name: 'Puede Armar', default: false },
     { id: 'isActive', name: 'Activo', default: false }
   ],
-  beneficiaries: [
-    { id: 'documentType', name: 'Tipo Doc.', default: true },
-    { id: 'documentNumber', name: 'Documento', default: true },
-    { id: 'firstName', name: 'Nombre', default: true },
-    { id: 'lastName', name: 'Apellido', default: true },
-    { id: 'phone', name: 'Telefono', default: true },
-    { id: 'address', name: 'Direccion', default: true },
-    { id: 'city', name: 'Ciudad', default: true },
-    { id: 'familySize', name: 'Nucleo Familiar', default: true },
-    { id: 'vulnerabilityType', name: 'Tipo Vulnerabilidad', default: false },
-    { id: 'requestCount', name: 'Total Solicitudes', default: true }
-  ],
-  requests: [
-    { id: 'code', name: 'Codigo', default: true },
-    { id: 'requestDate', name: 'Fecha Solicitud', default: true },
-    { id: 'beneficiary', name: 'Beneficiario', default: true },
-    { id: 'document', name: 'Documento', default: true },
-    { id: 'status', name: 'Estado', default: true },
-    { id: 'priority', name: 'Prioridad', default: true },
-    { id: 'products', name: 'Productos', default: true },
-    { id: 'kits', name: 'Kits', default: true },
-    { id: 'createdBy', name: 'Creado Por', default: false },
-    { id: 'notes', name: 'Notas', default: false }
-  ],
-  deliveries: [
-    { id: 'code', name: 'Codigo Entrega', default: true },
-    { id: 'requestCode', name: 'Codigo Solicitud', default: true },
-    { id: 'beneficiary', name: 'Beneficiario', default: true },
-    { id: 'status', name: 'Estado', default: true },
-    { id: 'createdAt', name: 'Fecha Creacion', default: true },
-    { id: 'authorizedBy', name: 'Autorizado Por', default: true },
-    { id: 'authorizationDate', name: 'Fecha Autorizacion', default: false },
-    { id: 'warehouseUser', name: 'Recibido Bodega', default: false },
-    { id: 'preparedBy', name: 'Preparado Por', default: false },
-    { id: 'deliveredBy', name: 'Entregado Por', default: true },
-    { id: 'deliveryDate', name: 'Fecha Entrega', default: true },
-    { id: 'receivedBy', name: 'Recibido Por', default: true },
-    { id: 'isPartial', name: 'Parcial', default: false }
-  ],
-  authorizations: [
-    { id: 'deliveryCode', name: 'Codigo Entrega', default: true },
-    { id: 'requestCode', name: 'Codigo Solicitud', default: true },
-    { id: 'beneficiary', name: 'Beneficiario', default: true },
-    { id: 'authorizedBy', name: 'Autorizado Por', default: true },
-    { id: 'authorizationDate', name: 'Fecha Autorizacion', default: true },
-    { id: 'authorizationNotes', name: 'Notas', default: false },
-    { id: 'isPartialAuth', name: 'Autorizacion Parcial', default: true },
-    { id: 'responseTime', name: 'Tiempo Respuesta (hrs)', default: true }
-  ],
-  returns: [
-    { id: 'code', name: 'Codigo', default: true },
-    { id: 'deliveryCode', name: 'Codigo Entrega', default: true },
-    { id: 'returnDate', name: 'Fecha Devolucion', default: true },
-    { id: 'reason', name: 'Motivo', default: true },
-    { id: 'products', name: 'Productos', default: true },
-    { id: 'quantities', name: 'Cantidades', default: true },
-    { id: 'condition', name: 'Condicion', default: true },
-    { id: 'processedBy', name: 'Procesado Por', default: true },
-    { id: 'notes', name: 'Notas', default: false }
-  ]
+  // beneficiaries, requests, deliveries, authorizations, returns: ocultos en esta version
 };
 
 // ============================================
