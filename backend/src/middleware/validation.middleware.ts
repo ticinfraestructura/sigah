@@ -693,11 +693,11 @@ const optionalReportDateSchema = z
 
 export const reportZodSchemas = {
   reportTypeParam: z.object({
-    reportType: z.enum(['inventory', 'kits', 'beneficiaries', 'requests', 'deliveries', 'authorizations', 'returns'])
+    reportType: z.enum(['inventory', 'kits', 'beneficiaries', 'requests', 'deliveries', 'authorizations', 'returns', 'users', 'roles'])
   }),
   fieldsQuery: z.object({ subtype: z.string().trim().max(80).optional() }),
   generate: z.object({
-    reportType: z.enum(['inventory', 'kits', 'beneficiaries', 'requests', 'deliveries', 'authorizations', 'returns']),
+    reportType: z.enum(['inventory', 'kits', 'beneficiaries', 'requests', 'deliveries', 'authorizations', 'returns', 'users', 'roles']),
     subtype: z.string().trim().max(80).optional(),
     startDate: optionalReportDateSchema,
     endDate: optionalReportDateSchema,
@@ -708,7 +708,7 @@ export const reportZodSchemas = {
     sortOrder: z.enum(['asc', 'desc']).optional()
   }),
   exportExcel: z.object({
-    reportType: z.enum(['inventory', 'kits', 'beneficiaries', 'requests', 'deliveries', 'authorizations', 'returns']),
+    reportType: z.enum(['inventory', 'kits', 'beneficiaries', 'requests', 'deliveries', 'authorizations', 'returns', 'users', 'roles']),
     subtype: z.string().trim().max(80).optional(),
     startDate: optionalReportDateSchema,
     endDate: optionalReportDateSchema,
@@ -716,7 +716,7 @@ export const reportZodSchemas = {
     data: z.array(reportRowSchema).max(5000).optional()
   }),
   exportPdf: z.object({
-    reportType: z.enum(['inventory', 'kits', 'beneficiaries', 'requests', 'deliveries', 'authorizations', 'returns']),
+    reportType: z.enum(['inventory', 'kits', 'beneficiaries', 'requests', 'deliveries', 'authorizations', 'returns', 'users', 'roles']),
     subtype: z.string().trim().max(80).optional(),
     startDate: optionalReportDateSchema,
     endDate: optionalReportDateSchema,

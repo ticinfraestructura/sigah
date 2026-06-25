@@ -1625,6 +1625,30 @@ router.get('/quick/:reportType', authenticate, validateZodRequest({ params: repo
         };
         break;
 
+      case 'users':
+        const totalUsers = await prisma.user.count();
+        const activeUsers = await prisma.user.count({ where: { isActive: true } });
+        const inactiveUsers = totalUsers - activeUsers;
+        const lastAudit = await prisma.auditLog.findFirst({ orderBy: { createdAt: 'desc' } });
+        quickData = {
+          total: totalUsers,
+          active: activeUsers,
+          inactive: inactiveUsers,
+          lastActivity: lastAudit ? new Date(lastAudit.createdAt).toLocaleDateString('es-CO') : '-'
+        };
+        break;
+
+      case 'roles':
+        const totalRoles = await (prisma as any).role.count();
+        const totalPerms = await (prisma as any).permission.count();
+        const usersWithoutRole = await prisma.user.count({ where: { roleId: null } });
+        quickData = {
+          totalRoles,
+          totalPermissions: totalPerms,
+          usersWithoutRole
+        };
+        break;
+
       default:
         // Para tipos no soportados, devolver datos vacios en lugar de error
         quickData = { message: 'Estadisticas rapidas no disponibles para este tipo' };
