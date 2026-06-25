@@ -16,8 +16,7 @@ const SYSTEM_MODULES = {
   kits: { name: 'Kits', actions: ['view', 'create', 'edit', 'delete'] },
   reports: { name: 'Reportes', actions: ['view', 'export'] },
   users: { name: 'Usuarios', actions: ['view', 'create', 'edit', 'delete', 'activate'] },
-  roles: { name: 'Roles', actions: ['view', 'create', 'edit', 'delete', 'assign'] },
-  settings: { name: 'Configuración', actions: ['view', 'edit'] }
+  roles: { name: 'Roles', actions: ['view', 'create', 'edit', 'delete', 'assign'] }
 };
 
 const ACTION_LABELS: Record<string, string> = {
