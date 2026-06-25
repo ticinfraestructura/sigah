@@ -83,7 +83,7 @@ export const logPermissionChange = (req: Request, userId: string, action: string
 
 // Middleware para detectar actividad sospechosa
 const suspiciousPatterns = [
-  /(\%27)|(\')|(\-\-)|(\%23)|(#)/i, // SQL Injection
+  /(\%27)|(\')|(\-\-)|(\%23)/i, // SQL Injection
   /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, // XSS
   /(\.\.\/)|(\.\.\\)/g, // Path traversal
   /(\%00)/g, // Null byte
@@ -93,7 +93,10 @@ export const detectSuspiciousActivity = (req: Request, res: Response, next: Next
   // Excluir endpoints que manejan datos legítimos de la base de datos
   const excludedPaths = [
     '/api/reports/export',
-    '/api/reports/generate'
+    '/api/reports/generate',
+    '/api/users/me/change-password',
+    '/api/users/',   // reset-password admin
+    '/api/auth/login'
   ];
   
   if (excludedPaths.some(path => req.path.includes(path))) {
