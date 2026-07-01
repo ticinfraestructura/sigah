@@ -295,7 +295,7 @@ export const returnApi = {
 
 // Inventory
 export const inventoryApi = {
-  getStock: (params?: { categoryId?: string; isPerishable?: boolean; lowStock?: boolean }) =>
+  getStock: (params?: { categoryId?: string; isPerishable?: boolean; lowStock?: boolean; search?: string }) =>
     api.get('/inventory/stock', { params }),
   getMovements: (params?: {
     productId?: string;

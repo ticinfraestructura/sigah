@@ -655,7 +655,13 @@ export default function Inventory() {
               </tr>
             </thead>
             <tbody>
-              {products.map((product) => {
+              {products
+                .filter((product) =>
+                  !search ||
+                  product.code?.toLowerCase().includes(search.toLowerCase()) ||
+                  product.name?.toLowerCase().includes(search.toLowerCase())
+                )
+                .map((product) => {
                 const isLowStock = (product.totalStock || 0) < product.minStock;
                 return (
                   <tr key={product.id} className={!product.isActive ? 'opacity-50' : ''}>
@@ -721,7 +727,7 @@ export default function Inventory() {
                   </tr>
                 );
               })}
-              {products.length === 0 && (
+              {products.filter((p) => !search || p.code?.toLowerCase().includes(search.toLowerCase()) || p.name?.toLowerCase().includes(search.toLowerCase())).length === 0 && (
                 <tr>
                   <td colSpan={8} className="text-center py-8 text-gray-500">
                     No se encontraron productos
