@@ -9,7 +9,6 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Inventory from './pages/Inventory';
-import InventoryDebug from './pages/InventoryDebug';
 import ProductDetail from './pages/ProductDetail';
 import Kits from './pages/Kits';
 import KitDetail from './pages/KitDetail';
@@ -72,9 +71,6 @@ function App() {
                       <ProtectedRoute module="inventory">
                         <Inventory />
                       </ProtectedRoute>
-                    } />
-                    <Route path="/inventory-debug" element={
-                      <InventoryDebug />
                     } />
                     <Route path="/inventory/:id" element={
                       <ProtectedRoute module="inventory">
