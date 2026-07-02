@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Package, Plus, Search, AlertTriangle, Clock, Edit2, Trash2, Box } from 'lucide-react';
+import { Package, Plus, Search, AlertTriangle, Clock, Edit2, Box, ToggleLeft, ToggleRight } from 'lucide-react';
 import api, { productApi, categoryApi, inventoryApi, kitApi } from '../services/api';
 import { Product, Category, Unit } from '../types';
 import { useToast } from '../components/ui/Toast';
@@ -79,6 +79,7 @@ export default function Inventory() {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [perishableFilter, setPerishableFilter] = useState<string>('');
+  const [showInactive, setShowInactive] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -295,17 +296,22 @@ export default function Inventory() {
     setConfirmState({ open: false, product: null });
     if (!product) return;
     try {
-      await productApi.delete(product.id);
-      toast.success('Producto desactivado');
+      if (product.isActive) {
+        await productApi.delete(product.id);
+        toast.success('Producto desactivado correctamente');
+      } else {
+        await productApi.update(product.id, { isActive: true });
+        toast.success('Producto activado correctamente');
+      }
       fetchData();
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Error al desactivar');
+      toast.error(error.response?.data?.error || 'Error al cambiar estado del producto');
     }
   };
 
   useEffect(() => {
     fetchData();
-  }, [search, categoryFilter, perishableFilter]);
+  }, [search, categoryFilter, perishableFilter, showInactive]);
 
   useEffect(() => {
     fetchCategories();
@@ -327,6 +333,7 @@ export default function Inventory() {
       if (search) params.search = search;
       if (categoryFilter) params.categoryId = categoryFilter;
       if (perishableFilter) params.isPerishable = perishableFilter === 'true';
+      if (showInactive) params.includeInactive = true;
       
       const [productsRes, kitsRes] = await Promise.all([
         inventoryApi.getStock(params),
@@ -427,6 +434,15 @@ export default function Inventory() {
             <option value="true">Perecederos</option>
             <option value="false">No perecederos</option>
           </select>
+          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer whitespace-nowrap">
+            <input
+              type="checkbox"
+              checked={showInactive}
+              onChange={(e) => setShowInactive(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300"
+            />
+            Ver inactivos
+          </label>
         </div>
       </div>
 
@@ -711,10 +727,10 @@ export default function Inventory() {
                         </button>
                         <button
                           onClick={() => handleDelete(product)}
-                          className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg"
-                          title={product.isActive ? 'Desactivar' : 'Activar'}
+                          className={`p-2 rounded-lg ${product.isActive ? 'text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30' : 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30'}`}
+                          title={product.isActive ? 'Desactivar producto' : 'Activar producto'}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          {product.isActive ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
                         </button>
                         <button
                           onClick={() => handleViewHistory({ ...product, __type: 'product' })}
@@ -1151,6 +1167,7 @@ function ProductModal({ product, categories, onClose, onSave }: ProductModalProp
     try {
       if (isEditing && product) {
         await productApi.update(product.id, form);
+        toast.success('Producto actualizado correctamente');
       } else {
         // Crear producto
         const response = await productApi.create(form);
@@ -1165,12 +1182,15 @@ function ProductModal({ product, categories, onClose, onSave }: ProductModalProp
             expiryDate: initialStock.expiryDate || undefined,
             reason: 'Stock inicial al crear producto'
           });
+          toast.success('Producto creado con stock inicial correctamente');
+        } else {
+          toast.success('Producto creado correctamente');
         }
       }
       onSave();
       onClose();
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Error al guardar');
+      toast.error(error.response?.data?.error || 'Error al guardar el producto');
     } finally {
       setSaving(false);
     }

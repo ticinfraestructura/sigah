@@ -901,7 +901,8 @@ export const inventoryZodSchemas = {
   stockQuery: z.object({
     categoryId: z.string().uuid().optional(),
     isPerishable: z.enum(['true', 'false']).optional(),
-    lowStock: z.enum(['true', 'false']).optional()
+    lowStock: z.enum(['true', 'false']).optional(),
+    includeInactive: z.enum(['true', 'false']).optional()
   }),
   movementQuery: z.object({
     productId: z.string().uuid().optional(),

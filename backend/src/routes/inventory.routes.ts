@@ -13,9 +13,9 @@ const router = Router();
 router.get('/stock', authenticate, validateZodRequest({ query: inventoryZodSchemas.stockQuery }), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const prisma: PrismaClient = req.app.get('prisma');
-    const { categoryId, isPerishable, lowStock } = req.query;
+    const { categoryId, isPerishable, lowStock, includeInactive } = req.query;
 
-    const where: any = { isActive: true };
+    const where: any = includeInactive === 'true' ? {} : { isActive: true };
 
     if (categoryId) {
       where.categoryId = categoryId;
@@ -38,10 +38,13 @@ router.get('/stock', authenticate, validateZodRequest({ query: inventoryZodSchem
       id: product.id,
       code: product.code,
       name: product.name,
-      category: product.category.name,
+      description: product.description,
+      categoryId: product.categoryId,
+      category: { id: product.categoryId, name: product.category.name },
       unit: product.unit,
       isPerishable: product.isPerishable,
       minStock: product.minStock,
+      isActive: product.isActive,
       totalStock: product.lots.reduce((sum, lot) => sum + lot.quantity, 0),
       lots: product.lots.length,
       isLowStock: product.lots.reduce((sum, lot) => sum + lot.quantity, 0) < product.minStock
