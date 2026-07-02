@@ -259,10 +259,8 @@ export default function RolesManagement() {
           <div key={role.id} className="card hover:shadow-md transition-shadow dark:bg-gray-800">
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                  role.isSystem ? 'bg-primary-100 dark:bg-primary-900' : 'bg-gray-100 dark:bg-gray-700'
-                }`}>
-                  <Shield className={`w-5 h-5 ${role.isSystem ? 'text-primary-600' : 'text-gray-600'}`} />
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-primary-100 dark:bg-primary-900">
+                  <Shield className="w-5 h-5 text-primary-600 dark:text-primary-400" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900 dark:text-white">{role.name}</h3>
