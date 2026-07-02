@@ -4,15 +4,15 @@ import { kitApi } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 
 interface KitEntry {
-  fecha: string;
-  hora: string;
-  productCode: string;
-  productName: string;
-  lotNumber: string;
-  quantity: number;
-  reason: string;
-  reference: string;
-  user: string;
+  'Fecha': string;
+  'Hora': string;
+  'Codigo Kit': string;
+  'Nombre Kit': string;
+  'Lote': string;
+  'Cantidad': number;
+  'Motivo': string;
+  'Referencia': string;
+  'Usuario': string;
 }
 
 interface Kit {
@@ -154,10 +154,10 @@ export default function KitEntriesTab() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 text-gray-900 dark:text-gray-100">
       {/* Filters */}
       <div className="card">
-        <h3 className="text-lg font-semibold mb-4">Filtros de Búsqueda</h3>
+        <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Filtros de Búsqueda</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label className="label">Kit</label>
@@ -208,17 +208,17 @@ export default function KitEntriesTab() {
       {/* Kit Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {kits.map(kit => {
-          const kitEntryCount = kitEntries.filter(entry => entry.productCode === kit.code).length;
+          const kitEntryCount = kitEntries.filter(entry => entry['Codigo Kit'] === kit.code).length;
           return (
             <div key={kit.id} className={`card cursor-pointer hover:shadow-md transition-shadow ${selectedKit === kit.code ? 'ring-2 ring-primary-500' : ''}`} onClick={() => filterByKit(kit.code)}>
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="font-semibold">{kit.code}</h4>
-                  <p className="text-sm text-gray-500">{kit.name}</p>
+                  <h4 className="font-semibold text-gray-900 dark:text-white">{kit.code}</h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{kit.name}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-2xl font-bold text-primary-600">{kitEntryCount}</p>
-                  <p className="text-xs text-gray-500">Ingresos</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Ingresos</p>
                 </div>
               </div>
             </div>
@@ -229,7 +229,7 @@ export default function KitEntriesTab() {
       {/* Entries Table */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">Ingresos de Kits ({kitEntries.length})</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Ingresos de Kits ({kitEntries.length})</h3>
         </div>
         
         {loading ? (
@@ -246,30 +246,30 @@ export default function KitEntriesTab() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b">
-                  <th className="text-left py-2 px-2">Fecha</th>
-                  <th className="text-left py-2 px-2">Hora</th>
-                  <th className="text-left py-2 px-2">Código Kit</th>
-                  <th className="text-left py-2 px-2">Nombre Kit</th>
-                  <th className="text-left py-2 px-2">Cantidad</th>
-                  <th className="text-left py-2 px-2">Usuario</th>
-                  <th className="text-left py-2 px-2">Referencia</th>
+                <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700">
+                  <th className="text-left py-2 px-2 text-gray-600 dark:text-gray-300">Fecha</th>
+                  <th className="text-left py-2 px-2 text-gray-600 dark:text-gray-300">Hora</th>
+                  <th className="text-left py-2 px-2 text-gray-600 dark:text-gray-300">Código Kit</th>
+                  <th className="text-left py-2 px-2 text-gray-600 dark:text-gray-300">Nombre Kit</th>
+                  <th className="text-left py-2 px-2 text-gray-600 dark:text-gray-300">Cantidad</th>
+                  <th className="text-left py-2 px-2 text-gray-600 dark:text-gray-300">Usuario</th>
+                  <th className="text-left py-2 px-2 text-gray-600 dark:text-gray-300">Referencia</th>
                 </tr>
               </thead>
               <tbody>
                 {kitEntries.map((entry, index) => (
-                  <tr key={index} className="border-b hover:bg-gray-50">
-                    <td className="py-2 px-2">{entry.fecha}</td>
-                    <td className="py-2 px-2">{entry.hora}</td>
-                    <td className="py-2 px-2 font-medium">{entry.productCode}</td>
-                    <td className="py-2 px-2">{entry.productName}</td>
+                  <tr key={index} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <td className="py-2 px-2 text-gray-900 dark:text-gray-100">{entry['Fecha']}</td>
+                    <td className="py-2 px-2 text-gray-900 dark:text-gray-100">{entry['Hora']}</td>
+                    <td className="py-2 px-2 font-medium text-gray-900 dark:text-gray-100">{entry['Codigo Kit']}</td>
+                    <td className="py-2 px-2 text-gray-900 dark:text-gray-100">{entry['Nombre Kit']}</td>
                     <td className="py-2 px-2">
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        +{entry.quantity}
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
+                        +{entry['Cantidad']}
                       </span>
                     </td>
-                    <td className="py-2 px-2">{entry.user}</td>
-                    <td className="py-2 px-2 text-gray-500 text-xs">{entry.reference}</td>
+                    <td className="py-2 px-2 text-gray-900 dark:text-gray-100">{entry['Usuario']}</td>
+                    <td className="py-2 px-2 text-gray-500 dark:text-gray-400 text-xs">{entry['Referencia']}</td>
                   </tr>
                 ))}
               </tbody>
