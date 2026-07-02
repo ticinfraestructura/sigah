@@ -204,13 +204,17 @@ export default function RolesManagement() {
     try {
       if (editingRole) {
         await api.put(`/roles/${editingRole.id}`, formData);
+        toast.success('Rol actualizado correctamente');
       } else {
         await api.post('/roles', formData);
+        toast.success('Rol creado correctamente');
       }
       setShowForm(false);
       loadRoles();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Error al guardar');
+      const msg = err.response?.data?.error || 'Error al guardar el rol';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
