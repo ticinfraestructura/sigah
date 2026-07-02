@@ -399,12 +399,6 @@ export default function UsersManagement() {
                 </div>
               )}
 
-              {success && (
-                <div className="p-3 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-sm rounded-lg">
-                  {success}
-                </div>
-              )}
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="label">Nombre</label>
@@ -523,12 +517,6 @@ export default function UsersManagement() {
               {error && (
                 <div className="p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-sm rounded-lg">
                   {error}
-                </div>
-              )}
-
-              {success && (
-                <div className="p-3 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-sm rounded-lg">
-                  {success}
                 </div>
               )}
 
