@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Boxes, FileSpreadsheet, FileText } from 'lucide-react';
+import { Boxes } from 'lucide-react';
+import ExportButtons from './ExportButtons';
 import { kitApi } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 
@@ -79,83 +80,7 @@ export default function KitEntriesTab() {
     setSelectedKit('');
   };
 
-  const exportToExcel = async () => {
-    try {
-      const params: any = {
-        reportType: 'kits',
-        subtype: 'ingresos',
-        data: kitEntries
-      };
-      
-      if (startDate) params.startDate = startDate;
-      if (endDate) params.endDate = endDate;
-      if (selectedKit) params.filters = { kitCode: selectedKit };
-
-      const response = await fetch('/api/reports/export/excel', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(params),
-      });
-
-      if (!response.ok) throw new Error('Error al exportar');
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `ingresos_kits_${new Date().toISOString().split('T')[0]}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      
-      toast.success('Reporte exportado a Excel exitosamente');
-    } catch (error) {
-      toast.error('Error al exportar a Excel');
-    }
-  };
-
-  const exportToPDF = async () => {
-    try {
-      const params: any = {
-        reportType: 'kits',
-        subtype: 'ingresos',
-        data: kitEntries,
-        title: 'Reporte de Ingresos de Kits'
-      };
-      
-      if (startDate) params.startDate = startDate;
-      if (endDate) params.endDate = endDate;
-      if (selectedKit) params.filters = { kitCode: selectedKit };
-
-      const response = await fetch('/api/reports/export/pdf', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(params),
-      });
-
-      if (!response.ok) throw new Error('Error al exportar');
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `ingresos_kits_${new Date().toISOString().split('T')[0]}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      
-      toast.success('Reporte exportado a PDF exitosamente');
-    } catch (error) {
-      toast.error('Error al exportar a PDF');
-    }
-  };
-
+  
   return (
     <div className="space-y-6 text-gray-900 dark:text-gray-100">
       {/* Filters */}
@@ -188,23 +113,14 @@ export default function KitEntriesTab() {
         </div>
         
         {/* Export Buttons */}
-        <div className="flex justify-end space-x-2 mt-4 pt-4 border-t border-gray-200">
-          <button 
-            onClick={exportToExcel} 
-            disabled={loading || kitEntries.length === 0}
-            className="btn-success flex items-center space-x-2"
-          >
-            <FileSpreadsheet size={16} />
-            <span>Exportar Excel</span>
-          </button>
-          <button 
-            onClick={exportToPDF} 
-            disabled={loading || kitEntries.length === 0}
-            className="btn-primary flex items-center space-x-2"
-          >
-            <FileText size={16} />
-            <span>Exportar PDF</span>
-          </button>
+        <div className="flex justify-end mt-4 pt-4 border-t border-gray-200">
+          <ExportButtons
+            data={kitEntries}
+            reportType="kits"
+            subtype="ingresos"
+            title="Reporte de Ingresos de Kits"
+            disabled={loading}
+          />
         </div>
       </div>
 

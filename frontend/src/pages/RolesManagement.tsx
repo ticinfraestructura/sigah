@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import { 
   Shield, Plus, Edit2, Trash2, Users, Check, X, 
-  Save, ChevronDown, ChevronUp, AlertCircle, UserCheck,
-  FileSpreadsheet, FileText
+  Save, ChevronDown, ChevronUp, AlertCircle, UserCheck
 } from 'lucide-react';
+import ExportButtons from '../components/ExportButtons';
 import { useAuth } from '../context/AuthContext';
 import { Role, Permission } from '../types';
 import api from '../services/api';
@@ -157,71 +157,7 @@ export default function RolesManagement() {
     return formData.permissions.some(p => p.module === module && p.action === action);
   };
 
-  const exportToExcel = async () => {
-    try {
-      const response = await fetch('/api/reports/export/excel', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          reportType: 'roles',
-          subtype: 'listado',
-          data: roles
-        }),
-      });
-
-      if (!response.ok) throw new Error('Error al exportar');
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `roles_${new Date().toISOString().split('T')[0]}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      
-      toast.success('Reporte exportado a Excel exitosamente');
-    } catch (error) {
-      toast.error('Error al exportar a Excel');
-    }
-  };
-
-  const exportToPDF = async () => {
-    try {
-      const response = await fetch('/api/reports/export/pdf', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          reportType: 'roles',
-          subtype: 'listado',
-          data: roles,
-          title: 'Reporte de Roles y Permisos'
-        }),
-      });
-
-      if (!response.ok) throw new Error('Error al exportar');
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `roles_${new Date().toISOString().split('T')[0]}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      
-      toast.success('Reporte exportado a PDF exitosamente');
-    } catch (error) {
-      toast.error('Error al exportar a PDF');
-    }
-  };
-
+  
   const togglePermission = (module: string, action: string) => {
     setFormData(prev => {
       const exists = prev.permissions.some(p => p.module === module && p.action === action);
@@ -311,22 +247,12 @@ export default function RolesManagement() {
           <p className="text-gray-500 dark:text-gray-400">Gestiona los roles del sistema y sus permisos</p>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={exportToExcel}
-            disabled={roles.length === 0}
-            className="btn-success flex items-center gap-2"
-          >
-            <FileSpreadsheet className="w-4 h-4" />
-            Exportar Excel
-          </button>
-          <button
-            onClick={exportToPDF}
-            disabled={roles.length === 0}
-            className="btn-primary flex items-center gap-2"
-          >
-            <FileText className="w-4 h-4" />
-            Exportar PDF
-          </button>
+          <ExportButtons
+            data={roles}
+            reportType="roles"
+            subtype="listado"
+            title="Reporte de Roles y Permisos"
+          />
           <button onClick={handleNewRole} className="btn-primary">
             <Plus className="w-4 h-4 mr-2" /> Nuevo Rol
           </button>
