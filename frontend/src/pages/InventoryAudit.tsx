@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { auditApi } from '../services/api';
 import { useToast } from '../components/ui/Toast';
+import ExportButtons from '../components/ExportButtons';
 
 interface AuditLog {
   id: string;
@@ -177,13 +178,12 @@ export default function InventoryAudit() {
             Trazabilidad y seguimiento de todas las operaciones de inventario
           </p>
         </div>
-        <button 
-          onClick={handleExport}
-          className="btn-primary flex items-center gap-2"
-        >
-          <Download className="w-4 h-4" />
-          Exportar CSV
-        </button>
+        <ExportButtons
+          data={auditLogs}
+          reportType="audit"
+          subtype="inventory"
+          title="Auditoría de Inventario"
+        />
       </div>
 
       {/* Stats Cards */}
