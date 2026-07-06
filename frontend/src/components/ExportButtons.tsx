@@ -24,6 +24,12 @@ export default function ExportButtons({
 }: ExportButtonsProps) {
   const toast = useToast();
 
+  // Validar que los datos existan antes de renderizar
+  if (!data || !Array.isArray(data)) {
+    console.warn('ExportButtons: data is not an array or is undefined');
+    return null;
+  }
+
   const exportToExcel = async () => {
     if (disabled || data.length === 0) return;
     

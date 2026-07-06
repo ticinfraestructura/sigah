@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { 
-  FileText, Download, User, Clock, ChevronDown, ChevronUp, Filter,
+  FileText, User, Clock, ChevronDown, ChevronUp, Filter,
   CheckCircle, XCircle, Edit2, Plus, Trash2, RefreshCw
 } from 'lucide-react';
 import { auditApi } from '../services/api';
-import { useToast } from '../components/ui/Toast';
 import ExportButtons from '../components/ExportButtons';
 
 interface AuditLog {
@@ -71,7 +70,6 @@ const actionColors: Record<string, string> = {
 const inventoryEntities = 'Product,Category,ProductLot,INVENTORY_ADJUSTMENT,INVENTORY_ENTRY,StockMovement,Kit,KitInventoryMovement';
 
 export default function InventoryAudit() {
-  const toast = useToast();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [stats, setStats] = useState<AuditStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -131,26 +129,7 @@ export default function InventoryAudit() {
     }
   };
 
-  const handleExport = async () => {
-    try {
-      const params: any = {};
-      if (filters.entity) params.entity = filters.entity;
-      if (filters.action) params.action = filters.action;
-      if (filters.startDate) params.startDate = filters.startDate;
-      if (filters.endDate) params.endDate = filters.endDate;
-      
-      const response = await auditApi.export(params);
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `auditoria-inventario-${new Date().toISOString().split('T')[0]}.csv`;
-      link.click();
-    } catch (error) {
-      console.error('Error exporting:', error);
-      toast.error('Error al exportar');
-    }
-  };
-
+  
   const formatDate = (date: string) => {
     return new Date(date).toLocaleString('es-CO', {
       dateStyle: 'medium',
@@ -181,7 +160,7 @@ export default function InventoryAudit() {
           </p>
         </div>
         <ExportButtons
-          data={auditLogs}
+          data={logs}
           reportType="audit"
           subtype="inventory"
           title="Auditoría de Inventario"
