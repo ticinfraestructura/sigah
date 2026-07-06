@@ -1151,6 +1151,49 @@ async function generateAuthorizationsReport(prisma: PrismaClient, subtype: strin
   }
 }
 
+async function generateAuditReport(prisma: PrismaClient, subtype: string, dateFilter: any, hasDateFilter: boolean, filters: any) {
+  const auditLogs = await prisma.auditLog.findMany({
+    where: {
+      createdAt: hasDateFilter ? dateFilter : undefined,
+      entity: filters?.entity || undefined,
+      action: filters?.action || undefined
+    },
+    include: {
+      user: { select: { firstName: true, lastName: true } }
+    },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  switch (subtype) {
+    case 'inventory':
+      // Filtrar solo entidades relacionadas con inventario
+      const inventoryEntities = ['Product', 'Category', 'ProductLot', 'INVENTORY_ADJUSTMENT', 'INVENTORY_ENTRY', 'StockMovement', 'Kit', 'KitInventoryMovement'];
+      const inventoryLogs = auditLogs.filter(log => inventoryEntities.includes(log.entity));
+      
+      return inventoryLogs.map(log => ({
+        Fecha: log.createdAt.toISOString().split('T')[0],
+        Hora: log.createdAt.toISOString().split('T')[1].substring(0, 5),
+        Entidad: log.entity,
+        ID_Entidad: log.entityId,
+        Acción: log.action,
+        Usuario: `${log.user.firstName} ${log.user.lastName}`,
+        Valores_Anteriores: log.oldValues ? JSON.stringify(log.oldValues) : '-',
+        Valores_Nuevos: log.newValues ? JSON.stringify(log.newValues) : '-'
+      }));
+    default:
+      return auditLogs.map(log => ({
+        Fecha: log.createdAt.toISOString().split('T')[0],
+        Hora: log.createdAt.toISOString().split('T')[1].substring(0, 5),
+        Entidad: log.entity,
+        ID_Entidad: log.entityId,
+        Acción: log.action,
+        Usuario: `${log.user.firstName} ${log.user.lastName}`,
+        Valores_Anteriores: log.oldValues ? JSON.stringify(log.oldValues) : '-',
+        Valores_Nuevos: log.newValues ? JSON.stringify(log.newValues) : '-'
+      }));
+  }
+}
+
 async function generateReturnsReport(prisma: PrismaClient, subtype: string, dateFilter: any, hasDateFilter: boolean, filters: any) {
   const returns = await prisma.return.findMany({
     where: {
@@ -1253,6 +1296,16 @@ router.post('/export/excel', authenticate, reportExportLimiter, validateZodReque
         case 'returns':
           data = await generateReturnsReport(prisma, subtype || 'listado', dateFilter, hasDateFilter, filters);
           break;
+        case 'audit':
+          console.log('Generating audit report with params:', { subtype, dateFilter, hasDateFilter, filters });
+          try {
+            data = await generateAuditReport(prisma, subtype || 'listado', dateFilter, hasDateFilter, filters);
+            console.log('Audit report generated successfully, data length:', data?.length);
+          } catch (error) {
+            console.error('Error generating audit report:', error);
+            return res.status(500).json({ success: false, error: 'Error generando reporte de auditoría' });
+          }
+          break;
         default:
           return res.status(400).json({ success: false, error: 'Tipo de reporte invalido' });
       }
@@ -1335,6 +1388,9 @@ router.post('/export/pdf', authenticate, reportExportLimiter, validateZodRequest
           break;
         case 'returns':
           data = await generateReturnsReport(prisma, subtype || 'listado', dateFilter, hasDateFilter, filters);
+          break;
+        case 'audit':
+          data = await generateAuditReport(prisma, subtype || 'listado', dateFilter, hasDateFilter, filters);
           break;
       }
     }

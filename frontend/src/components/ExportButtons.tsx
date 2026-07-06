@@ -1,5 +1,6 @@
 import { FileSpreadsheet, FileText } from 'lucide-react';
 import { useToast } from './ui/Toast';
+import api from '../services/api';
 
 interface ExportButtonsProps {
   data: any[];
@@ -34,23 +35,31 @@ export default function ExportButtons({
     if (disabled || data.length === 0) return;
     
     try {
+      console.log('ExportButtons: Starting Excel export with params:', { reportType, subtype, dataLength: data.length });
       onExportStart?.();
       
-      const response = await fetch('/api/reports/export/excel', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          reportType,
-          subtype,
-          data
-        }),
+      const requestBody = {
+        reportType,
+        subtype,
+        data
+      };
+      console.log('ExportButtons: Sending request to /api/reports/export/excel with body:', requestBody);
+      
+      const token = localStorage.getItem('token');
+      console.log('ExportButtons: Token from localStorage:', token ? 'exists' : 'missing');
+      
+      const response = await api.post('/reports/export/excel', {
+        reportType,
+        subtype,
+        data
+      }, {
+        responseType: 'blob'
       });
 
-      if (!response.ok) throw new Error('Error al exportar');
-
-      const blob = await response.blob();
+      console.log('ExportButtons: API response received');
+      
+      const blob = response.data;
+      console.log('ExportButtons: Blob created, size:', blob.size);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -60,9 +69,11 @@ export default function ExportButtons({
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
       
+      console.log('ExportButtons: Excel export completed successfully');
       toast.success('Reporte exportado a Excel exitosamente');
       onExportComplete?.();
     } catch (error) {
+      console.error('ExportButtons: Export error:', error);
       toast.error('Error al exportar a Excel');
       onExportComplete?.();
     }
@@ -74,22 +85,21 @@ export default function ExportButtons({
     try {
       onExportStart?.();
       
-      const response = await fetch('/api/reports/export/pdf', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          reportType,
-          subtype,
-          data,
-          title: title || `Reporte de ${reportType}`
-        }),
+      const token = localStorage.getItem('token');
+      console.log('ExportButtons: Token from localStorage for PDF:', token ? 'exists' : 'missing');
+      
+      const response = await api.post('/reports/export/pdf', {
+        reportType,
+        subtype,
+        data,
+        title: title || `Reporte de ${reportType}`
+      }, {
+        responseType: 'blob'
       });
 
-      if (!response.ok) throw new Error('Error al exportar');
-
-      const blob = await response.blob();
+      console.log('ExportButtons: API PDF response received');
+      
+      const blob = response.data;
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
