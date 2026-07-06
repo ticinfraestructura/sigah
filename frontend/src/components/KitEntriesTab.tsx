@@ -58,8 +58,11 @@ export default function KitEntriesTab() {
         endDate: endDate || undefined,
         kitCode: selectedKit || undefined
       });
-      setKitEntries(response.data.data || []);
+      const data = response.data.data || [];
+      console.log('Kit entries loaded:', data.length, data);
+      setKitEntries(data);
     } catch (error) {
+      console.error('Error loading kit entries:', error);
       toast.error('Error al cargar ingresos de kits');
     } finally {
       setLoading(false);

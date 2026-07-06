@@ -98,6 +98,45 @@ export default function KitExitsTab() {
     document.body.removeChild(link);
   };
 
+  const exportToPDF = async () => {
+    try {
+      const params: any = {
+        reportType: 'kits',
+        subtype: 'egresos',
+        data: kitExits,
+        title: 'Reporte de Egresos de Kits'
+      };
+      
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
+      if (selectedKit) params.filters = { kitCode: selectedKit };
+
+      const response = await fetch('/api/reports/export/pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(params),
+      });
+
+      if (!response.ok) throw new Error('Error al exportar');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `egresos_kits_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success('Reporte exportado a PDF exitosamente');
+    } catch (error) {
+      toast.error('Error al exportar a PDF');
+    }
+  };
+
   const filteredExits = kitExits.filter(exit => {
     const matchesSearch = !searchTerm || 
       exit['Nombre Kit']?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -197,6 +236,15 @@ export default function KitExitsTab() {
           >
             <FileSpreadsheet className="w-4 h-4 mr-2" />
             Exportar Excel
+          </button>
+          
+          <button
+            onClick={exportToPDF}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
+            disabled={filteredExits.length === 0}
+          >
+            <FileText className="w-4 h-4 mr-2" />
+            Exportar PDF
           </button>
         </div>
       </div>
