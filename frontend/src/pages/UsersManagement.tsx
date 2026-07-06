@@ -11,7 +11,9 @@ import {
   X,
   AlertCircle,
   CheckCircle,
-  Phone
+  Phone,
+  FileSpreadsheet,
+  FileText
 } from 'lucide-react';
 import api from '../services/api';
 import ConfirmModal from '../components/ui/ConfirmModal';
@@ -145,6 +147,75 @@ export default function UsersManagement() {
     }
   };
 
+  const exportToExcel = async () => {
+    try {
+      const response = await fetch('/api/reports/export/excel', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          reportType: 'users',
+          subtype: 'listado',
+          data: users
+        }),
+      });
+
+      if (!response.ok) throw new Error('Error al exportar');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `usuarios_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      setSuccess('Reporte exportado a Excel exitosamente');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (error) {
+      setError('Error al exportar a Excel');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  const exportToPDF = async () => {
+    try {
+      const response = await fetch('/api/reports/export/pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          reportType: 'users',
+          subtype: 'listado',
+          data: users,
+          title: 'Reporte de Usuarios'
+        }),
+      });
+
+      if (!response.ok) throw new Error('Error al exportar');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `usuarios_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      setSuccess('Reporte exportado a PDF exitosamente');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (error) {
+      setError('Error al exportar a PDF');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUserId || !newPassword) return;
@@ -223,13 +294,31 @@ export default function UsersManagement() {
             Administra los usuarios del sistema
           </p>
         </div>
-        <button
-          onClick={() => { resetForm(); setShowModal(true); }}
-          className="btn-primary flex items-center gap-2"
-        >
-          <Plus className="w-5 h-5" />
-          Nuevo Usuario
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={exportToExcel}
+            disabled={users.length === 0}
+            className="btn-success flex items-center gap-2"
+          >
+            <FileSpreadsheet className="w-5 h-5" />
+            Exportar Excel
+          </button>
+          <button
+            onClick={exportToPDF}
+            disabled={users.length === 0}
+            className="btn-primary flex items-center gap-2"
+          >
+            <FileText className="w-5 h-5" />
+            Exportar PDF
+          </button>
+          <button
+            onClick={() => { resetForm(); setShowModal(true); }}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            Nuevo Usuario
+          </button>
+        </div>
       </div>
 
       {/* Alerts */}
