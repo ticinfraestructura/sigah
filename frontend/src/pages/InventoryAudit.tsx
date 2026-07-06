@@ -106,7 +106,9 @@ export default function InventoryAudit() {
         params.entity = inventoryEntities;
       }
       
+      console.log('Fetching audit logs with params:', params);
       const response = await auditApi.search(params);
+      console.log('Audit logs response:', response.data);
       setLogs(response.data.data || []);
       setTotal(response.data.pagination?.total || 0);
     } catch (error) {
