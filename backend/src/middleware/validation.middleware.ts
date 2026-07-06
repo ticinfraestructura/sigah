@@ -708,7 +708,7 @@ export const reportZodSchemas = {
     sortOrder: z.enum(['asc', 'desc']).optional()
   }),
   exportExcel: z.object({
-    reportType: z.enum(['inventory', 'kits', 'beneficiaries', 'requests', 'deliveries', 'authorizations', 'returns', 'users', 'roles']),
+    reportType: z.enum(['inventory', 'kits', 'beneficiaries', 'requests', 'deliveries', 'authorizations', 'returns', 'users', 'roles', 'audit']),
     subtype: z.string().trim().max(80).optional(),
     startDate: optionalReportDateSchema,
     endDate: optionalReportDateSchema,
@@ -716,7 +716,7 @@ export const reportZodSchemas = {
     data: z.array(reportRowSchema).max(5000).optional()
   }),
   exportPdf: z.object({
-    reportType: z.enum(['inventory', 'kits', 'beneficiaries', 'requests', 'deliveries', 'authorizations', 'returns', 'users', 'roles']),
+    reportType: z.enum(['inventory', 'kits', 'beneficiaries', 'requests', 'deliveries', 'authorizations', 'returns', 'users', 'roles', 'audit']),
     subtype: z.string().trim().max(80).optional(),
     startDate: optionalReportDateSchema,
     endDate: optionalReportDateSchema,

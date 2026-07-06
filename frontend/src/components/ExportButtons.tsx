@@ -32,16 +32,33 @@ export default function ExportButtons({
   }
 
   const exportToExcel = async () => {
-    if (disabled || data.length === 0) return;
+    if (disabled) return;
     
     try {
       console.log('ExportButtons: Starting Excel export with params:', { reportType, subtype, dataLength: data.length });
       onExportStart?.();
       
+      // Si no hay datos locales, obtenerlos del backend
+      let exportData = data;
+      if (data.length === 0) {
+        console.log('ExportButtons: No local data, fetching from backend...');
+        // Para auditoría, obtener datos del endpoint de auditoría
+        if (reportType === 'audit') {
+          const auditResponse = await api.get('/api/audit/search', { 
+            params: { 
+              entity: 'Product,Category,ProductLot,INVENTORY_ADJUSTMENT,INVENTORY_ENTRY,StockMovement,Kit,KitInventoryMovement',
+              page: 1,
+              limit: 5000
+            }
+          });
+          exportData = auditResponse.data.data || [];
+        }
+      }
+      
       const requestBody = {
         reportType,
         subtype,
-        data
+        data: exportData
       };
       console.log('ExportButtons: Sending request to /api/reports/export/excel with body:', requestBody);
       
@@ -51,7 +68,7 @@ export default function ExportButtons({
       const response = await api.post('/reports/export/excel', {
         reportType,
         subtype,
-        data
+        data: exportData
       }, {
         responseType: 'blob'
       });
@@ -80,10 +97,27 @@ export default function ExportButtons({
   };
 
   const exportToPDF = async () => {
-    if (disabled || data.length === 0) return;
+    if (disabled) return;
     
     try {
       onExportStart?.();
+      
+      // Si no hay datos locales, obtenerlos del backend
+      let exportData = data;
+      if (data.length === 0) {
+        console.log('ExportButtons: No local data for PDF, fetching from backend...');
+        // Para auditoría, obtener datos del endpoint de auditoría
+        if (reportType === 'audit') {
+          const auditResponse = await api.get('/api/audit/search', { 
+            params: { 
+              entity: 'Product,Category,ProductLot,INVENTORY_ADJUSTMENT,INVENTORY_ENTRY,StockMovement,Kit,KitInventoryMovement',
+              page: 1,
+              limit: 5000
+            }
+          });
+          exportData = auditResponse.data.data || [];
+        }
+      }
       
       const token = localStorage.getItem('token');
       console.log('ExportButtons: Token from localStorage for PDF:', token ? 'exists' : 'missing');
@@ -91,7 +125,7 @@ export default function ExportButtons({
       const response = await api.post('/reports/export/pdf', {
         reportType,
         subtype,
-        data,
+        data: exportData,
         title: title || `Reporte de ${reportType}`
       }, {
         responseType: 'blob'
@@ -121,9 +155,9 @@ export default function ExportButtons({
     <div className={`flex gap-2 ${className}`}>
       <button
         onClick={exportToExcel}
-        disabled={disabled || data.length === 0}
+        disabled={disabled}
         className="btn-success flex items-center gap-2"
-        title={`Exportar ${data.length} registros a Excel`}
+        title={`Exportar ${data.length > 0 ? data.length : 'todos los'} registros a Excel`}
       >
         <FileSpreadsheet className="w-4 h-4" />
         <span className="hidden sm:inline">Exportar Excel</span>
@@ -132,9 +166,9 @@ export default function ExportButtons({
       
       <button
         onClick={exportToPDF}
-        disabled={disabled || data.length === 0}
+        disabled={disabled}
         className="btn-primary flex items-center gap-2"
-        title={`Exportar ${data.length} registros a PDF`}
+        title={`Exportar ${data.length > 0 ? data.length : 'todos los'} registros a PDF`}
       >
         <FileText className="w-4 h-4" />
         <span className="hidden sm:inline">Exportar PDF</span>
