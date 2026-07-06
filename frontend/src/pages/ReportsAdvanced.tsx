@@ -6,6 +6,7 @@ import {
   Printer, X, Shield, UserCog
 } from 'lucide-react';
 import { reportApi } from '../services/api';
+import ExportButtons from '../components/ExportButtons';
 
 // Tipos de reportes
 interface ReportSubtype {
@@ -376,9 +377,13 @@ export default function ReportsAdvanced() {
                   </>
                 )}
               </button>
-              <button onClick={() => exportReport('excel')} className="btn-secondary">
-                <Download className="w-4 h-4 mr-2" /> Excel
-              </button>
+              <ExportButtons
+                data={data}
+                reportType={selectedType}
+                subtype={selectedSubtype}
+                title={getReportTitle()}
+                disabled={loading}
+              />
             </div>
           )}
         </div>
@@ -712,21 +717,14 @@ export default function ReportsAdvanced() {
                 No hay registros que coincidan con los filtros seleccionados.
                 Intente con un rango de fechas diferente o menos filtros.
               </p>
-              <div className="flex justify-center gap-2">
-                <button
-                  onClick={() => exportReport('excel')}
-                  className="btn-secondary text-sm"
-                >
-                  <Download className="w-4 h-4 mr-1" />
-                  Exportar Excel (vacío)
-                </button>
-                <button
-                  onClick={() => exportReport('pdf')}
-                  className="btn-secondary text-sm"
-                >
-                  <Download className="w-4 h-4 mr-1" />
-                  Exportar PDF (vacío)
-                </button>
+              <div className="flex justify-center">
+                <ExportButtons
+                  data={data}
+                  reportType={selectedType}
+                  subtype={selectedSubtype}
+                  title={getReportTitle()}
+                  disabled={false}
+                />
               </div>
             </div>
           )}
