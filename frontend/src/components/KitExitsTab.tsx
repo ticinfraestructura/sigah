@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Boxes } from 'lucide-react';
+import { Boxes, FileText } from 'lucide-react';
 import ExportButtons from './ExportButtons';
 import { kitApi } from '../services/api';
 import { useToast } from '../components/ui/Toast';

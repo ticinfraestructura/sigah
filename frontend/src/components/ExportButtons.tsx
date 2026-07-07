@@ -38,38 +38,23 @@ export default function ExportButtons({
       console.log('ExportButtons: Starting Excel export with params:', { reportType, subtype, dataLength: data.length });
       onExportStart?.();
       
-      // Si no hay datos locales, obtenerlos del backend
-      let exportData = data;
-      if (data.length === 0) {
-        console.log('ExportButtons: No local data, fetching from backend...');
-        // Para auditoría, obtener datos del endpoint de auditoría
-        if (reportType === 'audit') {
-          const auditResponse = await api.get('/api/audit/search', { 
-            params: { 
-              entity: 'Product,Category,ProductLot,INVENTORY_ADJUSTMENT,INVENTORY_ENTRY,StockMovement,Kit,KitInventoryMovement',
-              page: 1,
-              limit: 5000
-            }
-          });
-          exportData = auditResponse.data.data || [];
-        }
+      // Usar datos locales si están disponibles, si no dejar que backend los genere
+      const requestBody: any = {
+        reportType,
+        subtype
+      };
+      
+      // Solo enviar datos si hay datos locales disponibles
+      if (data && data.length > 0) {
+        requestBody.data = data;
       }
       
-      const requestBody = {
-        reportType,
-        subtype,
-        data: exportData
-      };
       console.log('ExportButtons: Sending request to /api/reports/export/excel with body:', requestBody);
       
       const token = localStorage.getItem('token');
       console.log('ExportButtons: Token from localStorage:', token ? 'exists' : 'missing');
       
-      const response = await api.post('/reports/export/excel', {
-        reportType,
-        subtype,
-        data: exportData
-      }, {
+      const response = await api.post('/reports/export/excel', requestBody, {
         responseType: 'blob'
       });
 
@@ -102,38 +87,36 @@ export default function ExportButtons({
     try {
       onExportStart?.();
       
-      // Si no hay datos locales, obtenerlos del backend
-      let exportData = data;
-      if (data.length === 0) {
-        console.log('ExportButtons: No local data for PDF, fetching from backend...');
-        // Para auditoría, obtener datos del endpoint de auditoría
-        if (reportType === 'audit') {
-          const auditResponse = await api.get('/api/audit/search', { 
-            params: { 
-              entity: 'Product,Category,ProductLot,INVENTORY_ADJUSTMENT,INVENTORY_ENTRY,StockMovement,Kit,KitInventoryMovement',
-              page: 1,
-              limit: 5000
-            }
-          });
-          exportData = auditResponse.data.data || [];
-        }
-      }
-      
+      // Usar datos locales si están disponibles, si no dejar que backend los genere
       const token = localStorage.getItem('token');
       console.log('ExportButtons: Token from localStorage for PDF:', token ? 'exists' : 'missing');
       
-      const response = await api.post('/reports/export/pdf', {
+      const requestBody: any = {
         reportType,
         subtype,
-        data: exportData,
         title: title || `Reporte de ${reportType}`
-      }, {
+      };
+      
+      // Solo enviar datos si hay datos locales disponibles
+      if (data && data.length > 0) {
+        requestBody.data = data;
+      }
+      
+      console.log('ExportButtons: Sending PDF request with body:', requestBody);
+      
+      const response = await api.post('/reports/export/pdf', requestBody, {
         responseType: 'blob'
       });
 
-      console.log('ExportButtons: API PDF response received');
+      console.log('ExportButtons: API PDF response received, status:', response.status);
+      console.log('ExportButtons: Response data type:', typeof response.data);
+      console.log('ExportButtons: Response data size:', response.data?.size || 'unknown');
       
       const blob = response.data;
+      if (!blob || blob.size === 0) {
+        throw new Error('El archivo PDF está vacío o no se generó correctamente');
+      }
+      
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

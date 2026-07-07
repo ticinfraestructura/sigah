@@ -1296,6 +1296,12 @@ router.post('/export/excel', authenticate, reportExportLimiter, validateZodReque
         case 'returns':
           data = await generateReturnsReport(prisma, subtype || 'listado', dateFilter, hasDateFilter, filters);
           break;
+        case 'users':
+          data = await generateUsersReport(prisma, subtype || 'listado', dateFilter, hasDateFilter, filters);
+          break;
+        case 'roles':
+          data = await generateRolesReport(prisma, subtype || 'listado');
+          break;
         case 'audit':
           console.log('Generating audit report with params:', { subtype, dateFilter, hasDateFilter, filters });
           try {
@@ -1388,6 +1394,12 @@ router.post('/export/pdf', authenticate, reportExportLimiter, validateZodRequest
           break;
         case 'returns':
           data = await generateReturnsReport(prisma, subtype || 'listado', dateFilter, hasDateFilter, filters);
+          break;
+        case 'users':
+          data = await generateUsersReport(prisma, subtype || 'listado', dateFilter, hasDateFilter, filters);
+          break;
+        case 'roles':
+          data = await generateRolesReport(prisma, subtype || 'listado');
           break;
         case 'audit':
           data = await generateAuditReport(prisma, subtype || 'listado', dateFilter, hasDateFilter, filters);

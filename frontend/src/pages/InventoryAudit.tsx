@@ -160,7 +160,7 @@ export default function InventoryAudit() {
           </p>
         </div>
         <ExportButtons
-          data={logs}
+          data={[]}
           reportType="audit"
           subtype="inventory"
           title="Auditoría de Inventario"

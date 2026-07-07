@@ -83,7 +83,7 @@ function App() {
                       </ProtectedRoute>
                     } />
                     <Route path="/inventory-audit" element={
-                      <ProtectedRoute module="roles" action="view">
+                      <ProtectedRoute module="audit" action="view">
                         <InventoryAudit />
                       </ProtectedRoute>
                     } />
