@@ -248,7 +248,7 @@ export default function RolesManagement() {
         </div>
         <div className="flex gap-2">
           <ExportButtons
-            data={roles}
+            data={[]}
             reportType="roles"
             subtype="listado"
             title="Reporte de Roles y Permisos"

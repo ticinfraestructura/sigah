@@ -227,7 +227,7 @@ export default function UsersManagement() {
         </div>
         <div className="flex flex-wrap gap-2">
           <ExportButtons
-            data={users}
+            data={[]}
             reportType="users"
             subtype="listado"
             title="Reporte de Usuarios"
