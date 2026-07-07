@@ -5,6 +5,28 @@ Todos los cambios notables de SIGAH serán documentados en este archivo.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/),
 y SIGAH adherisce a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.3.2] - 2026-07-07
+
+### Mejorado
+- **ExportButtons (UI)**: Spinner animado (`Loader2`) durante exportación — el usuario ve feedback visual inmediato
+- **ExportButtons (UX)**: Botones se deshabilitan durante exportación para prevenir doble clic
+- **ExportButtons (UX)**: Texto cambia a "Exportando..." mientras se procesa la descarga
+- **ExportButtons (código)**: Refactoring — funciones `buildRequestBody()` y `triggerDownload()` reutilizables; eliminados 8 `console.log` de debug de producción
+
+### Corregido
+- **Roles y Permisos**: Exportar Excel/PDF fallaba con error 400 — objetos `Role` con permisos anidados no cumplen el esquema Zod del backend; se cambió `data={roles}` por `data={[]}` para que el backend genere el reporte directamente
+- **Gestión de Usuarios**: Mismo problema resuelto — `data={users}` → `data={[]}`
+- **Auditoría de Inventario**: Mismo problema resuelto — `data={logs}` → `data={[]}` (objetos con `oldValues`/`newValues` anidados)
+- **Egresos de Kits (pantalla blanca)**: `ReferenceError: FileText is not defined` causaba crash completo del renderizado React; corregido agregando `FileText` al import de `lucide-react` en `KitExitsTab.tsx`
+
+### Técnico
+- **Protocolo de pruebas automatizadas**: 12/12 endpoints de exportación validados (Excel + PDF × 6 tipos de reporte)
+- **Arquitectura ExportButtons**: Patrón definido — componentes con datos anidados usan `data={[]}` (backend genera); componentes con datos planos pueden usar `data={localData}`
+- **report.routes.ts**: Casos `users` y `roles` agregados a los switches `/export/excel` y `/export/pdf`
+- **App.tsx**: Ruta `/inventory-audit` corregida de `module="roles"` a `module="audit"`
+
+---
+
 ## [1.3.0] - 2024-06-02
 
 ### Agregado
