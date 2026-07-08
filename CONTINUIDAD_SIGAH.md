@@ -303,7 +303,40 @@ docker exec sigah-github-db psql -U sigah -d sigah -c "SELECT u.email, r.name FR
 
 ---
 
-## 14. Nota Final
+## 14. Hardening de Seguridad Local Implementado
+
+Se aplicó endurecimiento de seguridad básico antes de producción:
+
+### Frontend / Nginx
+
+- `Content-Security-Policy` estricta para limitar scripts, estilos, imágenes, fuentes, conexiones, formularios y frames.
+- `X-Frame-Options: DENY` para evitar clickjacking.
+- `X-Content-Type-Options: nosniff` para evitar interpretación incorrecta de tipos MIME.
+- `Referrer-Policy: strict-origin-when-cross-origin`.
+- `Permissions-Policy` bloqueando cámara, micrófono, geolocalización, pagos y USB.
+- `X-XSS-Protection: 0` porque los navegadores modernos dependen de CSP.
+
+### Backend
+
+- CORS restringido por `ALLOWED_ORIGINS`.
+- En producción no se permite cualquier `localhost` automáticamente.
+- Rate limit general para `/api`.
+- Rate limit específico para login: 5 intentos fallidos por IP cada 15 minutos.
+- Bloqueo por cuenta después de múltiples intentos fallidos.
+- Headers de seguridad con `helmet`.
+
+### Pendiente para producción pública
+
+- Configurar HTTPS real con certificado válido.
+- Definir `ALLOWED_ORIGINS` solo con el dominio final.
+- Cambiar contraseñas demo.
+- Usar `JWT_SECRET` largo y aleatorio.
+- Validar que PostgreSQL no esté expuesto públicamente.
+- Evaluar MFA para usuarios `ADMIN`.
+
+---
+
+## 15. Nota Final
 
 La fuente de verdad del proyecto es GitHub.  
 El chat no debe ser la única fuente de continuidad.  

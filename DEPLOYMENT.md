@@ -627,6 +627,20 @@ WHERE state = 'active';
 
 ## Seguridad en Producción
 
+### Hardening ya implementado localmente
+
+El proyecto incluye endurecimiento básico aplicable desde el entorno local:
+
+- Headers de seguridad en Nginx frontend: `Content-Security-Policy`, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`.
+- CORS configurable por `ALLOWED_ORIGINS`.
+- En producción no se permite cualquier `localhost` automáticamente.
+- Rate limit general para `/api`.
+- Rate limit específico para login: 5 intentos fallidos por IP cada 15 minutos.
+- Bloqueo por cuenta después de múltiples intentos fallidos.
+- Headers backend con `helmet`.
+
+Antes de publicar en internet se debe configurar HTTPS real y definir `ALLOWED_ORIGINS` con el dominio final.
+
 ### Configuración SSL/TLS
 
 ```nginx

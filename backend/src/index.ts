@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -71,32 +71,32 @@ app.use(helmet({
 
 // 2. CORS Restrictivo para dominio.com/sigah
 const allowedOriginsEnv = process.env.ALLOWED_ORIGINS;
-const allowedOrigins = (allowedOriginsEnv && allowedOriginsEnv.trim() !== '') 
-  ? allowedOriginsEnv.split(',') 
+const allowedOrigins = (allowedOriginsEnv && allowedOriginsEnv.trim() !== '')
+  ? allowedOriginsEnv.split(',').map((origin: string) => origin.trim()).filter(Boolean)
   : [
       'http://localhost:3000',
-      'http://127.0.0.1:3000',
+      'http://localhost:5173',
       'http://localhost:8080',
+      'http://localhost:8081',
+      'http://localhost:8082',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:5173',
       'http://127.0.0.1:8080',
-      'http://localhost',
-      'http://172.16.61.203:8080',
-      'http://172.16.61.203',
-      'https://dominio.com',
-      'https://dominio.com/sigah'
+      'http://127.0.0.1:8081',
+      'http://127.0.0.1:8082'
     ];
 
 app.use(cors({
-  origin: (origin, callback) => {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     // Permitir requests sin Origin (healthchecks, curl, server-to-server)
     if (!origin) {
       return callback(null, true);
     }
     
-    // Permitir cualquier localhost/127.0.0.1 (desarrollo y producción para pruebas)
-    if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+    if (process.env.NODE_ENV !== 'production' && (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
       return callback(null, true);
     }
-    
+
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -121,20 +121,22 @@ const generalLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.path === '/api/health' // No limitar health check
+  skip: (req: Request) => req.path === '/api/health' // No limitar health check
 });
 
 // 4. Rate Limiting Estricto para Autenticación
 const authLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hora
-  max: 10, // máximo 10 intentos de login por hora
-  message: { 
-    success: false, 
-    error: 'Demasiados intentos de inicio de sesión. Cuenta bloqueada temporalmente por 1 hora.' 
-  },
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 5, // máximo 5 intentos fallidos por IP y ventana
   standardHeaders: true,
   legacyHeaders: false,
-  // Deshabilitar validación de IPv6 para desarrollo
+  skipSuccessfulRequests: true,
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      success: false,
+      error: 'Demasiados intentos de inicio de sesión. Intente nuevamente en 15 minutos.'
+    });
+  },
   validate: { xForwardedForHeader: false }
 });
 
