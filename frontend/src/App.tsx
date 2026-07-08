@@ -2,7 +2,6 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { SocketProvider } from './contexts/SocketContext';
 import { ToastProvider } from './components/ui/Toast';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -12,20 +11,12 @@ import Inventory from './pages/Inventory';
 import ProductDetail from './pages/ProductDetail';
 import Kits from './pages/Kits';
 import KitDetail from './pages/KitDetail';
-// import Beneficiaries from './pages/Beneficiaries';
-// import Requests from './pages/Requests';
-// import RequestDetail from './pages/RequestDetail';
-// import NewRequest from './pages/NewRequest';
-// import DeliveriesManagement from './pages/DeliveriesManagement';
-// import NewDelivery from './pages/NewDelivery';
-// import Returns from './pages/Returns';
 import ReportsAdvanced from './pages/ReportsAdvanced';
 import RolesManagement from './pages/RolesManagement';
 import UsersManagement from './pages/UsersManagement';
-// import NotificationsManagement from './pages/NotificationsManagement';
 import InventoryManagement from './pages/InventoryManagement';
 import InventoryAudit from './pages/InventoryAudit';
-// import SendNotifications from './pages/SendNotifications';
+import BackupManagement from './pages/BackupManagement';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
@@ -54,8 +45,7 @@ function App() {
                 path="/*"
                 element={
                   <PrivateRoute>
-                    <SocketProvider>
-                      <Layout>
+                    <Layout>
                       <Routes>
                     <Route path="/" element={
                       <ProtectedRoute module="dashboard">
@@ -87,11 +77,6 @@ function App() {
                         <InventoryAudit />
                       </ProtectedRoute>
                     } />
-                    {/* <Route path="/send-notifications" element={
-                      <ProtectedRoute module="users" action="view">
-                        <SendNotifications />
-                      </ProtectedRoute>
-                    } /> */}
                     <Route path="/kits" element={
                       <ProtectedRoute module="kits">
                         <Kits />
@@ -102,7 +87,7 @@ function App() {
                         <KitDetail />
                       </ProtectedRoute>
                     } />
-                    {/* Módulos pendientes de versión futura:
+                    {/* Módulos deshabilitados temporalmente:
                       /beneficiaries, /requests, /requests/new, /requests/:id,
                       /deliveries, /deliveries/new/:requestId, /returns
                     */}
@@ -121,14 +106,13 @@ function App() {
                         <UsersManagement />
                       </ProtectedRoute>
                     } />
-                    {/* <Route path="/notifications" element={
-                      <ProtectedRoute module="users">
-                        <NotificationsManagement />
+                    <Route path="/backups" element={
+                      <ProtectedRoute module="roles" action="view" fallback="redirect">
+                        <BackupManagement />
                       </ProtectedRoute>
-                    } /> */}
+                    } />
                       </Routes>
                     </Layout>
-                  </SocketProvider>
                 </PrivateRoute>
               }
             />

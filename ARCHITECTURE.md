@@ -6,7 +6,7 @@
 ┌─────────────────────────────────────────────────────────────────────┐
 │                        FRONTEND (React + TS)                        │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐  │
-│  │Dashboard │ │Inventario│ │Solicitud │ │ Entregas │ │ Reportes │  │
+│  │Dashboard │ │Inventario│ │   Kits   │ │ Reportes │ │ Backups  │  │
 │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘  │
 └─────────────────────────────────────────────────────────────────────┘
                                   │
@@ -17,7 +17,7 @@
 │  │ Middlewares: Auth, Roles, Validation, Audit, Error Handler   │  │
 │  └──────────────────────────────────────────────────────────────┘  │
 │  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌───────┐  │
-│  │Products│ │  Kits  │ │Requests│ │Delivery│ │ Stock  │ │Reports│  │
+│  │Products│ │  Kits  │ │ Stock  │ │ Users  │ │Reports │ │Backups │  │
 │  │  API   │ │  API   │ │  API   │ │  API   │ │  API   │ │  API  │  │
 │  └────────┘ └────────┘ └────────┘ └────────┘ └────────┘ └───────┘  │
 └─────────────────────────────────────────────────────────────────────┘
@@ -38,122 +38,36 @@
 
 ## 2. Modelo de Datos (Entidades Principales)
 
-### Diagrama ER Simplificado
+### Diagrama ER Simplificado (módulos activos v1.1.0)
 
 ```
-┌──────────────┐      ┌──────────────┐      ┌──────────────┐
-│    User      │      │   Category   │      │   Product    │
-├──────────────┤      ├──────────────┤      ├──────────────┤
-│ id           │      │ id           │      │ id           │
-│ email        │      │ name         │      │ code         │
-│ password     │      │ description  │      │ name         │
-│ name         │      │ isActive     │      │ description  │
-│ role         │      └──────────────┘      │ categoryId   │
-│ isActive     │              │             │ unit         │
-└──────────────┘              │             │ isPerishable │
-       │                      └─────────────│ minStock     │
-       │                                    │ isActive     │
-       │                                    └──────────────┘
-       │                                           │
-       │                                           │
-       │      ┌──────────────┐              ┌──────────────┐
-       │      │  ProductLot  │              │     Kit      │
-       │      ├──────────────┤              ├──────────────┤
-       │      │ id           │              │ id           │
-       │      │ productId    │              │ code         │
-       │      │ lotNumber    │              │ name         │
-       │      │ quantity     │              │ description  │
-       │      │ expiryDate   │              │ isActive     │
-       │      │ entryDate    │              └──────────────┘
-       │      └──────────────┘                     │
-       │                                           │
-       │                                    ┌──────────────┐
-       │                                    │  KitProduct  │
-       │                                    ├──────────────┤
-       │                                    │ kitId        │
-       │                                    │ productId    │
-       │                                    │ quantity     │
-       │                                    └──────────────┘
-       │
-       │      ┌──────────────┐       ┌──────────────┐
-       │      │ Beneficiary  │       │   Request    │
-       │      ├──────────────┤       ├──────────────┤
-       └──────│ id           │───────│ id           │
-              │ documentType │       │ code         │
-              │ documentNum  │       │ beneficiaryId│
-              │ firstName    │       │ requestDate  │
-              │ lastName     │       │ status       │
-              │ phone        │       │ notes        │
-              │ address      │       │ createdBy    │
-              │ population   │       └──────────────┘
-              └──────────────┘              │
-                                           │
-                     ┌─────────────────────┴───────────────────┐
-                     │                                         │
-              ┌──────────────┐                          ┌──────────────┐
-              │RequestProduct│                          │  RequestKit  │
-              ├──────────────┤                          ├──────────────┤
-              │ requestId    │                          │ requestId    │
-              │ productId    │                          │ kitId        │
-              │ quantity     │                          │ quantity     │
-              └──────────────┘                          └──────────────┘
+User ──> Role ──> Permission
 
-
-┌──────────────┐      ┌──────────────┐      ┌──────────────┐
-│   Delivery   │      │DeliveryDetail│      │StockMovement │
-├──────────────┤      ├──────────────┤      ├──────────────┤
-│ id           │──────│ deliveryId   │      │ id           │
-│ requestId    │      │ productId    │      │ productId    │
-│ deliveryDate │      │ kitId        │      │ lotId        │
-│ deliveredBy  │      │ quantity     │      │ type         │
-│ receivedBy   │      │ lotId        │      │ quantity     │
-│ notes        │      └──────────────┘      │ reason       │
-│ isPartial    │                            │ reference    │
-└──────────────┘                            │ userId       │
-                                            │ createdAt    │
-                                            └──────────────┘
-
-┌──────────────┐      ┌──────────────┐
-│    Return    │      │ ReturnDetail │
-├──────────────┤      ├──────────────┤
-│ id           │──────│ returnId     │
-│ deliveryId   │      │ productId    │
-│ returnDate   │      │ quantity     │
-│ reason       │      │ condition    │
-│ processedBy  │      │ lotId        │
-│ notes        │      └──────────────┘
-└──────────────┘
-
-┌──────────────┐
-│  AuditLog    │
-├──────────────┤
-│ id           │
-│ entity       │
-│ entityId     │
-│ action       │
-│ oldValues    │
-│ newValues    │
-│ userId       │
-│ createdAt    │
-└──────────────┘
+Category ──> Product ──> ProductLot (lote, cantidad, vencimiento)
+                  │
+                  ├──> KitProduct ──> Kit
+                  │
+                  └──> StockMovement ──> AuditLog
 ```
 
-## 3. Roles y Permisos
+
+## 3. Roles y Permisos (v1.1.0)
 
 | Rol | Descripción | Permisos |
 |-----|-------------|----------|
 | ADMIN | Administrador del sistema | Todo: CRUD completo, configuración, usuarios |
-| WAREHOUSE | Operador de bodega | Inventario, entregas, devoluciones |
-| VIEWER | Consulta | Solo lectura, dashboard, reportes |
+| WAREHOUSE | Operador de bodega | Inventario, kits, reportes |
+| OPERATOR | Operador básico | Ver inventario, kits y reportes |
+| READONLY | Consulta | Solo lectura, dashboard, reportes |
+
+> Roles AUTHORIZER y DISPATCHER existen en BD pero están deshabilitados en la UI.
 
 ## 4. Pantallas Principales
 
 ### 4.1 Dashboard
-- KPIs: Total productos, solicitudes pendientes, entregas del mes, alertas vencimiento
-- Gráfico de barras: Movimientos de inventario por mes
-- Gráfico de torta: Distribución por categoría
-- Tabla: Productos próximos a vencer
-- Tabla: Últimas solicitudes
+- KPIs: Total productos, total kits, total usuarios, productos con stock bajo
+- Alertas: Productos próximos a vencer, productos con stock bajo
+- Gráfico: Distribución de inventario por categoría
 
 ### 4.2 Gestión de Productos
 - Lista de productos con filtros y búsqueda
@@ -166,29 +80,26 @@
 - Formulario de creación con composición de productos
 - Vista previa de disponibilidad del kit
 
-### 4.4 Solicitudes
-- Lista de solicitudes con estados
-- Formulario de nueva solicitud
-- Vista detalle con historial de cambios
-- Acciones: aprobar, rechazar, marcar entregado
-
-### 4.5 Entregas
-- Lista de entregas realizadas
-- Formulario de nueva entrega vinculada a solicitud
-- Selección FEFO automática para perecederos
-- Registro de entrega parcial
-
-### 4.6 Devoluciones
-- Registro de devolución sobre entregas
-- Selección de productos/cantidades
-- Motivo y condición del producto
-
-### 4.7 Reportes
-- Filtros por rango de fechas
-- Reporte de solicitudes
-- Reporte de entregas
-- Reporte de movimientos de inventario
+### 4.4 Reportes Avanzados
+- Filtros por tipo y subtipo
+- Reportes de inventario, kits, usuarios y roles
 - Exportación PDF/Excel
+
+### 4.5 Gestión de Usuarios
+- CRUD de usuarios y asignación de roles
+
+### 4.6 Roles y Permisos
+- CRUD de roles con permisos granulares
+
+### 4.7 Auditoría Inventario
+- Log de operaciones con valores antes/después
+
+### 4.8 Gestión de Backups (Solo ADMIN)
+- Listar copias de seguridad
+- Crear copia manual
+- Restaurar desde copia
+- Eliminar copias antiguas
+- Estadísticas de backups
 
 ## 5. API Endpoints Principales
 
@@ -220,30 +131,6 @@
 - `DELETE /api/kits/:id`
 - `GET /api/kits/:id/availability` - Disponibilidad del kit
 
-### Beneficiarios
-- `GET /api/beneficiaries`
-- `POST /api/beneficiaries`
-- `GET /api/beneficiaries/:id`
-- `PUT /api/beneficiaries/:id`
-
-### Solicitudes
-- `GET /api/requests` - Lista con filtros
-- `POST /api/requests` - Crear
-- `GET /api/requests/:id` - Detalle con historial
-- `PUT /api/requests/:id` - Actualizar
-- `PATCH /api/requests/:id/status` - Cambiar estado
-- `GET /api/requests/:id/deliveries` - Entregas asociadas
-
-### Entregas
-- `GET /api/deliveries`
-- `POST /api/deliveries` - Crear (descuenta inventario con FEFO)
-- `GET /api/deliveries/:id`
-
-### Devoluciones
-- `GET /api/returns`
-- `POST /api/returns` - Crear (suma inventario)
-- `GET /api/returns/:id`
-
 ### Inventario
 - `GET /api/inventory/stock` - Stock actual
 - `GET /api/inventory/movements` - Movimientos
@@ -255,19 +142,28 @@
 - `GET /api/dashboard/charts` - Datos para gráficos
 
 ### Reportes
-- `GET /api/reports/requests` - Reporte solicitudes
-- `GET /api/reports/deliveries` - Reporte entregas
-- `GET /api/reports/inventory` - Reporte movimientos
-- `GET /api/reports/export/:type` - Exportar PDF/Excel
+- `GET /api/reports/generate` - Generar reporte
+- `GET /api/reports/export/:type/:format` - Exportar PDF/Excel
+
+### Backups (Solo ADMIN)
+- `GET /api/backups` - Listar copias
+- `POST /api/backups` - Crear copia
+- `POST /api/backups/:name/restore` - Restaurar copia
+- `DELETE /api/backups/:name` - Eliminar copia
 
 ## 6. Decisiones de Diseño
 
-1. **FEFO (First Expired, First Out)**: Para productos perecederos, el sistema automáticamente selecciona lotes con fecha de vencimiento más próxima al hacer entregas.
+1. **FEFO (First Expired, First Out)**: Para productos perecederos, el sistema selecciona automáticamente lotes con fecha de vencimiento más próxima en operaciones de salida.
 
-2. **Estados de Solicitud**: Se implementa una máquina de estados con transiciones válidas para mantener integridad.
+2. **Auditoría**: Todas las operaciones críticas se registran con usuario, timestamp y valores antes/después.
 
-3. **Auditoría**: Todas las operaciones críticas se registran con usuario, timestamp y valores antes/después.
+3. **Soft Delete**: Productos, kits y usuarios se desactivan en lugar de eliminarse para mantener integridad referencial.
 
-4. **Soft Delete**: Los productos, kits y usuarios se desactivan en lugar de eliminarse para mantener integridad referencial.
+4. **Stock Negativo**: No se permite; se valida antes de cada operación de salida.
 
-5. **Stock Negativo**: No se permite, se valida antes de cada entrega.
+5. **Cache de permisos**: Los permisos de roles se cachean en memoria con TTL de 5 minutos para mejorar rendimiento.
+
+6. **Backup con pg_dump**: Las copias de seguridad usan `pg_dump` de PostgreSQL para volcados completos.
+
+7. **Unificación de roles admin**: El sistema acepta tanto `ADMIN` como `Administrador` como roles de administrador.
+

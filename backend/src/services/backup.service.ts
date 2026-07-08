@@ -1,8 +1,8 @@
 /**
  * Servicio de Backup
- * 
- * Proporciona respaldos automáticos de la base de datos SQLite
- * - Backup manual bajo demanda
+ *
+ * Proporciona respaldos automáticos de la base de datos PostgreSQL
+ * - Backup manual bajo demanda vía pg_dump
  * - Backup automático programado
  * - Rotación de backups antiguos
  */
@@ -17,7 +17,6 @@ const execAsync = promisify(exec);
 
 // Configuración
 const BACKUP_DIR = path.join(process.cwd(), 'backups');
-const DB_PATH = path.join(process.cwd(), 'prisma', 'dev.db');
 const MAX_BACKUPS = 30; // Mantener últimos 30 backups
 
 // Crear directorio de backups si no existe
@@ -26,30 +25,57 @@ if (!fs.existsSync(BACKUP_DIR)) {
 }
 
 /**
- * Crear backup de la base de datos
+ * Parsear DATABASE_URL de PostgreSQL
+ * Formato: postgresql://user:password@host:port/dbname
+ */
+const parseDatabaseUrl = (): { user: string; password: string; host: string; port: string; dbname: string } => {
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    throw new Error('DATABASE_URL no está configurada en las variables de entorno');
+  }
+
+  try {
+    const parsed = new URL(url);
+    return {
+      user: parsed.username,
+      password: parsed.password,
+      host: parsed.hostname,
+      port: parsed.port || '5432',
+      dbname: parsed.pathname.replace(/^\//, '').split('?')[0]
+    };
+  } catch {
+    throw new Error(`DATABASE_URL inválida: ${url}`);
+  }
+};
+
+/**
+ * Crear backup de la base de datos PostgreSQL usando pg_dump
  */
 export const createBackup = async (type: 'manual' | 'auto' = 'auto'): Promise<string> => {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const backupName = `backup-${type}-${timestamp}.db`;
+  const backupName = `backup-${type}-${timestamp}.sql`;
   const backupPath = path.join(BACKUP_DIR, backupName);
-  
+
   try {
-    // Verificar que existe la base de datos
-    if (!fs.existsSync(DB_PATH)) {
-      throw new Error('Database file not found');
-    }
-    
-    // Copiar archivo de base de datos
-    fs.copyFileSync(DB_PATH, backupPath);
-    
+    const db = parseDatabaseUrl();
+
+    // Construir comando pg_dump con formato plain SQL comprimido
+    const env = { ...process.env, PGPASSWORD: db.password };
+    const command = `pg_dump -h ${db.host} -p ${db.port} -U ${db.user} -d ${db.dbname} -F p --no-password -f "${backupPath}"`;
+
+    await execAsync(command, { env });
+
     // Verificar que el backup se creó correctamente
+    if (!fs.existsSync(backupPath)) {
+      throw new Error('pg_dump no generó el archivo de backup');
+    }
     const stats = fs.statSync(backupPath);
-    
+
     logger.info(`[BACKUP] Created: ${backupName} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
-    
+
     // Rotar backups antiguos
     await rotateBackups();
-    
+
     return backupPath;
   } catch (error) {
     logger.error('[BACKUP] Failed to create backup', { error });
@@ -58,24 +84,28 @@ export const createBackup = async (type: 'manual' | 'auto' = 'auto'): Promise<st
 };
 
 /**
- * Restaurar backup
+ * Restaurar backup PostgreSQL usando psql
  */
 export const restoreBackup = async (backupName: string): Promise<void> => {
   const backupPath = path.join(BACKUP_DIR, backupName);
-  
+
   try {
     // Verificar que existe el backup
     if (!fs.existsSync(backupPath)) {
       throw new Error(`Backup not found: ${backupName}`);
     }
-    
+
+    const db = parseDatabaseUrl();
+
     // Crear backup del estado actual antes de restaurar
-    const preRestoreBackup = `pre-restore-${new Date().toISOString().replace(/[:.]/g, '-')}.db`;
-    fs.copyFileSync(DB_PATH, path.join(BACKUP_DIR, preRestoreBackup));
-    
-    // Restaurar backup
-    fs.copyFileSync(backupPath, DB_PATH);
-    
+    await createBackup('auto');
+
+    // Restaurar usando psql
+    const env = { ...process.env, PGPASSWORD: db.password };
+    const command = `psql -h ${db.host} -p ${db.port} -U ${db.user} -d ${db.dbname} --no-password -f "${backupPath}"`;
+
+    await execAsync(command, { env });
+
     logger.info(`[BACKUP] Restored: ${backupName}`);
   } catch (error) {
     logger.error('[BACKUP] Failed to restore backup', { error });
@@ -94,7 +124,7 @@ export const listBackups = (): Array<{
 }> => {
   try {
     const files = fs.readdirSync(BACKUP_DIR)
-      .filter(f => f.endsWith('.db'))
+      .filter(f => f.endsWith('.sql'))
       .map(name => {
         const filePath = path.join(BACKUP_DIR, name);
         const stats = fs.statSync(filePath);

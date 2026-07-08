@@ -1,5 +1,7 @@
 # SIGAH - Guía de Despliegue
 
+**Versión:** 1.1.0 | **Fecha:** Julio 2026
+
 ## Índice
 1. [Requisitos Previos](#requisitos-previos)
 2. [Despliegue Local](#despliegue-local)
@@ -51,14 +53,14 @@ docker-compose up -d
 sleep 90
 
 # Cargar datos de prueba
-docker exec sigah-backend npx prisma db seed
+docker exec sigah-github-backend npx prisma db seed
 ```
 
 ### 1.3 Acceder localmente
 
-- Frontend: http://localhost:8080/sigah/
-- Backend API: http://localhost:3001
-- Base de Datos: localhost:5432
+- Frontend: http://localhost:8082
+- Backend API: http://localhost:3002
+- Base de Datos: localhost:5432 (interno al stack Docker)
 
 ---
 
@@ -114,7 +116,7 @@ git push -u origin main
 ssh usuario@IP_SERVIDOR
 
 # Clonar repositorio
-git clone https://github.com/TU_USUARIO/sigah.git
+git clone https://github.com/ticinfraestructura/sigah.git
 cd sigah
 ```
 
@@ -171,9 +173,9 @@ exit
 
 ## Paso 3: Verificar Despliegue
 
-1. Abrir navegador: `http://IP_SERVIDOR`
+1. Abrir navegador: `http://IP_SERVIDOR:8082`
 2. Debería verse la página de login de SIGAH
-3. Verificar health check: `http://IP_SERVIDOR/api/health`
+3. Verificar health check: `http://IP_SERVIDOR:3002/api/health`
 
 ---
 
@@ -234,8 +236,8 @@ METRICS_PORT=9090
 
 ```bash
 # Verificar salud de servicios
-curl http://localhost:3001/api/health
-curl http://localhost:8080/sigah/
+curl http://localhost:3002/api/health
+curl http://localhost:8082
 
 # Verificar contenedores
 docker-compose ps
@@ -247,16 +249,24 @@ docker-compose top
 ```bash
 # Ver logs en tiempo real
 docker-compose logs -f
-docker-compose logs -f backend
-docker-compose logs -f frontend
+docker logs sigah-github-backend -f
+docker logs sigah-github-frontend -f
 
 # Logs específicos
-docker-compose logs --tail=100 backend
-docker-compose logs --since="1h" postgres
+docker logs sigah-github-backend --tail=100
+docker logs sigah-github-db --since=1h
 ```
 
 ### Backup Automático
 
+El sistema incluye dos métodos de backup:
+
+**1. Interfaz Web (Recomendado para backups manuales)**
+- Acceso: `/backups` (Solo rol ADMIN)
+- Funcionalidades: Listar, crear, restaurar y eliminar copias de seguridad
+- Los backups se almacenan en `/backups/sigah` dentro del contenedor backend
+
+**2. Script Automatizado (Para backups programados)**
 ```bash
 #!/bin/bash
 # backup.sh - Backup diario automático
@@ -266,8 +276,8 @@ BACKUP_DIR="/backups/sigah"
 
 mkdir -p $BACKUP_DIR
 
-# Backup base de datos
-docker-compose exec -T postgres pg_dump -U sigah sigah > $BACKUP_DIR/sigah_db_$DATE.sql
+# Backup base de datos usando pg_dump
+docker exec sigah-github-db sh -c 'pg_dump -U sigah sigah' > $BACKUP_DIR/sigah_db_$DATE.sql
 
 # Backup configuración
 tar -czf $BACKUP_DIR/sigah_config_$DATE.tar.gz .env docker-compose.yml
@@ -318,16 +328,16 @@ docker system prune -f
 ### Base de Datos
 ```bash
 # Acceder a PostgreSQL
-docker-compose exec postgres psql -U sigah -d sigah
+docker exec -it sigah-github-db sh -c 'psql -U sigah -d sigah'
 
 # Backup de base de datos
-docker-compose exec postgres pg_dump -U sigah sigah > backup.sql
+docker exec sigah-github-db sh -c 'pg_dump -U sigah sigah' > backup.sql
 
 # Restaurar backup
-docker-compose exec -T postgres psql -U sigah sigah < backup.sql
+docker exec -i sigah-github-db sh -c 'psql -U sigah sigah' < backup.sql
 
 # Ver tamaño de BD
-docker-compose exec postgres psql -U sigah -d sigah -c "SELECT pg_size_pretty(pg_database_size('sigah'));"
+docker exec sigah-github-db sh -c 'psql -U sigah -d sigah -c "SELECT pg_size_pretty(pg_database_size(\x27sigah\x27));"'
 ```
 
 ### Prisma
@@ -370,7 +380,7 @@ docker-compose ps
 docker-compose logs postgres
 
 # Verificar conexión
-docker-compose exec postgres psql -U sigah -d sigah -c "SELECT 1;"
+docker exec sigah-github-db sh -c 'psql -U sigah -d sigah -c "SELECT 1;"'
 ```
 
 #### Página en blanco o error 502
@@ -424,18 +434,18 @@ docker network ls
 docker network inspect sigah_default
 
 # Verificar conectividad entre contenedores
-docker-compose exec backend ping postgres
-docker-compose exec frontend ping backend
+docker exec sigah-github-backend ping sigah-github-db
+docker exec sigah-github-frontend ping sigah-github-backend
 ```
 
 #### Debug de contenedores
 ```bash
 # Entrar a contenedor para debug
-docker-compose exec backend sh
-docker-compose exec frontend sh
+docker exec -it sigah-github-backend sh
+docker exec -it sigah-github-frontend sh
 
 # Ver variables de entorno
-docker-compose exec backend env | grep -E "(DATABASE|JWT|REDIS)"
+docker exec sigah-github-backend env | Select-String -Pattern '(DATABASE|JWT|REDIS)'
 ```
 
 #### Logs detallados
@@ -444,7 +454,7 @@ docker-compose exec backend env | grep -E "(DATABASE|JWT|REDIS)"
 docker-compose logs -f --tail=100 --timestamps
 
 # Logs de último reinicio
-docker-compose logs --since=$(docker inspect sigah-backend --format='{{.State.StartedAt}}')
+docker-compose logs --since=$(docker inspect sigah-github-backend --format='{{.State.StartedAt}}')
 ```
 
 ### Recuperación de Desastres
@@ -455,9 +465,9 @@ docker-compose logs --since=$(docker inspect sigah-backend --format='{{.State.St
 docker-compose down
 
 # Restaurar base de datos
-docker-compose up -d postgres
+docker-compose up -d
 sleep 30
-docker-compose exec -T postgres psql -U sigah sigah < backup.sql
+docker exec -i sigah-github-db sh -c 'psql -U sigah sigah' < backup.sql
 
 # Iniciar todos los servicios
 docker-compose up -d
@@ -469,7 +479,7 @@ docker-compose up -d
 docker-compose down -v
 docker system prune -f
 docker-compose up -d
-docker exec sigah-backend npx prisma db seed
+docker exec sigah-github-backend npx prisma db seed
 ```
 
 ### Actualización de la Aplicación
@@ -481,7 +491,7 @@ docker-compose up -d --build
 
 # Verificar después de actualización
 docker-compose ps
-curl http://localhost:3001/api/health
+curl http://localhost:3002/api/health
 ```
 
 ---
@@ -701,4 +711,4 @@ echo "Backup completado: $DATE"
 
 ---
 
-*Última actualización: Junio 2, 2024*
+*Última actualización: Julio 2026 — SIGAH v1.1.0*

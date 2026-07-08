@@ -87,22 +87,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Verificar si el usuario tiene un permiso específico
   const hasPermission = useCallback((module: string, action: string): boolean => {
     if (!user) return false;
-    if (user.roleName === 'Administrador') return true;
+    if (user.roleName === 'Administrador' || user.roleName === 'ADMIN') return true;
     return user.permissions?.some(p => p.module === module && p.action === action) || false;
   }, [user]);
 
   // Verificar si tiene cualquiera de los permisos
   const hasAnyPermission = useCallback((permissions: { module: string; action: string }[]): boolean => {
     if (!user) return false;
-    if (user.roleName === 'Administrador') return true;
-    return permissions.some(req => 
+    if (user.roleName === 'Administrador' || user.roleName === 'ADMIN') return true;
+    return permissions.some(req =>
       user.permissions?.some(p => p.module === req.module && p.action === req.action)
     );
   }, [user]);
 
   // Verificar si es administrador
   const isAdmin = useCallback((): boolean => {
-    return user?.roleName === 'Administrador';
+    return user?.roleName === 'Administrador' || user?.roleName === 'ADMIN';
   }, [user]);
 
   // Memoizar el valor del contexto para evitar re-renders

@@ -265,7 +265,7 @@ export default function RolesManagement() {
           <div className="col-span-full text-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
           </div>
-        ) : roles.map(role => (
+        ) : roles.filter(role => role.name !== 'AUTHORIZER' && role.name !== 'DISPATCHER').map(role => (
           <div key={role.id} className="card hover:shadow-md transition-shadow dark:bg-gray-800">
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-3">

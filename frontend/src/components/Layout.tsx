@@ -26,7 +26,8 @@ import {
   Settings,
   ClipboardList,
   MessageSquare,
-  KeyRound
+  KeyRound,
+  Database
 } from 'lucide-react';
 
 // Navegación con permisos requeridos
@@ -48,6 +49,7 @@ const adminNavigation = [
   // { name: 'Enviar Notificaciones', href: '/send-notifications', icon: MessageSquare, module: 'users', action: 'view' },
   { name: 'Roles y Permisos', href: '/roles', icon: Shield, module: 'roles', action: 'view' },
   { name: 'Usuarios', href: '/users', icon: Users, module: 'users', action: 'view' },
+  { name: 'Copias de Seguridad', href: '/backups', icon: Database, module: 'roles', action: 'view' },
   // { name: 'Config. Notificaciones', href: '/notifications', icon: Bell, module: 'users', action: 'view' },
 ];
 

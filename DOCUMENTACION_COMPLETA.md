@@ -1,5 +1,7 @@
 # SIGAH - Documentación Completa del Sistema
 
+**Versión:** 1.1.0 | **Fecha:** Julio 2026
+
 ## Índice
 1. [Descripción General](#descripción-general)
 2. [Arquitectura del Sistema](#arquitectura-del-sistema)
@@ -18,24 +20,22 @@
 
 ## Descripción General
 
-SIGAH (Sistema de Gestión de Ayudas Humanitarias) es una plataforma integral diseñada para gestionar eficientemente el ciclo completo de la ayuda humanitaria, desde la recepción de insumos hasta la entrega final a beneficiarios.
+SIGAH (Sistema de Gestión de Ayudas Humanitarias) es una plataforma para gestionar inventarios, kits, reportes y usuarios en operaciones humanitarias.
 
-### Objetivos Principales
-- **Trazabilidad completa**: Seguimiento detallado de cada producto desde su entrada hasta su entrega
-- **Control de calidad**: Sistema FEFO para gestión de vencimientos
+### Objetivos Principales (v1.1.0)
+- **Control de inventario**: Gestión de productos, lotes y vencimientos con FEFO
+- **Gestión de kits**: Composición flexible y control de disponibilidad
 - **Transparencia**: Auditoría completa de todas las operaciones
-- **Eficiencia operativa**: Automatización de procesos críticos
-- **Segregación de funciones**: Controles internos robustos
+- **Seguridad**: Sistema RBAC con permisos granulares por rol
+- **Reportes**: Exportación a Excel y PDF con filtros avanzados
 
-### Características Destacadas
+### Características Activas
 - Gestión de inventario con control de lotes y fechas de vencimiento
 - Configuración flexible de kits de ayuda
-- Flujo de aprobación de solicitudes con múltiples niveles
-- Sistema de entregas con 6 pasos y segregación de funciones
-- Gestión de devoluciones con control de calidad
 - Dashboard en tiempo real con KPIs operativos
 - Reportes personalizables y exportables
 - Sistema de roles y permisos granular
+- Auditoría completa de inventario
 
 ---
 
@@ -68,12 +68,13 @@ SIGAH (Sistema de Gestión de Ayudas Humanitarias) es una plataforma integral di
 - **Runtime**: Node.js 18+
 - **Framework**: Express.js
 - **Lenguaje**: TypeScript
-- **ORM**: Prisma
+- **ORM**: Prisma 5.x
 - **Base de Datos**: PostgreSQL 14+
-- **Autenticación**: JWT
+- **Autenticación**: JWT + refresh tokens
 - **Validación**: Zod
 - **Logging**: Winston
-- **Testing**: Jest
+- **Cache**: Redis
+- **Tiempo real**: Socket.io
 
 #### Infraestructura
 - **Contenerización**: Docker & Docker Compose
@@ -117,9 +118,9 @@ docker exec sigah-backend npx prisma db seed
 ```
 
 6. **Acceder a la aplicación**
-- Frontend: http://localhost:8080/sigah/
-- Backend API: http://localhost:3001
-- Base de Datos: localhost:5432
+- Frontend: http://localhost:8082
+- Backend API: http://localhost:3002
+- Base de Datos: localhost:5432 (interno Docker)
 
 ### Instalación Manual (Desarrollo)
 
@@ -131,14 +132,14 @@ npm install
 npx prisma db generate
 npx prisma db push
 npx prisma db seed
-npm run dev
+npm run dev  # Puerto 3001
 ```
 
 #### Frontend
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run dev  # Puerto 5173 (Vite)
 ```
 
 ---
@@ -183,9 +184,6 @@ El esquema de la base de datos se define en `backend/prisma/schema.postgresql.pr
 - **StockMovements**: Movimientos de inventario
 - **Kits**: Configuración de kits
 - **KitInventory**: Inventario de kits
-- **Beneficiaries**: Registro de beneficiarios
-- **Requests**: Solicitudes de ayuda
-- **Deliveries**: Gestión de entregas
 - **AuditLog**: Auditoría del sistema
 
 ---
@@ -199,10 +197,9 @@ El esquema de la base de datos se define en `backend/prisma/schema.postgresql.pr
 - Control de acceso basado en roles
 
 ### 2. Dashboard
-- KPIs en tiempo real
-- Gráficos interactivos
-- Alertas y notificaciones
-- Resumen operacional
+- KPIs en tiempo real: total productos, total kits, total usuarios, stock bajo
+- Alertas: productos próximos a vencer y con stock bajo
+- Gráfico de distribución de inventario por categoría
 
 ### 3. Inventario
 - Gestión de productos
@@ -217,41 +214,25 @@ El esquema de la base de datos se define en `backend/prisma/schema.postgresql.pr
 - Entradas y salidas de kits
 - Historial de movimientos
 
-### 5. Beneficiarios
-- Registro de beneficiarios
-- Clasificación por población
-- Historial de ayudas
-- Documentación asociada
-
-### 6. Solicitudes
-- Creación de solicitudes
-- Flujo de aprobación
-- Estados y transiciones
-- Edición y cancelación
-
-### 7. Entregas
-- Flujo de 6 pasos
-- Segregación de funciones
-- Control de inventario
-- Confirmación de entrega
-
-### 8. Devoluciones
-- Registro de devoluciones
-- Control de calidad
-- Reingreso a inventario
-- Reporte de pérdidas
-
-### 9. Reportes
+### 5. Reportes Avanzados
 - Reportes predefinidos
 - Exportación a Excel/PDF
 - Filtros avanzados
 - Programación de reportes
 
-### 10. Auditoría
+### 7. Auditoría
 - Registro completo de acciones
 - Consultas por usuario/fecha
 - Exportación de logs
 - Cumplimiento normativo
+
+### 8. Gestión de Backups (Solo ADMIN)
+- Listar copias de seguridad existentes
+- Crear copia manual de la base de datos
+- Restaurar desde copia de seguridad
+- Eliminar copias antiguas
+- Estadísticas: total, tamaño, último backup
+- Backups automáticos programados
 
 ---
 
@@ -259,73 +240,46 @@ El esquema de la base de datos se define en `backend/prisma/schema.postgresql.pr
 
 ### Sistema RBAC (Role-Based Access Control)
 
-#### Roles Predefinidos
+#### Roles Activos (v1.1.0)
 
-| Rol | Descripción | Permisos Clave |
-|-----|-------------|----------------|
-| **Administrador** | Acceso total al sistema | Todos los permisos |
-| **Autorizador** | Aprueba solicitudes y entregas | Aprobar, autorizar, ver reportes |
-| **Bodega** | Gestiona inventario y prepara entregas | Inventario, recibir, preparar |
-| **Despachador** | Realiza entregas finales | Entregar, ver entregas |
-| **Operador** | Crea solicitudes y gestiona beneficiarios | Solicitudes, beneficiarios |
-| **Consulta** | Solo lectura | Ver todos los módulos |
+> Los roles `AUTHORIZER` y `DISPATCHER` están deshabilitados en la interfaz de esta versión.
 
-#### Matriz de Permisos
+| Rol (BD) | Nombre visible | Descripción | Permisos Clave |
+|----------|---------------|-------------|----------------|
+| **ADMIN** | Administrador | Acceso total al sistema | Todos los permisos |
+| **WAREHOUSE** | Bodega | Gestiona inventario | CRUD inventario, ajustes, movimientos |
+| **OPERATOR** | Operador | Acceso básico | Ver inventario, kits y reportes |
+| **READONLY** | Consulta | Solo lectura | Ver todos los módulos |
 
-| Módulo | Admin | Autorizador | Bodega | Despachador | Operador | Consulta |
-|--------|-------|--------------|--------|-------------|----------|----------|
-| Dashboard | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Inventario | CRUD | Ver | CRUD | Ver | Ver | Ver |
-| Kits | CRUD | Ver | Ver | Ver | Ver | Ver |
-| Beneficiarios | CRUD | Ver | Ver | Ver | CRUD | Ver |
-| Solicitudes | Full | Aprobar | Ver | Ver | CRUD | Ver |
-| Entregas | Full | Autorizar | Recibir/Preparar | Entregar | Ver | Ver |
-| Devoluciones | CRUD | Ver | CRUD | Ver | Ver | Ver |
-| Reportes | Full | Ver | Ver | Ver | Ver | Ver |
-| Usuarios | CRUD | - | - | - | - | - |
-| Roles | CRUD | - | - | - | - | - |
+#### Matriz de Permisos (v1.1.0)
+
+| Módulo | Admin | Bodega | Operador | Consulta |
+|--------|-------|--------|----------|----------|
+| Dashboard | ✅ | ✅ | ✅ | ✅ |
+| Inventario | CRUD | CRUD | Ver | Ver |
+| Kits | CRUD | Ver | Ver | Ver |
+| Reportes | Full | Ver | Ver | Ver |
+| Usuarios | CRUD | - | - | - |
+| Roles | CRUD | - | - | - |
+
 
 ---
 
 ## Flujos de Trabajo
 
-### Flujo de Entregas (6 Pasos con Segregación)
+### Flujo de Gestión de Inventario
 
-```mermaid
-sequenceDiagram
-    participant Operador
-    participant Autorizador
-    participant Bodega1
-    participant Bodega2
-    participant Despachador
-    
-    Operador->>+Autorizador: 1. Crear solicitud
-    Autorizador->>+Bodega1: 2. Autorizar entrega
-    Bodega1->>+Bodega2: 3. Recibir en bodega
-    Bodega2->>Bodega2: 4. Preparar
-    Bodega2->>Bodega2: 5. Marcar lista (descuenta stock)
-    Bodega2->>+Despachador: 6. Entregar
-    Despachador-->>-Operador: Entrega completada
 ```
-
-#### Reglas de Segregación
-- El autorizador no puede ser quien crea la entrega
-- Quien autoriza no puede recibir en bodega
-- Quien prepara no puede ser el mismo que entrega
-- Cada paso queda registrado en auditoría
-
-### Flujo de Aprobación de Solicitudes
-
-```mermaid
-stateDiagram-v2
-    [*] --> REGISTERED
-    REGISTERED --> IN_REVIEW: Revisar
-    IN_REVIEW --> APPROVED: Aprobar
-    IN_REVIEW --> REJECTED: Rechazar
-    REJECTED --> REGISTERED: Reactivar
-    REGISTERED --> CANCELLED: Cancelar
-    APPROVED --> DELIVERED: Entregar
-    APPROVED --> CANCELLED: Cancelar
+Ingreso de stock (WAREHOUSE/ADMIN)
+        │
+        ▼
+Control de lotes y vencimientos (FEFO)
+        │
+        ▼
+Ajustes manuales (WAREHOUSE/ADMIN)
+        │
+        ▼
+Auditía automática de movimientos
 ```
 
 ---
@@ -382,29 +336,6 @@ POST /api/inventory/adjustment
   "quantity": 10,
   "reason": "Ajuste de inventario",
   "type": "ADJUSTMENT"
-}
-```
-
-### Entregas
-```typescript
-// Crear entrega
-POST /api/deliveries
-{
-  "requestId": "uuid",
-  "deliveryDetails": [
-    {
-      "productId": "uuid",
-      "quantity": 5,
-      "lotId": "uuid"
-    }
-  ]
-}
-
-// Cambiar estado
-PATCH /api/deliveries/:id/status
-{
-  "status": "AUTHORIZED",
-  "notes": "Autorizado para entrega"
 }
 ```
 
@@ -512,19 +443,9 @@ Ver archivo completo: `SIGAH_GUIA_PRUEBAS_UAT.md`
 - INV-08: Registrar entrada de stock
 - INV-09: Ajustar stock (+/-)
 - INV-11: Validación de stock negativo
+- INV-12: Verificar control FEFO en salidas
+- INV-13: Alertas de stock mínimo y vencimiento
 
-#### Entregas
-- ENT-02: Crear entrega (Paso 1)
-- ENT-04: Autorizar entrega (Paso 2)
-- ENT-06: Recibir en bodega (Paso 3)
-- ENT-08: Preparar (Paso 4)
-- ENT-09: Marcar lista (Paso 5)
-- ENT-12: Entregar (Paso 6)
-
-#### Segregación de Funciones
-- ENT-05: Validar que creador no autoriza
-- ENT-07: Validar que autorizador no recibe
-- ENT-13: Validar que preparador no entrega
 
 ### Criterios de Aceptación
 
@@ -532,11 +453,10 @@ Ver archivo completo: `SIGAH_GUIA_PRUEBAS_UAT.md`
 - [ ] 0 bugs críticos abiertos
 - [ ] 0 bugs mayores abiertos
 - [ ] Login y autenticación funcionan perfectamente
-- [ ] Flujo completo de entrega (6 pasos) funciona sin errores
-- [ ] Inventario se descuenta y devuelve correctamente
-- [ ] Segregación de funciones impide acciones no autorizadas
+- [ ] Inventario y kits funcionan sin errores
+- [ ] Reportes generan y exportan correctamente
 - [ ] Auditoría registra todas las acciones
-- [ ] Roles y permisos funcionan correctamente
+- [ ] Roles y permisos (ADMIN, WAREHOUSE, OPERATOR, READONLY) funcionan correctamente
 
 #### Deseables (Nice-to-Have)
 - [ ] Bugs menores < 5
@@ -676,17 +596,17 @@ docker-compose logs
 
 #### Verificar Conexión a BD
 ```bash
-docker exec sigah-db psql -U sigah -d sigah -c "SELECT 1;"
+docker exec sigah-github-db sh -c 'psql -U sigah -d sigah -c "SELECT 1;"'
 ```
 
 #### Verificar API
 ```bash
-curl http://localhost:3001/api/health
+curl http://localhost:3002/api/health
 ```
 
 #### Verificar Frontend
 ```bash
-curl http://localhost:8080/sigah/
+curl http://localhost:8082
 ```
 
 ### Soporte y Contacto
@@ -786,4 +706,4 @@ fi
 
 ---
 
-*Esta documentación está en constante evolución. Para la versión más actualizada, consultar el repositorio del proyecto.*
+*Última actualización: Julio 2026 — SIGAH v1.1.0*

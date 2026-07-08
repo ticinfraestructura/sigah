@@ -209,6 +209,7 @@ async function generateUsersReport(prisma: any, subtype: string, dateFilter: any
   switch (subtype) {
     case 'listado': {
       const users = await prisma.user.findMany({
+        where: { role: { name: { notIn: ['AUTHORIZER', 'DISPATCHER'] } } },
         include: { role: { select: { name: true } } },
         orderBy: { createdAt: 'asc' }
       });
@@ -223,6 +224,7 @@ async function generateUsersReport(prisma: any, subtype: string, dateFilter: any
     }
     case 'por_rol': {
       const users = await prisma.user.findMany({
+        where: { role: { name: { notIn: ['AUTHORIZER', 'DISPATCHER'] } } },
         include: { role: { select: { name: true } } },
         orderBy: [{ role: { name: 'asc' } }, { firstName: 'asc' }]
       });
@@ -264,6 +266,7 @@ async function generateRolesReport(prisma: any, subtype: string): Promise<any[]>
         FROM roles r
         LEFT JOIN users u ON u."roleId" = r.id
         LEFT JOIN role_permissions rp ON rp."roleId" = r.id
+        WHERE r.name NOT IN ('AUTHORIZER', 'DISPATCHER')
         GROUP BY r.id, r.name, r.description, r."createdAt"
         ORDER BY r.name
       `;
@@ -281,6 +284,7 @@ async function generateRolesReport(prisma: any, subtype: string): Promise<any[]>
         FROM roles r
         JOIN role_permissions rp ON rp."roleId" = r.id
         JOIN permissions p ON p.id = rp."permissionId"
+        WHERE r.name NOT IN ('AUTHORIZER', 'DISPATCHER')
         ORDER BY r.name, p.module, p.action
       `;
       return rows.map((r: any) => ({

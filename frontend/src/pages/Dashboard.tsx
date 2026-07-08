@@ -80,12 +80,6 @@ export default function Dashboard() {
   }
 
   const kpis = summary?.kpis;
-  const statusData = summary ? Object.entries(summary.requestsByStatus)
-    .filter(([_, value]) => value > 0)
-    .map(([key, value]) => ({
-      name: statusLabels[key] || key,
-      value
-    })) : [];
 
   return (
     <div className="space-y-6">
@@ -196,114 +190,6 @@ export default function Dashboard() {
         </div>
       ) : null}
 
-      {/* Pending Delivery Tasks - oculto en esta version */}
-      {false && summary?.pendingTasks && (
-        (summary.pendingTasks.forAuthorizer > 0 || 
-         summary.pendingTasks.forWarehouse > 0 || 
-         summary.pendingTasks.forDispatcher > 0) && (
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Bell className="w-5 h-5 text-primary-600" />
-              <h3 className="font-semibold text-gray-900 dark:text-white">Tareas Pendientes de Entregas</h3>
-            </div>
-            <Link to="/deliveries" className="text-sm text-primary-600 hover:underline flex items-center gap-1">
-              Ver todas <ChevronRight className="w-4 h-4" />
-            </Link>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            {/* Para Autorizador */}
-            <div className={`p-4 rounded-lg border-2 ${
-              (userRole === 'Administrador' || userRole === 'Autorizador') 
-                ? 'border-yellow-300 bg-yellow-50 dark:bg-yellow-900/20' 
-                : 'border-gray-200 bg-gray-50 dark:bg-gray-700/50'
-            }`}>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg flex items-center justify-center">
-                  <CheckCircle className="w-5 h-5 text-yellow-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-yellow-700">{summary.pendingTasks.forAuthorizer}</p>
-                  <p className="text-xs text-yellow-600">Por Autorizar</p>
-                </div>
-              </div>
-              <p className="text-xs text-gray-500">
-                Responsable: <span className="font-medium">Autorizador</span>
-              </p>
-            </div>
-
-            {/* Para Bodeguero */}
-            <div className={`p-4 rounded-lg border-2 ${
-              (userRole === 'Administrador' || userRole === 'Bodeguero') 
-                ? 'border-indigo-300 bg-indigo-50 dark:bg-indigo-900/20' 
-                : 'border-gray-200 bg-gray-50 dark:bg-gray-700/50'
-            }`}>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center">
-                  <Inbox className="w-5 h-5 text-indigo-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-indigo-700">{summary.pendingTasks.forWarehouse}</p>
-                  <p className="text-xs text-indigo-600">Por Preparar</p>
-                </div>
-              </div>
-              <p className="text-xs text-gray-500">
-                Responsable: <span className="font-medium">Bodeguero</span>
-              </p>
-            </div>
-
-            {/* Para Despachador */}
-            <div className={`p-4 rounded-lg border-2 ${
-              (userRole === 'Administrador' || userRole === 'Despachador') 
-                ? 'border-cyan-300 bg-cyan-50 dark:bg-cyan-900/20' 
-                : 'border-gray-200 bg-gray-50 dark:bg-gray-700/50'
-            }`}>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg flex items-center justify-center">
-                  <UserCheck className="w-5 h-5 text-cyan-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-cyan-700">{summary.pendingTasks.forDispatcher}</p>
-                  <p className="text-xs text-cyan-600">Listas para Entregar</p>
-                </div>
-              </div>
-              <p className="text-xs text-gray-500">
-                Responsable: <span className="font-medium">Despachador</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Detalle de entregas listas (para Admin y Despachador) */}
-          {summary.pendingTasks.forDispatcher > 0 && 
-           (userRole === 'Administrador' || userRole === 'Despachador') && (
-            <div className="border-t dark:border-gray-700 pt-4">
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-                <Truck className="w-4 h-4 text-cyan-600" />
-                Entregas listas para despacho:
-              </p>
-              <div className="space-y-2">
-                {summary.pendingTasks.details?.dispatcher?.map((delivery: any) => (
-                  <div key={delivery.id} className="flex items-center justify-between p-2 bg-cyan-50 dark:bg-cyan-900/20 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-sm text-cyan-700">{delivery.code}</span>
-                      <span className="text-sm text-gray-600 dark:text-gray-400">
-                        {delivery.request?.beneficiary?.firstName} {delivery.request?.beneficiary?.lastName}
-                      </span>
-                    </div>
-                    <Link 
-                      to="/deliveries?status=READY" 
-                      className="text-xs text-cyan-600 hover:underline"
-                    >
-                      Gestionar
-                    </Link>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      ))}
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -330,7 +216,7 @@ export default function Dashboard() {
         <div className="card">
           <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Stock por Categoría</h3>
           <div className="space-y-3">
-            {summary?.stockByCategory.map((category, index) => (
+            {summary?.stockByCategory?.map((category, index) => (
               <div key={category.id} className="flex items-center gap-3">
                 <div 
                   className="w-3 h-3 rounded-full"

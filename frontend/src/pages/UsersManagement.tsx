@@ -197,11 +197,16 @@ export default function UsersManagement() {
     setError('');
   };
 
+  const HIDDEN_ROLES = ['AUTHORIZER', 'DISPATCHER'];
+
   const filteredUsers = users.filter(user => 
-    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.roleName?.toLowerCase().includes(searchTerm.toLowerCase())
+    !HIDDEN_ROLES.includes(user.roleName || '') &&
+    (
+      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.roleName?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
   );
 
   if (loading) {
@@ -482,7 +487,7 @@ export default function UsersManagement() {
                   required={!editingUser}
                 >
                   <option value="">{editingUser ? 'Sin rol asignado' : 'Seleccionar rol...'}</option>
-                  {roles.map((role) => (
+                  {roles.filter(role => !['AUTHORIZER', 'DISPATCHER'].includes(role.name)).map((role) => (
                     <option key={role.id} value={role.id}>
                       {role.name}
                     </option>

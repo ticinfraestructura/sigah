@@ -34,8 +34,8 @@ RUN npm run build
 # ============================================
 FROM node:20-alpine AS runner
 
-# Instalar OpenSSL para Prisma en producción
-RUN apk add --no-cache openssl
+# Instalar OpenSSL para Prisma y postgresql-client para pg_dump/psql (backups)
+RUN apk add --no-cache openssl postgresql-client
 
 WORKDIR /app
 

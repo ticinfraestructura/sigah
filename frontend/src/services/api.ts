@@ -409,4 +409,12 @@ export const auditApi = {
   }) => api.get('/audit/export', { params, responseType: 'blob' }),
 };
 
+// Backups
+export const backupApi = {
+  getAll: () => api.get('/backups'),
+  create: () => api.post('/backups'),
+  restore: (name: string) => api.post(`/backups/${name}/restore`),
+  delete: (name: string) => api.delete(`/backups/${name}`),
+};
+
 export default api;

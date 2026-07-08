@@ -45,12 +45,7 @@ model User {
   role              Role?            @relation(fields: [roleId], references: [id])
   stockMovements    StockMovement[]
   kitInventoryMovements KitInventoryMovement[]
-  deliveriesCreated Delivery[]        @relation("DeliveryCreatedBy")
-  deliveriesAuthorized Delivery[]     @relation("DeliveryAuthorizedBy")
-  deliveriesWarehouse Delivery[]      @relation("DeliveryWarehouseUser")
-  deliveriesPrepared Delivery[]       @relation("DeliveryPreparedBy")
-  deliveriesDelivered Delivery[]      @relation("DeliveryDeliveredBy")
-  deliveryHistories DeliveryHistory[]
+  deliveries        Delivery[]
   returns           Return[]
   requestsCreated   Request[]         @relation("RequestCreatedBy")
   requestHistories  RequestHistory[]
@@ -344,45 +339,21 @@ model RequestHistory {
 // ============ DELIVERIES ============
 
 model Delivery {
-  id                    String   @id @default(uuid())
-  code                  String   @unique
-  requestId             String
-  status                String   @default("PENDING_AUTHORIZATION")
-  createdById           String?
-  authorizedById        String?
-  authorizationDate     DateTime?
-  authorizationNotes    String?
-  authorizedQuantity    String?
-  isPartialAuth         Boolean  @default(false)
-  warehouseUserId       String?
-  warehouseReceivedDate DateTime?
-  warehouseNotes        String?
-  preparedById          String?
-  preparationDate       DateTime?
-  preparationNotes      String?
-  deliveredById         String
-  deliveryDate          DateTime @default(now())
-  deliveryNotes         String?
-  receivedBy            String?
-  receiverDocument      String?
-  receiverSignature     String?
-  receptionDate         DateTime?
-  receptionNotes        String?
-  notes                 String?
-  isPartial             Boolean  @default(false)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id           String   @id @default(uuid())
+  requestId    String
+  deliveryDate DateTime @default(now())
+  deliveredById String
+  receivedBy   String?
+  notes        String?
+  isPartial    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Relations
-  request          Request           @relation(fields: [requestId], references: [id])
-  createdBy        User?             @relation("DeliveryCreatedBy", fields: [createdById], references: [id])
-  authorizedBy     User?             @relation("DeliveryAuthorizedBy", fields: [authorizedById], references: [id])
-  warehouseUser    User?             @relation("DeliveryWarehouseUser", fields: [warehouseUserId], references: [id])
-  preparedBy       User?             @relation("DeliveryPreparedBy", fields: [preparedById], references: [id])
-  deliveredBy      User              @relation("DeliveryDeliveredBy", fields: [deliveredById], references: [id])
-  deliveryDetails  DeliveryDetail[]
-  history          DeliveryHistory[]
-  returns          Return[]
+  request         Request          @relation(fields: [requestId], references: [id])
+  deliveredBy     User             @relation(fields: [deliveredById], references: [id])
+  deliveryDetails DeliveryDetail[]
+  returns         Return[]
 
   @@map("deliveries")
 }
@@ -402,22 +373,6 @@ model DeliveryDetail {
   lot        ProductLot? @relation(fields: [lotId], references: [id])
 
   @@map("delivery_details")
-}
-
-model DeliveryHistory {
-  id         String   @id @default(uuid())
-  deliveryId String
-  fromStatus String?
-  toStatus   String
-  notes      String?
-  userId     String
-  createdAt  DateTime @default(now())
-
-  // Relations
-  delivery   Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
-  user       User     @relation(fields: [userId], references: [id])
-
-  @@map("delivery_histories")
 }
 
 // ============ RETURNS ============

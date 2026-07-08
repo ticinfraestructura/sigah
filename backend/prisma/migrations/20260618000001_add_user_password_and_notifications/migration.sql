@@ -1,4 +1,4 @@
 -- AlterTable
-ALTER TABLE "users" ADD COLUMN "passwordChangedAt" TIMESTAMP(3);
-ALTER TABLE "users" ADD COLUMN "whatsappApiKey" TEXT;
-ALTER TABLE "users" ADD COLUMN "telegramChatId" TEXT;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "passwordChangedAt" TIMESTAMP(3);
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "whatsappApiKey" TEXT;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "telegramChatId" TEXT;

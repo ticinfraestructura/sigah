@@ -3,15 +3,13 @@
 # Sistema de Gestión de Ayudas Humanitarias
 # ============================================
 
-version: '3.8'
-
 services:
   # ============================================
   # Base de Datos PostgreSQL
   # ============================================
   postgres:
     image: postgres:16-alpine
-    container_name: sigah-db
+    container_name: sigah-github-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-sigah}
@@ -21,7 +19,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - sigah-network
+      - sigah-github-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-sigah} -d ${DB_NAME:-sigah}"]
       interval: 10s
@@ -34,13 +32,13 @@ services:
   # ============================================
   redis:
     image: redis:7-alpine
-    container_name: sigah-redis
+    container_name: sigah-github-redis
     restart: unless-stopped
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
     networks:
-      - sigah-network
+      - sigah-github-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -54,7 +52,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: sigah-backend
+    container_name: sigah-github-backend
     restart: unless-stopped
     environment:
       NODE_ENV: production
@@ -71,10 +69,10 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - sigah-network
+      - sigah-github-network
     # Puerto expuesto para acceso en red local
     ports:
-      - "3001:3001"
+      - "3002:3001"  # Puerto diferente para evitar conflicto
 
   # ============================================
   # Frontend (React + Nginx)
@@ -86,28 +84,28 @@ services:
       args:
         VITE_API_URL: /api
         VITE_BASE_PATH: ${APP_BASE_PATH:-/}
-    container_name: sigah-frontend
+    container_name: sigah-github-frontend
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-8080}:80"  # Puerto interno, Caddy hace el proxy
+      - "${APP_PORT:-8081}:80"  # Puerto diferente para evitar conflicto  # Puerto interno, Caddy hace el proxy
     depends_on:
       - backend
     networks:
-      - sigah-network
+      - sigah-github-network
 
 # ============================================
 # Volúmenes persistentes
 # ============================================
 volumes:
   postgres_data:
-    name: sigah-postgres-data
+    name: sigah-github-postgres-data
   redis_data:
-    name: sigah-redis-data
+    name: sigah-github-redis-data
 
 # ============================================
 # Red interna
 # ============================================
 networks:
-  sigah-network:
-    name: sigah-network
+  sigah-github-network:
+    name: sigah-github-network
     driver: bridge

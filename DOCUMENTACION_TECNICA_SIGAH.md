@@ -1,24 +1,23 @@
 # DOCUMENTACIÓN TÉCNICA SIGAH
 ## Sistema de Gestión de Ayudas Humanitarias
 
-**Versión:** 1.0.0  
-**Fecha:** Diciembre 2024
+**Versión:** 1.1.0  
+**Fecha:** Julio 2026
 
 ---
 
 ## 1. DESCRIPCIÓN GENERAL
 
-**SIGAH** es un sistema integral para la gestión de inventarios, solicitudes, entregas y devoluciones de ayudas humanitarias. Permite el control completo del flujo desde la recepción de productos hasta la entrega a beneficiarios.
+**SIGAH** es un sistema integral para la gestión de inventarios y kits de ayudas humanitarias. Permite el control del inventario, reportes, usuarios y auditoría.
 
-### Características Principales
+### Características Principales (v1.1.0)
 
 - **Control de Inventario** con sistema FEFO (First Expiry, First Out)
 - **Gestión de Kits** con composición flexible de productos
-- **Flujo de Solicitudes y Entregas** con segregación de funciones
 - **Sistema RBAC** (Role-Based Access Control) con permisos granulares
-- **Notificaciones** por WhatsApp, email y sistema interno
-- **Reportes** con exportación a Excel y PDF
+- **Reportes avanzados** con exportación a Excel y PDF
 - **Auditoría completa** de todas las operaciones
+- **Gestión de Usuarios y Roles**
 
 ---
 
@@ -32,7 +31,7 @@
 | Express | 4.18.x | Framework web |
 | TypeScript | 5.3.x | Lenguaje tipado |
 | Prisma ORM | 5.7.x | ORM y migraciones |
-| SQLite/PostgreSQL | - | Base de datos |
+| PostgreSQL | >= 14.0 | Base de datos |
 | Socket.io | 4.8.x | Comunicación real-time |
 | JWT | 9.x | Autenticación |
 | Winston | 3.x | Logging |
@@ -58,7 +57,7 @@
 ┌─────────────────────────────────────────────────────────────────────┐
 │                        FRONTEND (React + TS)                        │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐  │
-│  │Dashboard │ │Inventario│ │Solicitud │ │ Entregas │ │ Reportes │  │
+│  │Dashboard │ │Inventario│ │   Kits   │ │ Reportes │ │ Backups  │  │
 │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘  │
 └─────────────────────────────────────────────────────────────────────┘
                                   │
@@ -69,7 +68,7 @@
 │  │ Middlewares: Auth, RBAC, Validation, Audit, Rate Limit       │  │
 │  └──────────────────────────────────────────────────────────────┘  │
 │  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌───────┐  │
-│  │Products│ │  Kits  │ │Requests│ │Delivery│ │ Stock  │ │Reports│  │
+│  │Products│ │  Kits  │ │ Stock  │ │ Users  │ │Reports │ │Backups │  │
 │  └────────┘ └────────┘ └────────┘ └────────┘ └────────┘ └───────┘  │
 └─────────────────────────────────────────────────────────────────────┘
                                   │
@@ -83,7 +82,7 @@
                                   │
                                   ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                     PRISMA ORM + PostgreSQL/SQLite                  │
+│                     PRISMA ORM + PostgreSQL 14+                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -136,15 +135,10 @@ sigah/
 | **Product** | Productos del inventario |
 | **ProductLot** | Lotes con fecha de vencimiento |
 | **Kit** | Kits de ayuda compuestos |
-| **Beneficiary** | Beneficiarios de ayudas |
-| **Request** | Solicitudes de ayuda |
-| **Delivery** | Entregas realizadas |
-| **Return** | Devoluciones |
 | **StockMovement** | Movimientos de inventario |
-| **Notification** | Notificaciones del sistema |
 | **AuditLog** | Registro de auditoría |
 
-### Diagrama Relacional Simplificado
+### Diagrama Relacional Simplificado (módulos activos v1.1.0)
 
 ```
 User ─────┐
@@ -152,17 +146,10 @@ User ─────┐
 Role ─────┼──> Permission (RBAC)
           │
 Category ─┼──> Product ──> ProductLot (fechas vencimiento)
-          │        │
-          │        ├──> KitProduct ──> Kit
-          │        │
-Beneficiary ──> Request ──> RequestProduct
-                   │           RequestKit
                    │
-                   ├──> Delivery ──> DeliveryDetail
-                   │        │
-                   │        └──> Return ──> ReturnDetail
+                   ├──> KitProduct ──> Kit
                    │
-                   └──> StockMovement
+                   └──> StockMovement ──> AuditLog
 ```
 
 ---
@@ -172,9 +159,9 @@ Beneficiary ──> Request ──> RequestProduct
 ### 6.1 Dashboard
 **Ruta:** `/`
 
-- KPIs en tiempo real: Total productos, solicitudes pendientes, entregas del mes, alertas
-- Gráficos: Movimientos por mes (barras), distribución por categoría (torta)
-- Tablas: Productos próximos a vencer, últimas solicitudes
+- KPIs en tiempo real: Total productos, total kits, total usuarios, productos con stock bajo
+- Alertas: Productos próximos a vencer, productos con stock bajo
+- Gráfico: Distribución de inventario por categoría
 - Accesos rápidos según rol del usuario
 
 ### 6.2 Gestión de Inventario
@@ -195,113 +182,59 @@ Beneficiary ──> Request ──> RequestProduct
 - Verificación de disponibilidad en tiempo real
 - Cálculo automático de kits disponibles según stock
 
-### 6.4 Beneficiarios
-**Ruta:** `/beneficiaries`
-
-- Registro de beneficiarios con datos personales
-- Tipos de documento: CC, TI, CE, Pasaporte
-- Tipos de población: Desplazados, refugiados, vulnerables, etc.
-- Historial de solicitudes por beneficiario
-
-### 6.5 Solicitudes
-**Rutas:** `/requests`, `/requests/new`, `/requests/:id`
-
-**Estados del flujo:**
-1. `REGISTERED` - Registrada
-2. `IN_REVIEW` - En revisión
-3. `APPROVED` - Aprobada
-4. `REJECTED` - Rechazada
-5. `DELIVERED` - Entregada
-6. `PARTIALLY_DELIVERED` - Parcialmente entregada
-7. `CANCELLED` - Cancelada
-
-### 6.6 Entregas
-**Rutas:** `/deliveries`, `/deliveries/new/:requestId`
-
-**Flujo de entregas con segregación de funciones:**
-
-```
-1. Crear Solicitud (OPERADOR)
-        │
-        ▼
-2. Autorizar (AUTHORIZER)
-        │
-        ▼
-3. Recibir en Bodega (WAREHOUSE)
-        │
-        ▼
-4. Preparar Productos (WAREHOUSE)
-        │
-        ▼
-5. Marcar Lista (WAREHOUSE)
-        │
-        ▼
-6. Entregar al Beneficiario (DISPATCHER)
-```
-
-**Importante:** Cada paso debe ser realizado por persona diferente.
-
-### 6.7 Devoluciones
-**Ruta:** `/returns`
-
-- Registro de devoluciones sobre entregas
-- Razones: Dañado, entrega incorrecta, no reclamado, vencido, duplicado
-- Condición del producto: Bueno, dañado, vencido, parcial
-- Reintegro automático al inventario (si aplica)
-
-### 6.8 Reportes
+### 6.4 Reportes Avanzados
 **Ruta:** `/reports`
 
-- Reporte de solicitudes por período
-- Reporte de entregas con detalles
-- Reporte de movimientos de inventario
+- Reportes de inventario, kits, usuarios y roles
+- Reportes de movimientos y trazabilidad
 - Exportación a PDF y Excel
-- Filtros por fecha, estado, categoría
+- Filtros por fecha, tipo y subtipo
 
-### 6.9 Gestión de Usuarios
+### 6.5 Gestión de Usuarios
 **Ruta:** `/users`
 
 - CRUD de usuarios
 - Asignación de roles
 - Activar/desactivar usuarios
-- Delegación temporal de funciones
-- Configuración de notificaciones (WhatsApp, Telegram, Email)
 
-### 6.10 Gestión de Roles
+### 6.6 Gestión de Roles y Permisos
 **Ruta:** `/roles`
 
 - CRUD de roles personalizados
 - Permisos granulares por módulo y acción
 - Roles del sistema protegidos (no eliminables)
 
-### 6.11 Notificaciones
-**Rutas:** `/notifications`, `/send-notifications`
-
-- Centro de notificaciones en tiempo real
-- Canales: Sistema interno, WhatsApp, Email, Telegram
-- Niveles de criticidad: Informativo, Bajo, Normal, Medio, Alto, Crítico
-
-### 6.12 Auditoría
+### 6.7 Auditoría Inventario
 **Ruta:** `/inventory-audit`
 
 - Log completo de todas las operaciones
 - Entidad, acción, usuario, timestamp
 - Valores antes/después del cambio
 
+### 6.8 Gestión de Backups
+**Ruta:** `/backups` (Solo ADMIN)
+
+- Listar copias de seguridad existentes
+- Crear copia manual de la base de datos
+- Restaurar desde copia de seguridad
+- Eliminar copias antiguas
+- Estadísticas: total, tamaño, último backup
+- Backups automáticos programados
+
 ---
 
 ## 7. SISTEMA DE ROLES Y PERMISOS (RBAC)
 
-### Roles Predefinidos
+### Roles Activos del Sistema
 
-| Rol | Descripción | Permisos Principales |
-|-----|-------------|---------------------|
-| **Administrador** | Acceso total | Todo el sistema |
-| **Autorizador** | Autoriza entregas | Ver inventario, autorizar entregas, aprobar solicitudes |
-| **Bodega** | Gestiona inventario | CRUD inventario, recibir/preparar entregas |
-| **Despachador** | Realiza entregas | Ver entregas, entregar a beneficiarios |
-| **Operador** | Crea solicitudes | Beneficiarios, solicitudes, ver inventario |
-| **Consulta** | Solo lectura | Ver dashboard, reportes |
+> **Nota v1.1.0:** Los roles internos `AUTHORIZER` y `DISPATCHER` existen en la base de datos pero están deshabilitados en la interfaz en esta versión. No aparecen en gestión de usuarios, roles ni reportes.
+
+| Rol (BD) | Nombre visible | Descripción | Permisos Principales |
+|----------|---------------|-------------|---------------------|
+| **ADMIN** | Administrador | Acceso total | Todo el sistema |
+| **WAREHOUSE** | Bodega | Gestiona inventario | CRUD inventario, ajustes, movimientos |
+| **OPERATOR** | Operador | Acceso básico | Ver inventario, kits y reportes |
+| **READONLY** | Consulta | Solo lectura | Ver dashboard, reportes |
 
 ### Módulos y Acciones Disponibles
 
@@ -309,13 +242,11 @@ Beneficiary ──> Request ──> RequestProduct
 dashboard    : view
 inventory    : view, create, edit, delete, export, adjust
 kits         : view, create, edit, delete
-beneficiaries: view, create, edit, delete, export
-requests     : view, create, edit, delete, approve, reject
-deliveries   : view, create, authorize, receive, prepare, deliver, cancel
-returns      : view, create, process
 reports      : view, export
 users        : view, create, edit, delete, activate
 roles        : view, create, edit, delete, assign
+audit        : view
+system       : manage (backups)
 ```
 
 ---
@@ -359,42 +290,21 @@ roles        : view, create, edit, delete, assign
 | PUT | `/api/kits/:id` | Actualizar kit |
 | GET | `/api/kits/:id/availability` | Disponibilidad |
 
-### Beneficiarios
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| GET | `/api/beneficiaries` | Listar beneficiarios |
-| POST | `/api/beneficiaries` | Crear beneficiario |
-| GET | `/api/beneficiaries/:id` | Obtener beneficiario |
-| PUT | `/api/beneficiaries/:id` | Actualizar |
-
-### Solicitudes
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| GET | `/api/requests` | Listar solicitudes |
-| POST | `/api/requests` | Crear solicitud |
-| GET | `/api/requests/:id` | Obtener solicitud |
-| PUT | `/api/requests/:id` | Actualizar |
-| PATCH | `/api/requests/:id/status` | Cambiar estado |
-
-### Entregas
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| GET | `/api/deliveries` | Listar entregas |
-| POST | `/api/deliveries` | Crear entrega |
-| PATCH | `/api/deliveries/:id/authorize` | Autorizar |
-| PATCH | `/api/deliveries/:id/receive` | Recibir en bodega |
-| PATCH | `/api/deliveries/:id/prepare` | Preparar |
-| PATCH | `/api/deliveries/:id/ready` | Marcar lista |
-| PATCH | `/api/deliveries/:id/deliver` | Entregar |
-
 ### Dashboard y Reportes
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
 | GET | `/api/dashboard/summary` | KPIs |
 | GET | `/api/dashboard/charts` | Datos gráficos |
-| GET | `/api/reports/requests` | Reporte solicitudes |
-| GET | `/api/reports/deliveries` | Reporte entregas |
+| GET | `/api/reports/generate` | Generar reporte |
 | GET | `/api/reports/export/:type/:format` | Exportar |
+
+### Backups (Solo ADMIN)
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/backups` | Listar copias |
+| POST | `/api/backups` | Crear copia |
+| POST | `/api/backups/:name/restore` | Restaurar copia |
+| DELETE | `/api/backups/:name` | Eliminar copia |
 
 ---
 
@@ -402,7 +312,8 @@ roles        : view, create, edit, delete, assign
 
 ### Requisitos Previos
 - Node.js >= 18.0.0
-- PostgreSQL >= 14.0 (o SQLite para desarrollo)
+- PostgreSQL >= 14.0
+- Docker Desktop >= 4.0 (recomendado)
 - npm >= 8.0
 
 ### Instalación Backend
@@ -439,8 +350,13 @@ npm install
 npm run dev
 ```
 
-El frontend estará disponible en `http://localhost:3000`
-El backend estará disponible en `http://localhost:3001`
+Con Docker Compose (modo estándar):
+- Frontend: `http://localhost:8082`
+- Backend API: `http://localhost:3002`
+
+Sin Docker (desarrollo directo):
+- Frontend: `http://localhost:5173` (Vite)
+- Backend: `http://localhost:3001`
 
 ---
 
@@ -451,11 +367,11 @@ Después de ejecutar `npm run db:seed`:
 | Rol | Email | Contraseña |
 |-----|-------|------------|
 | Administrador | admin@sigah.com | admin123 |
-| Autorizador | autorizador@sigah.com | admin123 |
 | Bodega | bodega@sigah.com | admin123 |
-| Despachador | despachador@sigah.com | admin123 |
 | Operador | operador@sigah.com | admin123 |
 | Consulta | consulta@sigah.com | admin123 |
+
+> Los usuarios `autorizador@sigah.com` y `despachador@sigah.com` existen en la BD pero no son visibles en la interfaz de esta versión.
 
 ---
 
@@ -465,13 +381,17 @@ Después de ejecutar `npm run db:seed`:
 
 2. **Fechas de vencimiento por lote:** Cada lote tiene su propia fecha de vencimiento, no el producto.
 
-3. **Segregación de funciones:** Cada paso del flujo de entrega debe ser realizado por persona diferente.
+3. **Soft Delete:** Productos, kits y usuarios se desactivan en lugar de eliminarse para mantener integridad referencial.
 
-4. **Soft Delete:** Productos, kits y usuarios se desactivan en lugar de eliminarse para mantener integridad referencial.
+4. **Stock nunca negativo:** Se valida antes de cada operación de salida.
 
-5. **Stock nunca negativo:** Se valida antes de cada operación de salida.
+5. **Auditoría completa:** Todas las operaciones críticas se registran con valores antes/después.
 
-6. **Auditoría completa:** Todas las operaciones críticas se registran con valores antes/después.
+6. **Cache de permisos:** Los permisos de roles se cachean en memoria con TTL de 5 minutos para mejorar rendimiento y reducir consultas a la base de datos.
+
+7. **Backup con pg_dump:** Las copias de seguridad usan `pg_dump` de PostgreSQL para volcados completos de la base de datos, con restauración vía `psql`.
+
+8. **Unificación de roles admin:** El sistema acepta tanto `ADMIN` como `Administrador` como roles de administrador para compatibilidad.
 
 ---
 
@@ -488,15 +408,11 @@ Después de ejecutar `npm run db:seed`:
 | 5 | Gestión Inventario | `/inventory-admin` | CRUD de productos y ajustes |
 | 6 | Kits | `/kits` | Lista de kits configurados |
 | 7 | Detalle Kit | `/kits/:id` | Composición y disponibilidad |
-| 8 | Beneficiarios | `/beneficiaries` | Lista y gestión de beneficiarios |
-| 9 | Solicitudes | `/requests` | Lista de solicitudes |
-| 10 | Nueva Solicitud | `/requests/new` | Formulario de solicitud |
-| 11 | Entregas | `/deliveries` | Panel de entregas con flujo |
-| 12 | Devoluciones | `/returns` | Gestión de devoluciones |
-| 13 | Reportes | `/reports` | Generación y exportación |
-| 14 | Usuarios | `/users` | Gestión de usuarios |
-| 15 | Roles | `/roles` | Gestión de roles y permisos |
-| 16 | Notificaciones | `/notifications` | Configuración notificaciones |
+| 8 | Reportes | `/reports` | Generación y exportación |
+| 9 | Usuarios | `/users` | Gestión de usuarios |
+| 10 | Roles | `/roles` | Gestión de roles y permisos |
+| 11 | Auditoría Inventario | `/inventory-audit` | Log de operaciones |
+| 12 | Copias de Seguridad | `/backups` | Gestión de backups (solo ADMIN) |
 
 **Nota:** Agregar capturas de pantalla ejecutando la aplicación y tomando screenshots con `Win + Shift + S`
 
@@ -508,4 +424,4 @@ Para soporte técnico o consultas sobre el sistema SIGAH, contactar al equipo de
 
 ---
 
-*Documento generado automáticamente - SIGAH v1.0.0*
+*Documento actualizado - SIGAH v1.1.0 - Julio 2026*

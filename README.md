@@ -1,6 +1,6 @@
 # SIGAH - Sistema de Gestión de Ayudas Humanitarias
 
-Sistema integral para la gestión de inventarios, solicitudes, entregas y devoluciones de ayudas humanitarias.
+Sistema integral para la gestión de inventarios y kits de ayudas humanitarias.
 
 ## Requisitos
 
@@ -81,12 +81,10 @@ Después de ejecutar el seed, estos usuarios estarán disponibles (contraseña: 
 
 | Rol | Email | Descripción |
 |-----|-------|-------------|
-| Administrador | admin@sigah.com | Acceso total al sistema, gestiona roles y usuarios |
-| Autorizador | autorizador@sigah.com | Autoriza entregas y aprueba solicitudes |
-| Bodega | bodega@sigah.com | Gestiona inventario, recibe y prepara entregas |
-| Despachador | despachador@sigah.com | Realiza entregas a beneficiarios |
-| Operador | operador@sigah.com | Crea solicitudes y gestiona beneficiarios |
-| Consulta | consulta@sigah.com | Solo lectura de información |
+| ADMIN | admin@sigah.com | Acceso total al sistema, gestiona roles y usuarios |
+| WAREHOUSE | bodega@sigah.com | Gestiona inventario y stock |
+| OPERATOR | operador@sigah.com | Operación del sistema |
+| READONLY | consulta@sigah.com | Solo lectura de información |
 
 ### Módulos y Permisos
 
@@ -95,13 +93,11 @@ Cada rol tiene permisos específicos por módulo:
 - **Dashboard**: Ver estadísticas
 - **Inventario**: Ver, crear, editar, eliminar, exportar, ajustar stock
 - **Kits**: Ver, crear, editar, eliminar
-- **Beneficiarios**: Ver, crear, editar, eliminar, exportar
-- **Solicitudes**: Ver, crear, editar, eliminar, aprobar, rechazar
-- **Entregas**: Ver, crear, autorizar, recibir, preparar, entregar, cancelar
-- **Devoluciones**: Ver, crear, procesar
 - **Reportes**: Ver, exportar
 - **Usuarios**: Ver, crear, editar, eliminar, activar
 - **Roles**: Ver, crear, editar, eliminar, asignar
+- **Auditoría**: Ver logs de auditoría
+- **Backups**: Gestión de copias de seguridad (solo ADMIN)
 
 ### Gestión de Roles (Solo Administrador)
 
@@ -111,18 +107,15 @@ El administrador puede:
 - Asignar roles a usuarios
 - Los roles del sistema no pueden ser eliminados
 
-### Flujo de Entregas con Segregación de Funciones
+### Gestión de Inventario
 
-El sistema implementa un flujo de entregas con segregación de funciones para garantizar transparencia:
+El sistema implementa control de stock con sistema FEFO (First Expiry, First Out):
 
-1. **Crear Solicitud** → Usuario crea solicitud de entrega
-2. **Autorizar** (AUTHORIZER/ADMIN) → Persona diferente autoriza
-3. **Recibir en Bodega** (WAREHOUSE) → Bodega recibe la orden
-4. **Preparar** (WAREHOUSE) → Se preparan los productos
-5. **Marcar Lista** (WAREHOUSE) → Se descuenta inventario
-6. **Entregar** (DISPATCHER) → Persona diferente entrega al beneficiario
-
-**Importante:** El sistema valida que cada paso sea realizado por una persona diferente.
+1. **Registro de productos** → Ingreso de productos al inventario
+2. **Control de stock** → Alertas de productos próximos a vencer y stock bajo
+3. **Ajustes de inventario** → Entradas y salidas de stock manual
+4. **Gestión de kits** → Configuración de kits de ayuda con composición flexible
+5. **Trazabilidad** → Historial completo de movimientos de stock
 
 ## Características Principales
 
@@ -140,12 +133,6 @@ El sistema implementa un flujo de entregas con segregación de funciones para ga
 - **Egresos manuales de kits con control de stock**
 - Historial de ingresos y egresos de kits agrupado por evento, usuario y productos afectados
 - Disponibilidad en tiempo real en el combo de selección
-
-### Solicitudes y Entregas
-- Registro de beneficiarios
-- Flujo de aprobación de solicitudes
-- Entregas parciales o completas
-- Gestión de devoluciones
 
 ### Reportes
 - Dashboard con KPIs en tiempo real
@@ -195,14 +182,11 @@ Si se usa un motivo personalizado, debe incluir el código del kit para que el m
 - `GET /api/kits/:id/availability` - Verificar disponibilidad
 - `POST /api/inventory/kit-exit` - Registrar egreso manual de kit
 
-### Solicitudes
-- `GET /api/requests` - Listar solicitudes
-- `POST /api/requests` - Crear solicitud
-- `PATCH /api/requests/:id/status` - Actualizar estado
-
-### Entregas
-- `GET /api/deliveries` - Listar entregas
-- `POST /api/deliveries` - Registrar entrega
+### Backups (Solo ADMIN)
+- `GET /api/backups` - Listar copias de seguridad
+- `POST /api/backups` - Crear copia de seguridad
+- `POST /api/backups/:name/restore` - Restaurar copia de seguridad
+- `DELETE /api/backups/:name` - Eliminar copia de seguridad
 
 ### Dashboard y Reportes
 - `GET /api/dashboard/summary` - Resumen del dashboard

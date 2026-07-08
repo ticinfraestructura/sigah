@@ -407,12 +407,13 @@ router.post('/assign', authenticate, isAdmin(), validateZodRequest({ body: roleZ
 
 // Obtener permisos del usuario actual
 router.get('/my/permissions', authenticate, async (req: AuthRequest, res: Response) => {
+  const roleName = req.user?.roleName || '';
   res.json({
     success: true,
     data: {
-      role: req.user?.roleName,
+      role: roleName,
       permissions: req.user?.permissions || [],
-      isAdmin: req.user?.roleName === 'Administrador'
+      isAdmin: roleName === 'Administrador' || roleName === 'ADMIN'
     }
   });
 });

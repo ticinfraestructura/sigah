@@ -35,7 +35,7 @@ export interface AuthRequest extends Request {
 }
 
 // Cache de permisos por rol (para evitar consultas repetidas)
-const permissionsCache: Map<string, { permissions: UserPermission[]; timestamp: number }> = new Map();
+const permissionsCache: Map<string, { permissions: UserPermission[]; roleName: string; timestamp: number }> = new Map();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -84,23 +84,33 @@ export const authenticate = async (
       throw new AppError('Usuario no encontrado o inactivo', 401);
     }
 
-    // Obtener permisos del rol
+    // Obtener permisos del rol (con cache por roleId para evitar queries repetidas)
     let permissions: UserPermission[] = [];
     let roleName = 'Sin Rol';
-    
-    if ((user as any).roleId) {
-      const role = await (prisma as any).role.findUnique({
-        where: { id: (user as any).roleId }
-      });
 
-      if (role) {
-        roleName = role.name;
-        permissions = await (prisma as any).$queryRaw`
-          SELECT p.module, p.action
-          FROM role_permissions rp
-          INNER JOIN permissions p ON p.id = rp."permissionId"
-          WHERE rp."roleId" = ${(user as any).roleId}::uuid
-        `;
+    if ((user as any).roleId) {
+      const roleId: string = (user as any).roleId;
+      const cached = permissionsCache.get(roleId);
+      const now2 = Date.now();
+
+      if (cached && now2 - cached.timestamp < CACHE_TTL) {
+        permissions = cached.permissions;
+        roleName = cached.roleName;
+      } else {
+        const role = await (prisma as any).role.findUnique({
+          where: { id: roleId }
+        });
+
+        if (role) {
+          roleName = role.name;
+          permissions = await (prisma as any).$queryRaw`
+            SELECT p.module, p.action
+            FROM role_permissions rp
+            INNER JOIN permissions p ON p.id = rp."permissionId"
+            WHERE rp."roleId" = ${roleId}::uuid
+          `;
+          permissionsCache.set(roleId, { permissions, roleName, timestamp: now2 });
+        }
       }
     }
 
@@ -142,6 +152,10 @@ export const authenticate = async (
   }
 };
 
+const isAdminRole = (roleName: string): boolean => {
+  return roleName === 'Administrador' || roleName === 'ADMIN';
+};
+
 // Verificar si el usuario tiene un permiso específico
 export const hasPermission = (module: string, action: string) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -150,7 +164,7 @@ export const hasPermission = (module: string, action: string) => {
     }
 
     // Admin tiene acceso total
-    if (req.user.roleName === 'Administrador') {
+    if (isAdminRole(req.user.roleName)) {
       return next();
     }
 
@@ -174,7 +188,7 @@ export const hasAnyPermission = (permissions: { module: string; action: string }
     }
 
     // Admin tiene acceso total
-    if (req.user.roleName === 'Administrador') {
+    if (isAdminRole(req.user.roleName)) {
       return next();
     }
 
@@ -199,7 +213,7 @@ export const isAdmin = () => {
       return next(new AppError('No autenticado', 401));
     }
 
-    if (req.user.roleName !== 'Administrador') {
+    if (!isAdminRole(req.user.roleName)) {
       return next(new AppError('Se requieren permisos de administrador', 403));
     }
 
@@ -207,7 +221,7 @@ export const isAdmin = () => {
   };
 };
 
-// Limpiar cache de permisos (llamar cuando se modifiquen roles)
+// Limpiar cache de permisos — llamar desde role.routes cuando se modifiquen permisos de un rol
 export const clearPermissionsCache = (roleId?: string) => {
   if (roleId) {
     permissionsCache.delete(roleId);
@@ -293,10 +307,12 @@ export const authorize = (...roles: string[]) => {
       return next(new AppError('No autenticado', 401));
     }
 
-    // Mapear nombres de roles a español
+    // Verificar contra el nombre del rol directamente O su equivalente mapeado
     const mappedRoles = roles.map(role => ROLE_NAME_MAP[role] || role);
+    const userRole = req.user.roleName;
 
-    if (!mappedRoles.includes(req.user.roleName)) {
+    const hasRole = roles.includes(userRole) || mappedRoles.includes(userRole);
+    if (!hasRole) {
       return next(new AppError('No tienes permisos para esta acción', 403));
     }
 
