@@ -72,7 +72,7 @@ services:
       - sigah-github-network
     # Puerto expuesto para acceso en red local
     ports:
-      - "3002:3001"  # Puerto diferente para evitar conflicto
+      - "3001:3001"
 
   # ============================================
   # Frontend (React + Nginx)
