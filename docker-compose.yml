@@ -72,6 +72,8 @@ services:
       - sigah-github-network
     ports:
       - "3001:3001"
+    volumes:
+      - ./frontend/dist:/app/frontend/dist
 
   # ============================================
   # Frontend (React + Nginx)
@@ -81,7 +83,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: http://192.168.1.45:3001/api
+        VITE_API_URL: /api
         VITE_BASE_PATH: ${APP_BASE_PATH:-/}
     container_name: sigah-github-frontend
     restart: unless-stopped

@@ -69,47 +69,8 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// 2. CORS Restrictivo para dominio.com/sigah
-const allowedOriginsEnv = process.env.ALLOWED_ORIGINS;
-const allowedOrigins = (allowedOriginsEnv && allowedOriginsEnv.trim() !== '')
-  ? allowedOriginsEnv.split(',').map((origin: string) => origin.trim()).filter(Boolean)
-  : [
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'http://localhost:8080',
-      'http://localhost:8081',
-      'http://localhost:8082',
-      'http://127.0.0.1:3000',
-      'http://127.0.0.1:5173',
-      'http://127.0.0.1:8080',
-      'http://127.0.0.1:8081',
-      'http://127.0.0.1:8082'
-    ];
-
-app.use(cors({
-  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-    // Permitir requests sin Origin (healthchecks, curl, server-to-server)
-    if (!origin) {
-      return callback(null, true);
-    }
-    
-    if (process.env.NODE_ENV !== 'production' && (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
-      return callback(null, true);
-    }
-
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.warn(`CORS blocked origin: ${origin}`);
-      callback(new Error('No permitido por CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['Content-Disposition'],
-  maxAge: 86400 // 24 horas
-}));
+// 2. CORS - Deshabilitado completamente para permitir acceso desde cualquier origen
+app.use(cors());
 
 // 3. Rate Limiting General
 const generalLimiter = rateLimit({
@@ -257,6 +218,16 @@ app.get('/api/health/detailed', authenticate, (req, res) => {
 
 // Error handler
 app.use(errorHandler);
+
+// Servir archivos estáticos del frontend
+app.use(express.static('frontend/dist'));
+
+// SPA fallback - servir index.html para rutas que no son API
+app.get('*', (req, res) => {
+  if (!req.path.startsWith('/api')) {
+    res.sendFile('frontend/dist/index.html', { root: process.cwd() });
+  }
+});
 
 // Create HTTP server and initialize Socket.io
 const httpServer = http.createServer(app);
