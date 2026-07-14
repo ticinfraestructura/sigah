@@ -234,9 +234,9 @@ const httpServer = http.createServer(app);
 const io = initSocketServer(httpServer);
 
 // Start server
-httpServer.listen(PORT, () => {
-  logger.info(`🚀 SIGAH Backend running on http://localhost:${PORT}`);
-  logger.info(`📚 API Docs available at http://localhost:${PORT}/api/docs`);
+httpServer.listen({ port: PORT, host: '0.0.0.0' }, () => {
+  logger.info(`🚀 SIGAH Backend running on http://0.0.0.0:${PORT}`);
+  logger.info(`📚 API Docs available at http://0.0.0.0:${PORT}/api/docs`);
   logger.info(`🔌 WebSocket server ready`);
 });
 
