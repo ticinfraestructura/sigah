@@ -81,7 +81,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: /api
+        VITE_API_URL: http://localhost:3001/api
         VITE_BASE_PATH: ${APP_BASE_PATH:-/}
     container_name: sigah-github-frontend
     restart: unless-stopped
