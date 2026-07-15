@@ -1,23 +1,41 @@
 # SIGAH - Flujo Completo de Operación (Inicio a Fin)
 
+> **⚠️ NOTA IMPORTANTE:** Este manual describe el flujo completo del sistema. Los siguientes módulos están **deshabilitados** actualmente en esta implementación:
+> - Beneficiarios
+> - Solicitudes
+> - Entregas
+> - Devoluciones
+> - Notificaciones
+>
+> **Módulos activos en esta implementación:**
+> - Dashboard
+> - Inventario (Gestión de productos, stock, movimientos)
+> - Kits (Creación y egreso de kits)
+> - Reportes (Generación de reportes)
+> - Roles y Permisos (Gestión de roles)
+> - Usuarios (Gestión de usuarios)
+> - Copias de Seguridad (Backups de BD)
+>
+> Las secciones de módulos deshabilitados se marcan con ~~tachado~~ y deben ignorarse.
+
 ## Visión General
 
 SIGAH gestiona el ciclo completo de ayudas humanitarias: desde que los productos entran al inventario hasta que se entregan al beneficiario, con trazabilidad total y auditoría en cada paso.
 
 ```
- INVENTARIO          SOLICITUD           ENTREGA             CIERRE
- ─────────          ─────────           ───────             ──────
+ INVENTARIO          KITS               REPORTES           AUDITORÍA
+ ─────────          ─────              ────────           ─────────
  ┌──────────┐      ┌──────────┐       ┌──────────────┐    ┌──────────┐
- │ Crear    │      │ Registrar│       │ Crear entrega│    │ Entregado│
- │ Productos│─────▶│ Solicitud│──────▶│ (6 pasos)    │───▶│ al       │
- │ + Lotes  │      │ + Aprobar│       │              │    │ benefic. │
+ │ Crear    │      │ Crear    │       │ Generar      │    │ Ver      │
+ │ Productos│─────▶│ Kits     │──────▶│ Reportes     │───▶│ Logs     │
+ │ + Lotes  │      │ + Egreso │       │ (Export)     │    │ (Audit)  │
  └──────────┘      └──────────┘       └──────────────┘    └──────────┘
        │                                     │                  │
        ▼                                     ▼                  ▼
  ┌──────────┐                         ┌──────────┐       ┌──────────┐
- │ Stock    │                         │ Descuento│       │Devolución│
- │ Movements│                         │ FEFO auto│       │ (si hay) │
- │ (audit)  │                         │ (audit)  │       │ (audit)  │
+ │ Stock    │                         │ Histórico│       │Backup    │
+ │ Movements│                         │ de datos │       │ BD        │
+ │ (audit)  │                         │ (trace)  │       │ (restore) │
  └──────────┘                         └──────────┘       └──────────┘
 ```
 
@@ -95,9 +113,9 @@ Los kits agilizan las solicitudes: en lugar de pedir 5 productos individuales, s
 
 ---
 
-## FASE 3: REGISTRO DE BENEFICIARIOS
+## ~~FASE 3: REGISTRO DE BENEFICIARIOS~~ (Deshabilitado)
 
-### 3.1 Crear Beneficiario
+### ~~3.1 Crear Beneficiario~~
 **Quién:** Administrador u Operador  
 **Dónde:** Módulo Beneficiarios → Crear
 
@@ -112,9 +130,9 @@ Datos del beneficiario:
 
 ---
 
-## FASE 4: SOLICITUD DE AYUDA (Máquina de Estados)
+## ~~FASE 4: SOLICITUD DE AYUDA~~ (Deshabilitado)
 
-### 4.1 Crear Solicitud
+### ~~4.1 Crear Solicitud~~
 **Quién:** Administrador, Bodega u Operador  
 **Dónde:** Módulo Solicitudes → Crear
 
@@ -170,11 +188,9 @@ Se genera un código único `SOL-2024-XXXXXX` y la solicitud inicia en estado `R
 
 ---
 
-## FASE 5: PROCESO DE ENTREGA (6 Pasos con Segregación de Funciones)
+## ~~FASE 5: PROCESO DE ENTREGA~~ (Deshabilitado)
 
-Esta es la parte más robusta del sistema. Cada entrega pasa por **6 pasos obligatorios**, y el sistema **impide que la misma persona ejecute pasos consecutivos** (segregación de funciones).
-
-### Paso 1: CREAR ENTREGA
+### ~~Paso 1: CREAR ENTREGA~~
 **Quién:** Admin o Bodega  
 **Estado:** `PENDING`  
 **Qué sucede:**
@@ -244,9 +260,9 @@ PENDING → AUTHORIZED → RECEIVED_WAREHOUSE → IN_PREPARATION → READY → D
 
 ---
 
-## FASE 6: DEVOLUCIONES (Post-entrega)
+## ~~FASE 6: DEVOLUCIONES~~ (Deshabilitado)
 
-### 6.1 Crear Devolución
+### ~~6.1 Crear Devolución~~
 **Quién:** Admin o Bodega  
 **Dónde:** Módulo Devoluciones → Crear
 
