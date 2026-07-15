@@ -66,7 +66,8 @@ app.use(helmet({
     }
   },
   crossOriginEmbedderPolicy: false,
-  crossOriginResourcePolicy: { policy: "cross-origin" }
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  hsts: false // Deshabilitar HSTS para permitir HTTP en LAN
 }));
 
 // 2. CORS - Deshabilitado completamente para permitir acceso desde cualquier origen
@@ -150,9 +151,10 @@ app.use((req, res, next) => {
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader('X-Download-Options', 'noopen');
   res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
-  if (process.env.NODE_ENV === 'production') {
-    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
-  }
+  // Strict-Transport-Security deshabilitado para permitir HTTP en LAN
+  // if (process.env.NODE_ENV === 'production') {
+  //   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  // }
   next();
 });
 
