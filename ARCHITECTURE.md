@@ -1,5 +1,21 @@
 # SIGAH - Sistema de Gestión de Ayudas Humanitarias
 
+> **⚠️ NOTA:** Esta documentación de arquitectura describe el sistema completo. La implementación actual tiene los siguientes módulos **activos**:
+> - Dashboard
+> - Inventario (Gestión de productos, stock, movimientos)
+> - Kits (Creación y egreso de kits)
+> - Reportes (Generación de reportes)
+> - Roles y Permisos (Gestión de roles)
+> - Usuarios (Gestión de usuarios)
+> - Copias de Seguridad (Backups de BD)
+>
+> **Módulos deshabilitados en esta implementación:**
+> - Beneficiarios
+> - Solicitudes
+> - Entregas
+> - Devoluciones
+> - Notificaciones
+
 ## 1. Arquitectura General
 
 ```

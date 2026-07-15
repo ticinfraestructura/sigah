@@ -1,5 +1,23 @@
 # Security Policy for SIGAH
 
+> **⚠️ NOTA:** Esta política de seguridad aplica al sistema SIGAH completo. La implementación actual tiene los siguientes módulos **activos**:
+> - Dashboard
+> - Inventario (Gestión de productos, stock, movimientos)
+> - Kits (Creación y egreso de kits)
+> - Reportes (Generación de reportes)
+> - Roles y Permisos (Gestión de roles)
+> - Usuarios (Gestión de usuarios)
+> - Copias de Seguridad (Backups de BD)
+>
+> **Módulos deshabilitados en esta implementación:**
+> - Beneficiarios
+> - Solicitudes
+> - Entregas
+> - Devoluciones
+> - Notificaciones
+>
+> Los controles de seguridad descritos en este documento aplican a los módulos activos.
+
 ## Supported Versions
 
 | Version | Supported | Release Date | Security Support |
