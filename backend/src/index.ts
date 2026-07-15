@@ -55,6 +55,7 @@ app.use(helmet({
   contentSecurityPolicy: false, // Deshabilitado temporalmente para permitir recursos externos
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginOpenerPolicy: false, // Deshabilitado para evitar errores en LAN
   hsts: false // Deshabilitar HSTS para permitir HTTP en LAN
 }));
 
