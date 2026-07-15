@@ -50,15 +50,15 @@ app.set('trust proxy', 1);
 
 // ============ SEGURIDAD CRÍTICA ============
 
-// 1. Headers de seguridad con Helmet
-app.use(helmet({
-  contentSecurityPolicy: false, // Deshabilitado temporalmente para permitir recursos externos
-  crossOriginEmbedderPolicy: false,
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-  crossOriginOpenerPolicy: false, // Deshabilitado para evitar errores en LAN
-  originAgentCluster: false, // Deshabilitado para evitar errores de agent cluster
-  hsts: false // Deshabilitar HSTS para permitir HTTP en LAN
-}));
+// 1. Headers de seguridad con Helmet - Deshabilitado completamente para LAN
+// app.use(helmet({
+//   contentSecurityPolicy: false,
+//   crossOriginEmbedderPolicy: false,
+//   crossOriginResourcePolicy: { policy: "cross-origin" },
+//   crossOriginOpenerPolicy: false,
+//   originAgentCluster: false,
+//   hsts: false
+// }));
 
 // 2. CORS - Deshabilitado completamente para permitir acceso desde cualquier origen
 app.use(cors());
