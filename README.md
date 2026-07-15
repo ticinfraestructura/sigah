@@ -2,6 +2,24 @@
 
 Sistema integral para la gestión de inventarios y kits de ayudas humanitarias.
 
+> **⚠️ NOTA:** Esta implementación actual tiene los siguientes módulos **activos**:
+> - Dashboard
+> - Inventario (Gestión de productos, stock, movimientos)
+> - Kits (Creación y egreso de kits)
+> - Reportes (Generación de reportes)
+> - Roles y Permisos (Gestión de roles)
+> - Usuarios (Gestión de usuarios)
+> - Copias de Seguridad (Backups de BD)
+>
+> **Módulos deshabilitados en esta implementación:**
+> - Beneficiarios
+> - Solicitudes
+> - Entregas
+> - Devoluciones
+> - Notificaciones
+>
+> Para más detalles, consulte [SIGAH_FLUJO_COMPLETO.md](SIGAH_FLUJO_COMPLETO.md)
+
 ## Requisitos
 
 - **Node.js**: >= 18.0.0

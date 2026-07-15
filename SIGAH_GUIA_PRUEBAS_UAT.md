@@ -8,6 +8,25 @@ Esta guía permite ejecutar pruebas funcionales **con usuarios finales** para:
 - Identificar oportunidades de mejora (UX, funcionalidad, rendimiento)
 - Generar evidencia para aprobación de paso a producción
 
+> **⚠️ NOTA IMPORTANTE:** Esta guía incluye pruebas para **todos los módulos del sistema**. Los siguientes módulos están **deshabilitados** en esta implementación actual:
+> - Beneficiarios
+> - Solicitudes
+> - Entregas
+> - Devoluciones
+> - Notificaciones
+>
+> **Módulos activos para pruebas:**
+> - Autenticación y Acceso
+> - Dashboard
+> - Inventario (Gestión de productos, stock, movimientos)
+> - Kits (Creación y egreso de kits)
+> - Reportes (Generación de reportes)
+> - Roles y Permisos (Gestión de roles)
+> - Usuarios (Gestión de usuarios)
+> - Copias de Seguridad (Backups de BD)
+>
+> Omita los casos de prueba de módulos deshabilitados.
+
 ---
 
 ## Preparación

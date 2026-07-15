@@ -1,19 +1,21 @@
-# Estado del Sistema SIGAH — 2026-07-07
+# Estado del Sistema SIGAH — 2026-07-15
 
 ## Ambiente de Ejecución
 | Componente | Valor |
 |---|---|
-| **URL local** | http://localhost:8080 |
+| **URL local** | http://localhost:3000 |
+| **URL LAN** | http://192.168.1.45:3000 |
 | **Docker Compose** | `docker-compose.yml` |
 | **Versión** | v1.3.2 |
 
 ## Contenedores Docker
 | Contenedor | Estado | Puerto |
 |---|---|---|
-| `sigah-frontend` | ✅ Running | 8080→80 |
-| `sigah-backend` | ✅ Running | 3001 |
-| `sigah-db` (PostgreSQL) | ✅ Healthy | 5432 |
-| `sigah-redis` | ✅ Healthy | 6379 |
+| `sigah-github-backend` | ✅ Running | 3000→3000 |
+| `sigah-github-db` (PostgreSQL) | ✅ Healthy | 5432 |
+| `sigah-github-redis` | ✅ Healthy | 6379 |
+
+> **Nota:** Contenedor `sigah-github-frontend` eliminado - backend ahora sirve archivos estáticos
 
 ---
 
@@ -22,20 +24,43 @@
 | Módulo | Ruta | Estado | Exporta Excel | Exporta PDF |
 |---|---|---|---|---|
 | Login / Autenticación | `/login` | ✅ | — | — |
-| Dashboard | `/dashboard` | ✅ | — | — |
+| Dashboard | `/` | ✅ | — | — |
 | Gestión de Inventario | `/inventory` | ✅ | ✅ | ✅ |
 | — Ingresos de Kits | `/inventory` (pestaña) | ✅ | ✅ | ✅ |
-| — Egresos de Kits | `/inventory` (pestaña) | ✅ (corregido 07-07) | ✅ | ✅ |
-| — Auditoría de Inventario | `/inventory` (pestaña) | ✅ (corregido 07-07) | ✅ | ✅ |
-| Auditoría de Inventario | `/inventory-audit` | ✅ (corregido 07-06) | ✅ | ✅ |
-| Roles y Permisos | `/roles` | ✅ (corregido 07-07) | ✅ | ✅ |
-| Gestión de Usuarios | `/users` | ✅ (corregido 07-07) | ✅ | ✅ |
+| — Egresos de Kits | `/inventory` (pestaña) | ✅ | ✅ | ✅ |
+| — Auditoría de Inventario | `/inventory` (pestaña) | ✅ | ✅ | ✅ |
+| Auditoría de Inventario | `/inventory-audit` | ✅ | ✅ | ✅ |
+| Kits | `/kits` | ✅ | ✅ | ✅ |
+| Roles y Permisos | `/roles` | ✅ | ✅ | ✅ |
+| Gestión de Usuarios | `/users` | ✅ | ✅ | ✅ |
 | Reportes Avanzados | `/reports` | ✅ | ✅ | ✅ |
-| Notificaciones | `/notifications` | ✅ | — | — |
+| Copias de Seguridad | `/backups` | ✅ | — | — |
+
+### Módulos Deshabilitados
+| Módulo | Estado |
+|---|---|
+| Beneficiarios | ❌ Deshabilitado |
+| Solicitudes | ❌ Deshabilitado |
+| Entregas | ❌ Deshabilitado |
+| Devoluciones | ❌ Deshabilitado |
+| Notificaciones | ❌ Deshabilitado |
 
 ---
 
-## Pruebas Automatizadas de Exportación (2026-07-07)
+## Configuración de Seguridad
+| Componente | Estado |
+|---|---|
+| Helmet (CSP) | ⚠️ Deshabilitado (para LAN) |
+| HSTS | ⚠️ Deshabilitado (para LAN) |
+| Cross-Origin-Opener-Policy | ⚠️ Deshabilitado (para LAN) |
+| Origin-Agent-Cluster | ⚠️ Deshabilitado (para LAN) |
+| CORS | ✅ Deshabilitado (permite acceso desde cualquier origen) |
+
+> **Nota:** Headers de seguridad deshabilitados para permitir acceso HTTP en LAN. Reactivar para producción en internet.
+
+---
+
+## Pruebas Automatizadas de Exportación (2026-07-15)
 
 ### Protocolo ejecutado: 12/12 PASS
 
